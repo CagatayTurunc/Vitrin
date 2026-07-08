@@ -1,0 +1,57 @@
+using Microsoft.EntityFrameworkCore;
+using Vitrin.Comment.Application.Commands;
+using Vitrin.Comment.Infrastructure.Data;
+using Vitrin.Comment.Infrastructure.Repositories;
+using MediatR;
+using Microsoft.AspNetCore.Mvc;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AddCommentCommand).Assembly));
+
+builder.Services.AddDbContext<CommentDbContext>(options =>
+    options.UseSqlite("Data Source=comment_db.sqlite"));
+
+builder.Services.AddScoped<ICommentRepository, CommentRepository>();
+
+var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<CommentDbContext>();
+    db.Database.Migrate();
+}
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.MapPost("/api/comments", async ([FromBody] AddCommentCommand command, IMediator mediator) =>
+{
+    var result = await mediator.Send(command);
+    if (result.IsSuccess)
+    {
+        return Results.Ok(new { CommentId = result.Value, Message = "Comment added successfully!" });
+    }
+    return Results.BadRequest(new { Error = result.Error });
+})
+.WithName("AddComment")
+.WithOpenApi();
+
+app.MapGet("/api/comments/{productId}", async (Guid productId, CommentDbContext db) =>
+{
+    var comments = await db.Comments
+        .Where(c => c.ProductId == productId)
+        .OrderByDescending(c => c.CreatedAt)
+        .ToListAsync();
+    return Results.Ok(comments);
+})
+.WithName("GetCommentsByProduct")
+.WithOpenApi();
+
+app.Run();

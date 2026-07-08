@@ -1,0 +1,57 @@
+# ==========================================
+# .NET Core & EF Core (Backend)
+# ==========================================
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+TestResults/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# EF Core SQLite databases
+*.sqlite
+*.db
+*.db-shm
+*.db-wal
+
+# AppSettings secrets
+appsettings.Development.json
+appsettings.Production.json
+
+# ==========================================
+# Node.js & Next.js (Frontend)
+# ==========================================
+node_modules/
+.pnp
+.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Next.js build output
+.next/
+out/
+build/
+.vercel
+
+# ==========================================
+# Environment Variables
+# ==========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ==========================================
+# OS & Editors
+# ==========================================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

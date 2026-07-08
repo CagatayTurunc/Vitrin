@@ -1,0 +1,6 @@
+@Vitrin.Notification.Api_HostAddress = http://localhost:5184
+
+GET {{Vitrin.Notification.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
