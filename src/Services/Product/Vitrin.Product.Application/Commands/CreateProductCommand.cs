@@ -8,4 +8,6 @@ public record CreateProductCommand(
     string Name,
     string Tagline,
     string Description,
-    string Slug) : IRequest<Result<Guid>>;
+    string Slug,
+    List<string> Topics,
+    string? ThumbnailUrl) : IRequest<Result<Guid>>;

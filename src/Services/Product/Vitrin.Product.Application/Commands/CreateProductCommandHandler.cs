@@ -8,6 +8,9 @@ public interface IProductRepository
 {
     Task AddAsync(ProductItem product, CancellationToken cancellationToken);
     Task<bool> IsSlugUniqueAsync(string slug, CancellationToken cancellationToken);
+    Task<Topic?> GetTopicBySlugAsync(string slug, CancellationToken cancellationToken);
+    Task<ProductItem?> GetByIdWithUpvotesAsync(Guid id, CancellationToken cancellationToken);
+    Task UpdateAsync(ProductItem product, CancellationToken cancellationToken);
 }
 
 public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand, Result<Guid>>
@@ -32,7 +35,32 @@ public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand,
             request.Name,
             request.Tagline,
             request.Description,
-            request.Slug);
+            request.Slug,
+            request.ThumbnailUrl);
+
+        // Auto submit for review
+        product.SubmitForReview();
+
+        if (request.Topics != null)
+        {
+            foreach (var t in request.Topics)
+            {
+                var topicName = t.Trim();
+                if (!string.IsNullOrEmpty(topicName))
+                {
+                    var slug = topicName.ToLower().Replace(" ", "-");
+                    var existingTopic = await _repository.GetTopicBySlugAsync(slug, cancellationToken);
+                    if (existingTopic != null)
+                    {
+                        product.AddTopic(existingTopic);
+                    }
+                    else
+                    {
+                        product.AddTopic(Topic.Create(topicName, slug));
+                    }
+                }
+            }
+        }
 
         await _repository.AddAsync(product, cancellationToken);
         

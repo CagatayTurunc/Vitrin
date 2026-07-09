@@ -6,12 +6,15 @@ interface ProductStore {
   products: Product[];
   isLoading: boolean;
   error: string | null;
+  votedProductIds: string[];
   fetchProducts: () => Promise<void>;
-  upvote: (productId: string) => Promise<void>;
+  fetchMyVotes: (token: string) => Promise<void>;
+  upvote: (productId: string, token: string) => Promise<void>;
 }
 
 export const useProductStore = create<ProductStore>((set, get) => ({
   products: [],
+  votedProductIds: [],
   isLoading: false,
   error: null,
   
@@ -26,10 +29,10 @@ export const useProductStore = create<ProductStore>((set, get) => ({
         id: p.id,
         rank: index + 1,
         name: p.name,
-        description: p.description,
-        image: p.imageUrl || '/products/notai.png',
-        tags: ['SaaS', 'İnovasyon'], // Şimdilik mock etiketler, ileride AI servisinden gelecek
-        votes: Math.floor(Math.random() * 100), // Şimdilik rastgele oy sayısı
+        description: p.tagline || p.description,
+        image: p.thumbnailUrl || '/products/notai.png',
+        topics: p.topics || [],
+        votes: p.upvotes || 0, // Gerçek upvote sayısı backend'den dönüyor
       }));
       
       set({ products: mappedProducts, isLoading: false });
@@ -38,19 +41,37 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     }
   },
   
-  upvote: async (productId: string) => {
+  fetchMyVotes: async (token: string) => {
     try {
-      // API İsteği atılıyor...
-      // await ProductRepository.upvoteProduct(productId);
-      
-      // Optimistic UI Update (Kullanıcı beklemesin diye arayüzde anında artırıyoruz)
-      set((state) => ({
-        products: state.products.map(p => 
-          p.id === productId ? { ...p, votes: p.votes + 1 } : p
-        )
-      }));
+      const data = await ProductRepository.getMyVotes(token);
+      set({ votedProductIds: data });
+    } catch (error) {
+      console.error("Failed to fetch my votes", error);
+    }
+  },
+
+  upvote: async (productId: string, token: string) => {
+    try {
+      // Optimistic UI Update
+      set((state) => {
+        const hasVoted = state.votedProductIds.includes(productId);
+        const newVotedIds = hasVoted
+          ? state.votedProductIds.filter(id => id !== productId)
+          : [...state.votedProductIds, productId];
+
+        return {
+          votedProductIds: newVotedIds,
+          products: state.products.map(p => 
+            p.id === productId ? { ...p, votes: hasVoted ? p.votes - 1 : p.votes + 1 } : p
+          )
+        };
+      });
+
+      // API Call
+      await ProductRepository.upvoteProduct(productId, token);
     } catch (error) {
       console.error("Oy verme işlemi başarısız oldu", error);
+      // Revert optimistic update here if needed
     }
   }
 }));

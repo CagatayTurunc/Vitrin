@@ -1,8 +1,15 @@
-import { Search, Sparkles } from 'lucide-react'
+"use client";
+
+import { Search, Sparkles, User as UserIcon, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useSession, signIn, signOut } from "next-auth/react"
+import Link from "next/link"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export function SiteHeader() {
+  const { data: session } = useSession();
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
@@ -40,12 +47,34 @@ export function SiteHeader() {
           >
             <Search className="h-5 w-5" />
           </Button>
-          <Button variant="outline" className="rounded-full font-medium">
-            Giriş Yap
-          </Button>
-          <Button className="rounded-full font-semibold shadow-sm shadow-primary/30">
-            Ürün Ekle
-          </Button>
+
+          {session ? (
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <span className="text-sm font-medium hidden sm:inline-block">
+                {session.user?.name || session.user?.email}
+              </span>
+              <Button variant="ghost" size="icon" onClick={() => signOut()}>
+                <LogOut className="h-5 w-5" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-4">
+              <ThemeToggle />
+              <Link href="/login">
+                <Button variant="ghost" className="hidden sm:flex">Giriş Yap</Button>
+              </Link>
+              <Link href="/register">
+                <Button>Kayıt Ol</Button>
+              </Link>
+            </div>
+          )}
+
+          <Link href="/submit">
+            <Button className="rounded-full font-semibold shadow-sm shadow-primary/30">
+              Ürün Ekle
+            </Button>
+          </Link>
         </div>
       </div>
     </header>

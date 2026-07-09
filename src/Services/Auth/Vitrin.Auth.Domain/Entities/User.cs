@@ -1,121 +1,69 @@
-using Vitrin.Auth.Domain.ValueObjects;
-using Vitrin.Shared.Contracts.Events;
 using Vitrin.Shared.Kernel.Domain;
-using Vitrin.Shared.Kernel.Results;
 
 namespace Vitrin.Auth.Domain.Entities;
 
 public class User : AggregateRoot
 {
-    public Email Email { get; private set; } = null!;
+    public string Email { get; private set; }
+    public string Username { get; private set; }
+    public string FullName { get; private set; }
+    public string AvatarUrl { get; private set; }
+    
+    // Auth Providers
     public string? PasswordHash { get; private set; }
-    public string FullName { get; private set; } = string.Empty;
-    public string? AvatarUrl { get; private set; }
-    public string? Bio { get; private set; }
-    public Dictionary<string, string> SocialLinks { get; private set; } = new();
+    public string? GoogleId { get; private set; }
+    public string? GithubId { get; private set; }
+    
+    // Auth Provider Type
+    public AuthProvider Provider { get; private set; }
+    
+    // User Role (RBAC)
     public UserRole Role { get; private set; }
-    public bool EmailVerified { get; private set; }
-    public bool IsActive { get; private set; }
-    public bool IsSuspended { get; private set; }
-    public string? SuspensionReason { get; private set; }
+    
     public DateTime CreatedAt { get; private set; }
-    public DateTime? LastLoginAt { get; private set; }
-    
-    private User() { } // EF Core
-    
-    public static User Create(
-        string email, 
-        string? passwordHash, 
-        string fullName, 
-        string registrationMethod)
+
+    // Constructor for EF Core
+    protected User() { }
+
+    private User(Guid id, string email, string username, string fullName, string avatarUrl, AuthProvider provider, string? passwordHash, string? googleId, string? githubId) 
+        : base(id)
     {
-        var user = new User
-        {
-            Email = Email.Create(email).Value,
-            PasswordHash = passwordHash,
-            FullName = fullName,
-            Role = UserRole.User,
-            EmailVerified = false,
-            IsActive = true,
-            IsSuspended = false,
-            SocialLinks = new Dictionary<string, string>(),
-            CreatedAt = DateTime.UtcNow
-        };
-        
-        user.AddDomainEvent(new UserRegisteredEvent
-        {
-            UserId = user.Id,
-            Email = email,
-            FullName = fullName,
-            RegistrationMethod = registrationMethod
-        });
-        
-        return user;
+        Email = email;
+        Username = username;
+        FullName = fullName;
+        AvatarUrl = avatarUrl;
+        Provider = provider;
+        PasswordHash = passwordHash;
+        GoogleId = googleId;
+        GithubId = githubId;
+        Role = UserRole.Member; // Default role
+        CreatedAt = DateTime.UtcNow;
     }
-    
-    public Result ChangeRole(UserRole newRole, Guid changedBy, string? reason = null)
+
+    public void UpdateRole(UserRole newRole)
     {
-        if (Role == newRole)
-            return Result.Failure("User already has this role");
-        
-        var oldRole = Role;
         Role = newRole;
-        
-        // Use standard C# record or just generic base event pattern
-        // The event below is from Contracts.Events
-        AddDomainEvent(new UserRoleChangedEvent
-        {
-            UserId = Id,
-            OldRole = oldRole.ToString(),
-            NewRole = newRole.ToString(),
-            ChangedBy = changedBy,
-            Reason = reason
-        });
-        
-        return Result.Success();
+    }
+
+    public static User CreateWithPassword(string email, string username, string fullName, string passwordHash)
+    {
+        return new User(Guid.NewGuid(), email, username, fullName, string.Empty, AuthProvider.Local, passwordHash, null, null);
+    }
+
+    public static User CreateWithGoogle(string email, string username, string fullName, string avatarUrl, string googleId)
+    {
+        return new User(Guid.NewGuid(), email, username, fullName, avatarUrl, AuthProvider.Google, null, googleId, null);
     }
     
-    public Result Suspend(string reason)
+    public static User CreateWithGithub(string email, string username, string fullName, string avatarUrl, string githubId)
     {
-        if (IsSuspended)
-            return Result.Failure("User is already suspended");
-        
-        IsSuspended = true;
-        IsActive = false;
-        SuspensionReason = reason;
-        
-        // We can add a UserSuspendedEvent later
-        return Result.Success();
-    }
-    
-    public Result Activate()
-    {
-        if (!IsSuspended)
-            return Result.Failure("User is not suspended");
-        
-        IsSuspended = false;
-        IsActive = true;
-        SuspensionReason = null;
-        
-        return Result.Success();
-    }
-    
-    public void UpdateLastLogin()
-    {
-        LastLoginAt = DateTime.UtcNow;
-    }
-    
-    public void VerifyEmail()
-    {
-        EmailVerified = true;
+        return new User(Guid.NewGuid(), email, username, fullName, avatarUrl, AuthProvider.Github, null, null, githubId);
     }
 }
 
-public enum UserRole
+public enum AuthProvider
 {
-    Guest = 0,
-    User = 1,
-    ProductOwner = 2,
-    Moderator = 3,
-    Admin = 4
+    Local = 0,
+    Google = 1,
+    Github = 2
 }

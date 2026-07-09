@@ -25,4 +25,22 @@ public class ProductRepository : IProductRepository
         var exists = await _context.Products.AnyAsync(p => p.Slug == slug, cancellationToken);
         return !exists;
     }
+
+    public async Task<Topic?> GetTopicBySlugAsync(string slug, CancellationToken cancellationToken)
+    {
+        return await _context.Topics.FirstOrDefaultAsync(t => t.Slug == slug, cancellationToken);
+    }
+
+    public async Task<ProductItem?> GetByIdWithUpvotesAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return await _context.Products
+            .Include(p => p.Upvotes)
+            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+    }
+
+    public async Task UpdateAsync(ProductItem product, CancellationToken cancellationToken)
+    {
+        _context.Products.Update(product);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

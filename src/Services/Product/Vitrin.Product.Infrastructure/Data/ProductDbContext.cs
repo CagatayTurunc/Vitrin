@@ -12,6 +12,7 @@ public class ProductDbContext : DbContext
     public DbSet<ProductItem> Products { get; set; }
     public DbSet<ProductLink> ProductLinks { get; set; }
     public DbSet<Topic> Topics { get; set; }
+    public DbSet<ProductUpvote> ProductUpvotes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -32,6 +33,11 @@ public class ProductDbContext : DbContext
 
             builder.HasMany(p => p.Topics)
                    .WithMany();
+                   
+            builder.HasMany(p => p.Upvotes)
+                   .WithOne()
+                   .HasForeignKey(u => u.ProductItemId)
+                   .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ProductLink>(builder =>

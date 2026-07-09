@@ -4,6 +4,6 @@ export interface Product {
   name: string;
   description: string;
   image: string;
-  tags: string[];
+  topics?: { id: string; name: string; slug: string }[];
   votes: number;
 }

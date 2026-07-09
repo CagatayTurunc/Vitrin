@@ -23,10 +23,13 @@ public class ProductItem : AggregateRoot
     
     private readonly List<Topic> _topics = new();
     public IReadOnlyList<Topic> Topics => _topics.AsReadOnly();
+    
+    private readonly List<ProductUpvote> _upvotes = new();
+    public IReadOnlyList<ProductUpvote> Upvotes => _upvotes.AsReadOnly();
 
     private ProductItem() { } // EF Core
     
-    public static ProductItem Create(Guid makerId, string name, string tagline, string description, string slug)
+    public static ProductItem Create(Guid makerId, string name, string tagline, string description, string slug, string? thumbnailUrl = null)
     {
         var product = new ProductItem
         {
@@ -35,6 +38,7 @@ public class ProductItem : AggregateRoot
             Tagline = tagline,
             Description = description,
             Slug = slug,
+            ThumbnailUrl = thumbnailUrl ?? string.Empty,
             Status = ProductStatus.Draft,
             CreatedAt = DateTime.UtcNow
         };
@@ -55,6 +59,34 @@ public class ProductItem : AggregateRoot
         return Result.Success();
     }
     
+    public Result SubmitForReview()
+    {
+        if (Status != ProductStatus.Draft && Status != ProductStatus.Rejected)
+            return Result.Failure("Only Draft or Rejected products can be submitted for review.");
+            
+        Status = ProductStatus.UnderReview;
+        return Result.Success();
+    }
+    
+    public Result Approve()
+    {
+        if (Status != ProductStatus.UnderReview)
+            return Result.Failure("Only products under review can be approved.");
+            
+        Status = ProductStatus.Published;
+        PublishedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+    
+    public Result Reject()
+    {
+        if (Status != ProductStatus.UnderReview)
+            return Result.Failure("Only products under review can be rejected.");
+            
+        Status = ProductStatus.Rejected;
+        return Result.Success();
+    }
+    
     public void AddLink(string title, string url)
     {
         _links.Add(new ProductLink(Id, title, url));
@@ -65,6 +97,19 @@ public class ProductItem : AggregateRoot
         if (!_topics.Any(t => t.Id == topic.Id))
         {
             _topics.Add(topic);
+        }
+    }
+    
+    public void ToggleUpvote(Guid userId)
+    {
+        var existingUpvote = _upvotes.FirstOrDefault(u => u.UserId == userId);
+        if (existingUpvote != null)
+        {
+            _upvotes.Remove(existingUpvote);
+        }
+        else
+        {
+            _upvotes.Add(new ProductUpvote(Id, userId));
         }
     }
 }

@@ -2,6 +2,9 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Plus_Jakarta_Sans, Inter } from 'next/font/google'
 import './globals.css'
+import NextAuthProvider from "@/components/next-auth-provider";
+import { SiteHeader } from "@/components/site-header";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -55,11 +58,26 @@ export default function RootLayout({
   return (
     <html
       lang="tr"
-      className={`bg-background ${jakarta.variable} ${inter.variable}`}
+      className={`${jakarta.variable} ${inter.variable}`}
+      suppressHydrationWarning
     >
-      <body className="antialiased font-sans">
-        {children}
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+      <body className={`${inter.className} antialiased min-h-screen bg-background text-foreground`}>
+        <NextAuthProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <div className="relative flex min-h-screen flex-col">
+              <SiteHeader />
+              <div className="flex-1">
+                {children}
+              </div>
+            </div>
+            <Analytics />
+          </ThemeProvider>
+        </NextAuthProvider>
       </body>
     </html>
   )
