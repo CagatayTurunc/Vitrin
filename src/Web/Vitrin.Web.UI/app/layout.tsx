@@ -4,6 +4,7 @@ import { Plus_Jakarta_Sans, Inter } from 'next/font/google'
 import './globals.css'
 import NextAuthProvider from "@/components/next-auth-provider";
 import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 
@@ -75,6 +76,7 @@ export default function RootLayout({
               <div className="flex-1">
                 {children}
               </div>
+              <SiteFooter />
             </div>
             <Toaster />
             <Analytics />
