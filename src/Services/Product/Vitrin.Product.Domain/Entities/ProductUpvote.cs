@@ -12,7 +12,7 @@ public class ProductUpvote : Entity
 
     public ProductUpvote(Guid productItemId, Guid userId)
     {
-        Id = Guid.NewGuid();
+        // Do not set Id here, let EF Core generate it, otherwise it treats it as Modified
         ProductItemId = productItemId;
         UserId = userId;
         CreatedAt = DateTime.UtcNow;

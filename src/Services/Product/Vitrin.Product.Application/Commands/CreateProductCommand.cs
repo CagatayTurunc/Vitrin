@@ -10,4 +10,5 @@ public record CreateProductCommand(
     string Description,
     string Slug,
     List<string> Topics,
-    string? ThumbnailUrl) : IRequest<Result<Guid>>;
+    string? ThumbnailUrl,
+    List<string>? GalleryUrls) : IRequest<Result<Guid>>;

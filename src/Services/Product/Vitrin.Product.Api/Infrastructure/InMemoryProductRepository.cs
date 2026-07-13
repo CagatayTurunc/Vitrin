@@ -32,6 +32,22 @@ public class InMemoryProductRepository : IProductRepository
     {
         return Task.CompletedTask;
     }
+
+    public Task ToggleUpvoteAsync(Guid productId, Guid userId, CancellationToken cancellationToken)
+    {
+        var product = _products.FirstOrDefault(p => p.Id == productId);
+        if (product != null)
+        {
+            product.ToggleUpvote(userId);
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task<int> GetUpvoteCountAsync(Guid productId, CancellationToken cancellationToken)
+    {
+        var product = _products.FirstOrDefault(p => p.Id == productId);
+        return Task.FromResult(product?.Upvotes.Count ?? 0);
+    }
     
     public IEnumerable<ProductItem> GetAll()
     {

@@ -5,6 +5,7 @@ import './globals.css'
 import NextAuthProvider from "@/components/next-auth-provider";
 import { SiteHeader } from "@/components/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/toaster";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -75,6 +76,7 @@ export default function RootLayout({
                 {children}
               </div>
             </div>
+            <Toaster />
             <Analytics />
           </ThemeProvider>
         </NextAuthProvider>

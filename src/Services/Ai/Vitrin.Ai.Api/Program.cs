@@ -11,14 +11,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHealthChecks();
 
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AnalyzeProductCommand).Assembly));
 
 builder.Services.AddDbContext<AiDbContext>(options =>
-    options.UseSqlite("Data Source=ai_db.sqlite"));
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=ai_db.sqlite"));
 
 builder.Services.AddScoped<IAiAnalysisRepository, AiRepository>();
-builder.Services.AddScoped<IAiAnalyzerService, MockAiAnalyzerService>();
+builder.Services.AddHttpClient<IAiAnalyzerService, GeminiAiAnalyzerService>();
 
 var app = builder.Build();
 
@@ -33,6 +34,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.MapHealthChecks("/health");
 
 app.MapPost("/api/ai/analyze", async ([FromBody] AnalyzeProductCommand command, IMediator mediator) =>
 {
@@ -55,6 +58,35 @@ app.MapGet("/api/ai/product/{productId}", async (Guid productId, AiDbContext db)
     return Results.Ok(new { analysis.Summary, analysis.Tags });
 })
 .WithName("GetAnalysisResult")
+.WithOpenApi();
+
+app.MapGet("/api/ai/product/{productId}/recommendations", async (Guid productId, AiDbContext db) =>
+{
+    var analysis = await db.AiAnalysisResults.FirstOrDefaultAsync(a => a.ProductId == productId);
+    if (analysis == null || string.IsNullOrEmpty(analysis.Tags))
+        return Results.Ok(new List<Guid>());
+        
+    var tags = analysis.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+    
+    var allAnalyses = await db.AiAnalysisResults
+        .Where(a => a.ProductId != productId && !string.IsNullOrEmpty(a.Tags))
+        .ToListAsync();
+        
+    var recommendedIds = allAnalyses
+        .Select(a => new {
+            a.ProductId,
+            SharedTagCount = a.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                   .Count(t => tags.Contains(t, StringComparer.OrdinalIgnoreCase))
+        })
+        .Where(x => x.SharedTagCount > 0)
+        .OrderByDescending(x => x.SharedTagCount)
+        .Take(3)
+        .Select(x => x.ProductId)
+        .ToList();
+        
+    return Results.Ok(recommendedIds);
+})
+.WithName("GetRecommendations")
 .WithOpenApi();
 
 app.Run();

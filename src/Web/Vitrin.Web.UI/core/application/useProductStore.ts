@@ -4,24 +4,50 @@ import { ProductRepository } from '../infrastructure/product.repository';
 
 interface ProductStore {
   products: Product[];
+  makerProducts: Product[];
+  upvotedProducts: Product[];
+  topics: any[];
+  selectedTopicSlug: string | null;
   isLoading: boolean;
   error: string | null;
   votedProductIds: string[];
-  fetchProducts: () => Promise<void>;
+  fetchProducts: (topicSlug?: string) => Promise<void>;
+  fetchMakerProducts: (makerId: string) => Promise<void>;
+  fetchUpvotedProducts: (token: string) => Promise<void>;
+  fetchTopics: () => Promise<void>;
+  setTopicFilter: (topicSlug: string | null) => void;
   fetchMyVotes: (token: string) => Promise<void>;
   upvote: (productId: string, token: string) => Promise<void>;
 }
 
 export const useProductStore = create<ProductStore>((set, get) => ({
   products: [],
+  makerProducts: [],
+  upvotedProducts: [],
+  topics: [],
+  selectedTopicSlug: null,
   votedProductIds: [],
   isLoading: false,
   error: null,
   
-  fetchProducts: async () => {
+  setTopicFilter: (topicSlug) => {
+    set({ selectedTopicSlug: topicSlug });
+    get().fetchProducts(topicSlug || undefined);
+  },
+
+  fetchTopics: async () => {
+    try {
+      const data = await ProductRepository.getTopics();
+      set({ topics: data });
+    } catch (error) {
+      console.error("Failed to fetch topics", error);
+    }
+  },
+
+  fetchProducts: async (topicSlug?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const data = await ProductRepository.getProducts();
+      const data = await ProductRepository.getProducts(topicSlug);
       
       // BLoC / Store Layer: Map Backend Entity to Frontend Domain Entity
       // Bu katman veriyi UI'ın anlayacağı hale getirir (Business Logic)
@@ -29,7 +55,9 @@ export const useProductStore = create<ProductStore>((set, get) => ({
         id: p.id,
         rank: index + 1,
         name: p.name,
+        slug: p.slug,
         description: p.tagline || p.description,
+        publishedAt: p.publishedAt,
         image: p.thumbnailUrl || '/products/notai.png',
         topics: p.topics || [],
         votes: p.upvotes || 0, // Gerçek upvote sayısı backend'den dönüyor
@@ -50,6 +78,48 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     }
   },
 
+  fetchMakerProducts: async (makerId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await ProductRepository.getMakerProducts(makerId);
+      const mappedProducts: Product[] = data.map((p: any, index: number) => ({
+        id: p.id,
+        rank: index + 1,
+        name: p.name,
+        slug: p.slug,
+        description: p.tagline || p.description,
+        publishedAt: p.publishedAt,
+        image: p.thumbnailUrl || '/products/notai.png',
+        topics: p.topics || [],
+        votes: p.upvotes || 0,
+      }));
+      set({ makerProducts: mappedProducts, isLoading: false });
+    } catch (error: any) {
+      set({ error: error.message || 'Ürünler yüklenirken hata', isLoading: false });
+    }
+  },
+
+  fetchUpvotedProducts: async (token: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await ProductRepository.getUpvotedProducts(token);
+      const mappedProducts: Product[] = data.map((p: any, index: number) => ({
+        id: p.id,
+        rank: index + 1,
+        name: p.name,
+        slug: p.slug,
+        description: p.tagline || p.description,
+        publishedAt: p.publishedAt,
+        image: p.thumbnailUrl || '/products/notai.png',
+        topics: p.topics || [],
+        votes: p.upvotes || 0,
+      }));
+      set({ upvotedProducts: mappedProducts, isLoading: false });
+    } catch (error: any) {
+      set({ error: error.message || 'Oylanan ürünler yüklenirken hata', isLoading: false });
+    }
+  },
+
   upvote: async (productId: string, token: string) => {
     try {
       // Optimistic UI Update
@@ -63,12 +133,31 @@ export const useProductStore = create<ProductStore>((set, get) => ({
           votedProductIds: newVotedIds,
           products: state.products.map(p => 
             p.id === productId ? { ...p, votes: hasVoted ? p.votes - 1 : p.votes + 1 } : p
+          ),
+          makerProducts: state.makerProducts.map(p => 
+            p.id === productId ? { ...p, votes: hasVoted ? p.votes - 1 : p.votes + 1 } : p
+          ),
+          upvotedProducts: state.upvotedProducts.map(p => 
+            p.id === productId ? { ...p, votes: hasVoted ? p.votes - 1 : p.votes + 1 } : p
           )
         };
       });
 
       // API Call
       await ProductRepository.upvoteProduct(productId, token);
+      
+      // Gamification: Record vote activity for streaks and badges
+      try {
+        await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/users/me/record-vote`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (err) {
+        console.error("Streak could not be updated", err);
+      }
+      
+      // Sync upvoted products list in the background
+      get().fetchUpvotedProducts(token);
     } catch (error) {
       console.error("Oy verme işlemi başarısız oldu", error);
       // Revert optimistic update here if needed

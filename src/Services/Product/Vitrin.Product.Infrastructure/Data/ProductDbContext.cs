@@ -13,6 +13,7 @@ public class ProductDbContext : DbContext
     public DbSet<ProductLink> ProductLinks { get; set; }
     public DbSet<Topic> Topics { get; set; }
     public DbSet<ProductUpvote> ProductUpvotes { get; set; }
+    public DbSet<Collection> Collections { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -53,6 +54,18 @@ public class ProductDbContext : DbContext
             builder.Property(t => t.Name).IsRequired().HasMaxLength(50);
             builder.Property(t => t.Slug).IsRequired().HasMaxLength(50);
             builder.HasIndex(t => t.Slug).IsUnique();
+        });
+
+        modelBuilder.Entity<Collection>(builder =>
+        {
+            builder.HasKey(c => c.Id);
+            builder.Property(c => c.Name).IsRequired().HasMaxLength(100);
+            builder.Property(c => c.Slug).IsRequired().HasMaxLength(100);
+            builder.HasIndex(c => c.Slug).IsUnique();
+            builder.Property(c => c.Description).HasMaxLength(500);
+            
+            builder.HasMany(c => c.Products)
+                   .WithMany();
         });
     }
 }

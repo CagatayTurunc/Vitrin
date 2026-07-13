@@ -18,4 +18,15 @@ public class NotificationRepository : INotificationRepository
         await _context.Notifications.AddAsync(notification, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<NotificationItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return await _context.Notifications.FindAsync(new object[] { id }, cancellationToken);
+    }
+
+    public async Task UpdateAsync(NotificationItem notification, CancellationToken cancellationToken)
+    {
+        _context.Notifications.Update(notification);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

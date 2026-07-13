@@ -11,6 +11,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const navigation = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Ürünler", href: "/admin/products", icon: Package },
+    { name: "Maker Başvuruları", href: "/admin/maker-requests", icon: Users },
     { name: "Kullanıcılar", href: "/admin/users", icon: Users },
     { name: "Ayarlar", href: "/admin/settings", icon: Settings },
   ];

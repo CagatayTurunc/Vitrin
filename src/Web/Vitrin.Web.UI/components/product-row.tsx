@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { useState } from 'react'
 import { ChevronUp } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -45,9 +46,9 @@ export function ProductRow({ product }: { product: Product }) {
       {/* Middle */}
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-base font-bold text-foreground sm:text-lg">
-          <a href="#" className="outline-none after:absolute after:inset-0">
+          <Link href={`/product/${product.slug}`} className="outline-none after:absolute after:inset-0">
             {product.name}
-          </a>
+          </Link>
         </h3>
         <p className="mt-0.5 truncate text-sm text-muted-foreground">
           {product.description}
@@ -56,9 +57,9 @@ export function ProductRow({ product }: { product: Product }) {
         <div className="mt-2 flex items-center gap-2">
           {product.topics && product.topics.length > 0 ? (
             product.topics.map(t => (
-              <span key={t.id} className="inline-flex items-center rounded-md bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">
+              <Link key={t.id} href={`/topic/${t.slug}`} className="inline-flex items-center rounded-md bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors z-20">
                 {t.name}
-              </span>
+              </Link>
             ))
           ) : (
             <span className="inline-flex items-center rounded-md bg-secondary/50 px-2 py-1 text-xs font-medium text-muted-foreground">

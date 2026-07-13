@@ -11,17 +11,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import { useSession } from "next-auth/react";
+
 export default function AdminMakerRequests() {
+  const { data: session } = useSession();
   const [requests, setRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchRequests();
-  }, []);
+    if (session?.accessToken) {
+      fetchRequests(session.accessToken as string);
+    }
+  }, [session?.accessToken]);
 
-  const fetchRequests = async () => {
+  const fetchRequests = async (token: string) => {
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/auth/admin/maker-applications");
+      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/auth/admin/maker-applications", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (res.ok) {
         const data = await res.json();
         setRequests(data);
@@ -36,7 +43,8 @@ export default function AdminMakerRequests() {
   const handleAction = async (id: string, action: "approve" | "reject") => {
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/admin/maker-applications/${id}/${action}`, {
-        method: "POST"
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.accessToken}` }
       });
       if (res.ok) {
         setRequests(requests.filter(r => r.id !== id));

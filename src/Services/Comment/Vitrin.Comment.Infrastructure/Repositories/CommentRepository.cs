@@ -18,4 +18,15 @@ public class CommentRepository : ICommentRepository
         await _context.Comments.AddAsync(comment, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<CommentItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return await _context.Comments.FindAsync(new object[] { id }, cancellationToken);
+    }
+
+    public async Task UpdateAsync(CommentItem comment, CancellationToken cancellationToken)
+    {
+        _context.Comments.Update(comment);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

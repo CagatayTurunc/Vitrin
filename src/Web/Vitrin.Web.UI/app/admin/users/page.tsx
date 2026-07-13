@@ -12,17 +12,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import { useSession } from "next-auth/react";
+
 export default function AdminUsers() {
+  const { data: session } = useSession();
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (session?.accessToken) {
+      fetchUsers(session.accessToken as string);
+    }
+  }, [session?.accessToken]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (token: string) => {
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/auth/admin/users");
+      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/auth/admin/users", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (res.ok) {
         const data = await res.json();
         setUsers(data);
@@ -38,7 +45,10 @@ export default function AdminUsers() {
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/admin/users/${userId}/role`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.accessToken}`
+        },
         body: JSON.stringify(newRole)
       });
       

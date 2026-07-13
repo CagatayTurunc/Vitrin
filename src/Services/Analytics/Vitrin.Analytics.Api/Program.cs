@@ -9,11 +9,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHealthChecks();
 
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(TrackEventCommand).Assembly));
 
 builder.Services.AddDbContext<AnalyticsDbContext>(options =>
-    options.UseSqlite("Data Source=analytics_db.sqlite"));
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=analytics_db.sqlite"));
 
 builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 
@@ -30,6 +31,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.MapHealthChecks("/health");
 
 app.MapPost("/api/analytics", async ([FromBody] TrackEventCommand command, IMediator mediator) =>
 {

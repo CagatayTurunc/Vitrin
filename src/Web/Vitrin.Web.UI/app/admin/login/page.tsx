@@ -29,7 +29,7 @@ export default function AdminLogin() {
       setError("Geçersiz e-posta veya şifre, ya da admin yetkiniz yok.");
       setIsLoading(false);
     } else {
-      router.push("/admin");
+      window.location.href = "/admin";
     }
   };
 

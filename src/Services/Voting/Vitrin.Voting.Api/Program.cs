@@ -9,13 +9,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHealthChecks();
 
 // Register MediatR
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AddVoteCommand).Assembly));
 
 // EF Core SQLite
 builder.Services.AddDbContext<VoteDbContext>(options =>
-    options.UseSqlite("Data Source=voting_db.sqlite"));
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=voting_db.sqlite"));
 
 // Register Real Repository
 builder.Services.AddScoped<IVoteRepository, VoteRepository>();
@@ -34,6 +35,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.MapHealthChecks("/health");
 
 app.MapPost("/api/votes", async ([FromBody] AddVoteCommand command, IMediator mediator) =>
 {

@@ -23,6 +23,21 @@ namespace Vitrin.Product.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("CollectionProductItem", b =>
+                {
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductsId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("CollectionId", "ProductsId");
+
+                    b.HasIndex("ProductsId");
+
+                    b.ToTable("CollectionProductItem");
+                });
+
             modelBuilder.Entity("ProductItemTopic", b =>
                 {
                     b.Property<Guid>("ProductItemId")
@@ -36,6 +51,41 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.HasIndex("TopicsId");
 
                     b.ToTable("ProductItemTopic");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.Collection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Collections");
                 });
 
             modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductItem", b =>
@@ -161,6 +211,21 @@ namespace Vitrin.Product.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Topics");
+                });
+
+            modelBuilder.Entity("CollectionProductItem", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.Collection", null)
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
+                        .WithMany()
+                        .HasForeignKey("ProductsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ProductItemTopic", b =>

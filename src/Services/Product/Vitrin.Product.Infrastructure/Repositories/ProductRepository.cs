@@ -40,7 +40,29 @@ public class ProductRepository : IProductRepository
 
     public async Task UpdateAsync(ProductItem product, CancellationToken cancellationToken)
     {
-        _context.Products.Update(product);
+        // Entity is already tracked, just save changes to detect additions/removals in collections
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ToggleUpvoteAsync(Guid productId, Guid userId, CancellationToken cancellationToken)
+    {
+        var existing = await _context.ProductUpvotes
+            .FirstOrDefaultAsync(u => u.ProductItemId == productId && u.UserId == userId, cancellationToken);
+            
+        if (existing != null)
+        {
+            _context.ProductUpvotes.Remove(existing);
+        }
+        else
+        {
+            _context.ProductUpvotes.Add(new ProductUpvote(productId, userId));
+        }
+        
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<int> GetUpvoteCountAsync(Guid productId, CancellationToken cancellationToken)
+    {
+        return await _context.ProductUpvotes.CountAsync(u => u.ProductItemId == productId, cancellationToken);
     }
 }

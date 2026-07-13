@@ -8,6 +8,11 @@ public class User : AggregateRoot
     public string Username { get; private set; }
     public string FullName { get; private set; }
     public string AvatarUrl { get; private set; }
+    public string? Headline { get; private set; }
+    public string? About { get; private set; }
+    public string? WebsiteUrl { get; private set; }
+    public string? GithubUrl { get; private set; }
+    public string? LinkedInUrl { get; private set; }
     
     // Auth Providers
     public string? PasswordHash { get; private set; }
@@ -20,6 +25,21 @@ public class User : AggregateRoot
     // User Role (RBAC)
     public UserRole Role { get; private set; }
     
+    // Follow System
+    private readonly List<UserFollow> _followers = new();
+    public IReadOnlyCollection<UserFollow> Followers => _followers.AsReadOnly();
+    
+    private readonly List<UserFollow> _following = new();
+    public IReadOnlyCollection<UserFollow> Following => _following.AsReadOnly();
+
+    // Gamification & Streaks
+    public int CurrentStreak { get; private set; }
+    public int LongestStreak { get; private set; }
+    public DateTime? LastVoteDate { get; private set; }
+
+    private readonly List<UserBadge> _badges = new();
+    public IReadOnlyCollection<UserBadge> Badges => _badges.AsReadOnly();
+
     public DateTime CreatedAt { get; private set; }
 
     // Constructor for EF Core
@@ -45,6 +65,18 @@ public class User : AggregateRoot
         Role = newRole;
     }
 
+    public void UpdateProfile(string fullName, string username, string? headline, string? about, string? avatarUrl, string? websiteUrl, string? githubUrl, string? linkedInUrl)
+    {
+        FullName = fullName;
+        Username = username;
+        Headline = headline;
+        About = about;
+        if (!string.IsNullOrEmpty(avatarUrl)) AvatarUrl = avatarUrl;
+        WebsiteUrl = websiteUrl;
+        GithubUrl = githubUrl;
+        LinkedInUrl = linkedInUrl;
+    }
+
     public static User CreateWithPassword(string email, string username, string fullName, string passwordHash)
     {
         return new User(Guid.NewGuid(), email, username, fullName, string.Empty, AuthProvider.Local, passwordHash, null, null);
@@ -58,6 +90,43 @@ public class User : AggregateRoot
     public static User CreateWithGithub(string email, string username, string fullName, string avatarUrl, string githubId)
     {
         return new User(Guid.NewGuid(), email, username, fullName, avatarUrl, AuthProvider.Github, null, null, githubId);
+    }
+
+    public void RecordVoteActivity()
+    {
+        var today = DateTime.UtcNow.Date;
+        
+        if (LastVoteDate.HasValue)
+        {
+            var diff = (today - LastVoteDate.Value.Date).TotalDays;
+
+            if (diff == 1) // Voted yesterday, increment streak
+            {
+                CurrentStreak++;
+                if (CurrentStreak > LongestStreak) LongestStreak = CurrentStreak;
+            }
+            else if (diff > 1) // Missed a day, reset streak
+            {
+                CurrentStreak = 1;
+            }
+            // If diff == 0, already voted today, do nothing to streak
+        }
+        else
+        {
+            // First time voting
+            CurrentStreak = 1;
+            if (CurrentStreak > LongestStreak) LongestStreak = CurrentStreak;
+        }
+
+        LastVoteDate = today;
+    }
+
+    public void AddBadge(string name, string icon)
+    {
+        if (!_badges.Any(b => b.Name == name))
+        {
+            _badges.Add(new UserBadge(Id, name, icon));
+        }
     }
 }
 

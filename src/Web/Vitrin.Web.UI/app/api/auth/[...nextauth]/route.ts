@@ -23,7 +23,11 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) return null;
 
         try {
-          const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/auth/login", {
+          const apiUrl = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+          console.log("[NextAuth] authorize - apiUrl:", apiUrl);
+          console.log("[NextAuth] authorize - email:", credentials.email);
+          
+          const res = await fetch(`${apiUrl}/api/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -32,28 +36,41 @@ export const authOptions: NextAuthOptions = {
             }),
           });
 
+          console.log("[NextAuth] authorize - status:", res.status);
+
           if (!res.ok) {
+            const body = await res.text();
+            console.log("[NextAuth] authorize - error body:", body);
             return null;
           }
 
-          const token = await res.json(); // The JWT token from our C# API
-
-          // We return an object that NextAuth saves. Since we only care about our C# token:
+          const token = await res.json();
+          console.log("[NextAuth] authorize - token received, length:", token?.length);
           return { id: "1", email: credentials.email, accessToken: token };
         } catch (e) {
+          console.error("[NextAuth] authorize - EXCEPTION:", e);
           return null;
         }
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user, account, profile }) {
+    async jwt({ token, user, account, profile, trigger, session }) {
+      if (trigger === "update" && session?.user) {
+        token.fullName = session.user.name;
+        token.username = session.user.username;
+        if (session.user.image !== undefined) {
+          token.image = session.user.image;
+        }
+      }
+
       // When a user signs in with Google/Github
       if (account && (account.provider === "google" || account.provider === "github")) {
         // We must send their profile to our C# API to register/login and get our custom JWT
         try {
           const provider = account.provider === "google" ? 1 : 2;
-          const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/auth/external-login", {
+          const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL;
+          const res = await fetch(apiUrl + "/api/auth/external-login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -89,6 +106,10 @@ export const authOptions: NextAuthOptions = {
             const decoded = JSON.parse(jsonPayload);
             token.role = decoded.Role;
             token.id = decoded.sub; // Extract User ID
+            // In our JWT, unique_name or name usually maps to JwtRegisteredClaimNames.Name
+            token.username = decoded.name || decoded.unique_name || decoded.FullName || "";
+            token.fullName = decoded.FullName || "";
+            token.image = decoded.AvatarUrl || "";
           }
         } catch (e) {
           console.error("Failed to decode JWT", e);
@@ -101,6 +122,10 @@ export const authOptions: NextAuthOptions = {
       (session as any).accessToken = token.accessToken;
       (session as any).user.role = token.role;
       (session as any).user.id = token.id;
+      (session as any).user.username = token.username;
+      (session as any).user.fullName = token.fullName;
+      (session as any).user.name = token.fullName || token.username || (session as any).user.email;
+      (session as any).user.image = token.image;
       return session;
     },
   },

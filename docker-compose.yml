@@ -1,0 +1,358 @@
+# ==============================================================
+# Vitrin - Docker Compose Orkestrasyon
+# Kullanım: docker compose up -d --build
+# ==============================================================
+
+services:
+
+  # ============================================================
+  # ALTYAPI SERVİSLERİ
+  # ============================================================
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: vitrin-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: vitrin-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: vitrin-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_4LW_COMMANDS_WHITELIST: "ruok,stat,srvr"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "echo srvr | nc localhost 2181 | grep -q 'Zookeeper version' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: vitrin-kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ============================================================
+  # UYGULAMA SERVİSLERİ
+  # ============================================================
+
+  vitrin-auth:
+    build:
+      context: .
+      dockerfile: src/Services/Auth/Vitrin.Auth.Api/Dockerfile
+    container_name: vitrin-auth
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=vitrin_auth;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-123456}"
+      Jwt__Secret: ${JWT_SECRET:-SuperSecretKeyForVitrinAppThatIsLongEnoughToWorkProperly}
+      Jwt__Issuer: Vitrin
+      Jwt__Audience: Vitrin
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  vitrin-product:
+    build:
+      context: .
+      dockerfile: src/Services/Product/Vitrin.Product.Api/Dockerfile
+    container_name: vitrin-product
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=vitrin_product;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-123456}"
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  vitrin-voting:
+    build:
+      context: .
+      dockerfile: src/Services/Voting/Vitrin.Voting.Api/Dockerfile
+    container_name: vitrin-voting
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Data Source=/app/data/voting_db.sqlite"
+    volumes:
+      - ./data/voting:/app/data
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  vitrin-comment:
+    build:
+      context: .
+      dockerfile: src/Services/Comment/Vitrin.Comment.Api/Dockerfile
+    container_name: vitrin-comment
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=vitrin_comment;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-123456}"
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  vitrin-notification:
+    build:
+      context: .
+      dockerfile: src/Services/Notification/Vitrin.Notification.Api/Dockerfile
+    container_name: vitrin-notification
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Data Source=/app/data/notification_db.sqlite"
+    volumes:
+      - ./data/notification:/app/data
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  vitrin-analytics:
+    build:
+      context: .
+      dockerfile: src/Services/Analytics/Vitrin.Analytics.Api/Dockerfile
+    container_name: vitrin-analytics
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Data Source=/app/data/analytics_db.sqlite"
+    volumes:
+      - ./data/analytics:/app/data
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  vitrin-ai:
+    build:
+      context: .
+      dockerfile: src/Services/Ai/Vitrin.Ai.Api/Dockerfile
+    container_name: vitrin-ai
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Data Source=/app/data/ai_db.sqlite"
+      Gemini__ApiKey: ${GEMINI_API_KEY:-}
+    volumes:
+      - ./data/ai:/app/data
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================================
+  # GATEWAY
+  # ============================================================
+
+  vitrin-gateway:
+    build:
+      context: .
+      dockerfile: src/Gateways/Vitrin.Gateway/Dockerfile
+    container_name: vitrin-gateway
+    restart: unless-stopped
+    ports:
+      - "5000:8080"
+    depends_on:
+      vitrin-auth:
+        condition: service_healthy
+      vitrin-product:
+        condition: service_healthy
+      vitrin-voting:
+        condition: service_healthy
+      vitrin-comment:
+        condition: service_healthy
+      vitrin-notification:
+        condition: service_healthy
+      vitrin-analytics:
+        condition: service_healthy
+      vitrin-ai:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      Jwt__Secret: ${JWT_SECRET:-SuperSecretKeyForVitrinAppThatIsLongEnoughToWorkProperly}
+      Jwt__Issuer: Vitrin
+      Jwt__Audience: Vitrin
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================================
+  # FRONTEND
+  # ============================================================
+
+  vitrin-web:
+    build:
+      context: src/Web/Vitrin.Web.UI
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5000}
+        NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:-}
+        NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET:-}
+    container_name: vitrin-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      vitrin-gateway:
+        condition: service_healthy
+    environment:
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      INTERNAL_API_URL: http://vitrin-gateway:8080
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-SuperSecretKeyForVitrinAppNextAuthThatIsLongEnoughToWorkProperly}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    networks:
+      - vitrin-network
+
+# ============================================================
+# AĞLAR
+# ============================================================
+
+networks:
+  vitrin-network:
+    driver: bridge
+
+# ============================================================
+# VOLUMELER
+# ============================================================
+
+volumes:
+  postgres_data:
+    name: vitrin_postgres_data
+  redis_data:
+    name: vitrin_redis_data
+  kafka_data:
+    name: vitrin_kafka_data
+  zookeeper_data:
+    name: vitrin_zookeeper_data

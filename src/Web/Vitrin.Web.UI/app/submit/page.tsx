@@ -1,13 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, Type, AlignLeft, Globe, Link as LinkIcon, Tag, ImageIcon, ArrowRight, Check } from "lucide-react";
-import { ProductRow } from "@/components/product-row"; // We'll use this for Live Preview if possible, or just a custom preview card
+import { Sparkles, Type, AlignLeft, Globe, Link as LinkIcon, Tag, ImageIcon, ArrowRight, Check, X } from "lucide-react";
+import dynamic from "next/dynamic";
+import "@uiw/react-md-editor/markdown-editor.css";
+import "@uiw/react-markdown-preview/markdown.css";
+const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
+
+import { ProductRow } from "@/components/product-row";
 
 const AVAILABLE_CATEGORIES = [
   "SaaS", "Yapay Zeka", "Ücretsiz", "Geliştirici Araçları", "Tasarım", "Verimlilik", "Mobil", "Web", "Açık Kaynak"
@@ -17,14 +22,39 @@ export default function SubmitPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   
+  const [profileData, setProfileData] = useState<any>(null);
+
+  useEffect(() => {
+    if ((session as any)?.accessToken) {
+      fetch(process.env.NEXT_PUBLIC_API_URL + '/api/auth/users/me', {
+        headers: {
+          'Authorization': `Bearer ${(session as any).accessToken}`
+        }
+      }).then(async res => {
+        if (!res.ok) return null;
+        const text = await res.text();
+        return text ? JSON.parse(text) : null;
+      }).then(data => {
+        if (data) setProfileData(data);
+      }).catch(err => console.error('Profile fetch error:', err));
+    }
+  }, [session]);
+  
   if (status === "loading") return <div className="p-8 text-center min-h-screen">Yükleniyor...</div>;
   if (status === "unauthenticated") {
     router.push("/login");
     return null;
   }
 
-  const role = (session?.user as any)?.role;
-  const isMakerOrAdmin = role === "Maker" || role === "Admin";
+  const getRoleString = (roleVal: any) => {
+    if (roleVal === 0) return 'Member';
+    if (roleVal === 1) return 'Maker';
+    if (roleVal === 2) return 'Admin';
+    return roleVal || 'Kullanıcı';
+  };
+
+  const currentRole = profileData?.role !== undefined ? getRoleString(profileData.role) : getRoleString((session?.user as any)?.role);
+  const isMakerOrAdmin = currentRole === "Maker" || currentRole === "Admin";
 
   return (
     <div className="min-h-screen bg-background">
@@ -83,7 +113,7 @@ function MakerApplicationForm({ userId }: { userId: string }) {
 
   if (success) {
     return (
-      <div className="text-center p-8 bg-[#1c1c1c] rounded-3xl border border-border">
+      <div className="text-center p-8 bg-card rounded-3xl border border-border">
         <h2 className="text-2xl font-bold mb-2 text-foreground">Başvurunuz Alındı! 🎉</h2>
         <p className="text-muted-foreground">Maker olma talebiniz yönetici onayına gönderildi. Onaylandığında ürün ekleyebileceksiniz.</p>
       </div>
@@ -91,19 +121,19 @@ function MakerApplicationForm({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="bg-[#1c1c1c] rounded-3xl border border-border p-6 sm:p-8 shadow-2xl">
+    <div className="bg-card rounded-3xl border border-border p-6 sm:p-8 shadow-2xl">
       <form onSubmit={handleSubmit} className="space-y-8">
         <div className="space-y-3">
           <label className="text-sm font-semibold flex items-center gap-2 text-foreground">
             <LinkIcon className="w-4 h-4 text-muted-foreground" /> LinkedIn / Github veya Portfolyo Linki
           </label>
-          <Input required placeholder="https://..." value={portfolio} onChange={e => setPortfolio(e.target.value)} className="bg-[#141414] border-border h-12" />
+          <Input required placeholder="https://..." value={portfolio} onChange={e => setPortfolio(e.target.value)} className="bg-background border-border h-12" />
         </div>
         <div className="space-y-3">
           <label className="text-sm font-semibold flex items-center gap-2 text-foreground">
             <AlignLeft className="w-4 h-4 text-muted-foreground" /> Neden Maker Olmak İstiyorsunuz?
           </label>
-          <Textarea required placeholder="Kendi projelerimi sergilemek, topluluğa katkı sağlamak..." rows={4} value={reason} onChange={e => setReason(e.target.value)} className="bg-[#141414] border-border resize-none" />
+          <Textarea required placeholder="Kendi projelerimi sergilemek, topluluğa katkı sağlamak..." rows={4} value={reason} onChange={e => setReason(e.target.value)} className="bg-background border-border resize-none" />
         </div>
         <div className="pt-4 border-t border-border/50 flex justify-end">
           <Button type="submit" disabled={isSubmitting} className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-full px-6 py-6 h-auto shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all">
@@ -123,6 +153,8 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
   const [website, setWebsite] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
+  const [isUploadingGallery, setIsUploadingGallery] = useState(false);
   
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   
@@ -165,6 +197,39 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
     }
   };
 
+  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploadingGallery(true);
+    
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "");
+        
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        return data.secure_url;
+      });
+      
+      const newUrls = await Promise.all(uploadPromises);
+      setGalleryUrls(prev => [...prev, ...newUrls.filter(Boolean)]);
+    } catch (err) {
+      console.error("Galeri yükleme hatası:", err);
+    } finally {
+      setIsUploadingGallery(false);
+    }
+  };
+
+  const removeGalleryImage = (index: number) => {
+    setGalleryUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -184,7 +249,8 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
           description,
           slug: slug || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, ""),
           topics: selectedCategories,
-          thumbnailUrl: logoUrl
+          thumbnailUrl: logoUrl,
+          galleryUrls: galleryUrls
         })
       });
       
@@ -202,7 +268,7 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
 
   if (success) {
     return (
-      <div className="text-center p-12 bg-[#1c1c1c] text-foreground rounded-3xl border border-emerald-500/30 shadow-[0_0_40px_rgba(16,185,129,0.1)]">
+      <div className="text-center p-12 bg-card text-foreground rounded-3xl border border-emerald-500/30 shadow-[0_0_40px_rgba(16,185,129,0.1)]">
         <h2 className="text-3xl font-bold mb-4">Ürününüz Gönderildi! 🚀</h2>
         <p className="text-muted-foreground text-lg max-w-md mx-auto">Ürününüz inceleme için admin onayına gönderildi. İnceleme tamamlandığında anasayfada yer alacak.</p>
       </div>
@@ -212,12 +278,12 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
   return (
     <div className="space-y-12">
       {/* Form Card */}
-      <div className="bg-[#1c1c1c] rounded-3xl border border-border shadow-2xl overflow-hidden">
+      <div className="bg-card rounded-3xl border border-border shadow-2xl overflow-hidden">
         <form onSubmit={handleSubmit} className="p-6 sm:p-10 space-y-10">
           
           {/* Logo Placeholder */}
           <div className="flex items-center gap-6">
-            <div className="relative group w-24 h-24 rounded-2xl border-2 border-dashed border-border/60 bg-[#141414] flex flex-col items-center justify-center text-muted-foreground overflow-hidden hover:border-emerald-500/50 transition-colors cursor-pointer">
+            <div className="relative group w-24 h-24 rounded-2xl border-2 border-dashed border-border/60 bg-background flex flex-col items-center justify-center text-muted-foreground overflow-hidden hover:border-emerald-500/50 transition-colors cursor-pointer">
               {isUploadingLogo ? (
                 <span className="text-xs font-medium animate-pulse">Yükleniyor...</span>
               ) : logoUrl ? (
@@ -242,6 +308,48 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
             </div>
           </div>
 
+          {/* Medya Galerisi */}
+          <div className="space-y-4 relative">
+            <div className="flex justify-between items-center">
+              <label className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                <ImageIcon className="w-4 h-4 text-muted-foreground" /> Medya Galerisi (Ekran Görüntüleri vb.)
+              </label>
+              <span className="text-xs text-muted-foreground">{galleryUrls.length}/5</span>
+            </div>
+            
+            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+              {galleryUrls.map((url, i) => (
+                <div key={i} className="relative w-40 h-28 flex-shrink-0 rounded-xl overflow-hidden border border-border group">
+                  <img src={url} alt={`Gallery ${i}`} className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => removeGalleryImage(i)} className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              
+              {galleryUrls.length < 5 && (
+                <div className="relative w-40 h-28 flex-shrink-0 rounded-xl border-2 border-dashed border-border/60 bg-background flex flex-col items-center justify-center text-muted-foreground hover:border-emerald-500/50 transition-colors cursor-pointer">
+                  {isUploadingGallery ? (
+                    <span className="text-xs font-medium animate-pulse">Yükleniyor...</span>
+                  ) : (
+                    <>
+                      <ImageIcon className="w-6 h-6 mb-1 opacity-50" />
+                      <span className="text-xs font-medium">Görsel Ekle</span>
+                    </>
+                  )}
+                  <input 
+                    type="file" 
+                    accept="image/png, image/jpeg, image/gif" 
+                    multiple
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={handleGalleryUpload}
+                    disabled={isUploadingGallery}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="space-y-4 relative">
             <div className="flex justify-between items-center">
               <label className="text-sm font-semibold flex items-center gap-2 text-foreground">
@@ -249,7 +357,7 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
               </label>
               <span className="text-xs text-muted-foreground">{name.length}/40</span>
             </div>
-            <Input required placeholder="Örn. Vitrin" maxLength={40} value={name} onChange={e => setName(e.target.value)} className="bg-[#141414] border-border h-12 text-base" />
+            <Input required placeholder="Örn. Vitrin" maxLength={40} value={name} onChange={e => setName(e.target.value)} className="bg-background border-border h-12 text-base" />
           </div>
 
           <div className="space-y-4 relative">
@@ -259,17 +367,23 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
               </label>
               <span className="text-xs text-muted-foreground">{tagline.length}/60</span>
             </div>
-            <Input required placeholder="Yerli Product Hunt alternatifi" maxLength={60} value={tagline} onChange={e => setTagline(e.target.value)} className="bg-[#141414] border-border h-12 text-base" />
+            <Input required placeholder="Yerli Product Hunt alternatifi" maxLength={60} value={tagline} onChange={e => setTagline(e.target.value)} className="bg-background border-border h-12 text-base" />
           </div>
 
-          <div className="space-y-4 relative">
+          <div className="space-y-4 relative" data-color-mode="light">
             <div className="flex justify-between items-center">
               <label className="text-sm font-semibold flex items-center gap-2 text-foreground">
-                <AlignLeft className="w-4 h-4 text-muted-foreground rotate-180" /> Detaylı Açıklama
+                <AlignLeft className="w-4 h-4 text-muted-foreground rotate-180" /> Ürün Hikayesi (Detaylı Açıklama)
               </label>
-              <span className="text-xs text-muted-foreground">{description.length}/400</span>
             </div>
-            <Textarea required placeholder="Ürününüzün ne yaptığını, kimin için olduğunu ve neden özel olduğunu anlatın..." maxLength={400} rows={5} value={description} onChange={e => setDescription(e.target.value)} className="bg-[#141414] border-border text-base resize-y min-h-[120px]" />
+            <div className="bg-background rounded-xl border border-border text-foreground overflow-hidden">
+              <MDEditor 
+                value={description} 
+                onChange={(val) => setDescription(val || "")} 
+                preview="edit"
+                height={300}
+              />
+            </div>
           </div>
 
           <div className="space-y-4 relative">
@@ -290,7 +404,7 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                       isSelected 
                       ? "bg-primary text-primary-foreground border border-primary" 
-                      : "bg-[#141414] text-muted-foreground border border-border hover:border-muted-foreground/50 hover:text-foreground"
+                      : "bg-background text-muted-foreground border border-border hover:border-muted-foreground/50 hover:text-foreground"
                     }`}
                   >
                     {cat}
@@ -306,7 +420,7 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
                 <Globe className="w-4 h-4 text-muted-foreground" /> Web Sitesi
               </label>
             </div>
-            <Input placeholder="https://vitrin.app" value={website} onChange={e => setWebsite(e.target.value)} className="bg-[#141414] border-border h-12 text-base" />
+            <Input placeholder="https://vitrin.app" value={website} onChange={e => setWebsite(e.target.value)} className="bg-background border-border h-12 text-base" />
           </div>
 
           <div className="space-y-4 relative">
@@ -315,7 +429,7 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
                 <LinkIcon className="w-4 h-4 text-muted-foreground" /> Özel URL (Slug)
               </label>
             </div>
-            <Input placeholder="vitrin.app/urun-adi" value={slug} onChange={e => setSlug(e.target.value)} className="bg-[#141414] border-border h-12 text-base" />
+            <Input placeholder="vitrin.app/urun-adi" value={slug} onChange={e => setSlug(e.target.value)} className="bg-background border-border h-12 text-base" />
             <p className="text-xs text-muted-foreground mt-2">Boş bırakırsanız ürün adına göre otomatik oluşturulur.</p>
           </div>
           
@@ -325,8 +439,8 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
             <span className="text-muted-foreground text-sm font-medium hover:text-foreground cursor-pointer transition-colors">
               Taslak olarak kaydet
             </span>
-            <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-full px-8 py-6 h-auto shadow-[0_0_30px_rgba(16,185,129,0.25)] hover:shadow-[0_0_40px_rgba(16,185,129,0.4)] transition-all">
-              {isSubmitting ? "Gönderiliyor..." : "Ürünü İncelemeye Gönder"} <ArrowRight className="ml-2 w-4 h-4" />
+            <Button type="submit" disabled={isSubmitting || isUploadingLogo || isUploadingGallery} className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-full px-8 py-6 h-auto shadow-[0_0_30px_rgba(16,185,129,0.25)] hover:shadow-[0_0_40px_rgba(16,185,129,0.4)] transition-all">
+              {isSubmitting ? "Gönderiliyor..." : (isUploadingLogo || isUploadingGallery) ? "Görseller Yükleniyor..." : "Ürünü İncelemeye Gönder"} <ArrowRight className="ml-2 w-4 h-4" />
             </Button>
           </div>
         </form>
@@ -338,9 +452,9 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
           <Sparkles className="w-5 h-5 text-emerald-500" /> Canlı Önizleme
         </h3>
         
-        <div className="bg-[#1c1c1c] rounded-3xl border border-border p-6 shadow-xl">
+        <div className="bg-card rounded-3xl border border-border p-6 shadow-xl">
            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-xl border border-border bg-[#141414] flex items-center justify-center text-muted-foreground shrink-0 overflow-hidden">
+              <div className="w-16 h-16 rounded-xl border border-border bg-background flex items-center justify-center text-muted-foreground shrink-0 overflow-hidden">
                 {logoUrl ? (
                   <img src={logoUrl} alt="Preview Logo" className="w-full h-full object-cover" />
                 ) : (
@@ -362,7 +476,7 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
                       </span>
                     ))
                   ) : (
-                    <span className="text-xs bg-[#141414] text-muted-foreground border border-border px-2 py-1 rounded-md font-medium">
+                    <span className="text-xs bg-background text-muted-foreground border border-border px-2 py-1 rounded-md font-medium">
                       Kategori
                     </span>
                   )}
@@ -374,7 +488,7 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
                 </div>
               </div>
               <div className="shrink-0">
-                <div className="flex flex-col items-center justify-center w-12 h-14 bg-[#141414] border border-border rounded-xl">
+                <div className="flex flex-col items-center justify-center w-12 h-14 bg-background border border-border rounded-xl">
                   <span className="text-xs text-muted-foreground">▲</span>
                   <span className="font-bold text-foreground mt-0.5">0</span>
                 </div>

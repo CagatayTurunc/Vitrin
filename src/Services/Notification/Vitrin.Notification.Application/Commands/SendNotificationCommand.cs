@@ -9,6 +9,8 @@ public record SendNotificationCommand(Guid UserId, string Message) : IRequest<Re
 public interface INotificationRepository
 {
     Task AddAsync(NotificationItem notification, CancellationToken cancellationToken);
+    Task<NotificationItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task UpdateAsync(NotificationItem notification, CancellationToken cancellationToken);
 }
 
 public class SendNotificationCommandHandler : IRequestHandler<SendNotificationCommand, Result<Guid>>

@@ -112,4 +112,13 @@ public class ProductItem : AggregateRoot
             _upvotes.Add(new ProductUpvote(Id, userId));
         }
     }
+    
+    public void SetGalleryUrls(IEnumerable<string> urls)
+    {
+        GalleryUrls.Clear();
+        if (urls != null)
+        {
+            GalleryUrls.AddRange(urls);
+        }
+    }
 }

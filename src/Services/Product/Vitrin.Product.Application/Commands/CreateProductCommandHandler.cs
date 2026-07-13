@@ -11,6 +11,8 @@ public interface IProductRepository
     Task<Topic?> GetTopicBySlugAsync(string slug, CancellationToken cancellationToken);
     Task<ProductItem?> GetByIdWithUpvotesAsync(Guid id, CancellationToken cancellationToken);
     Task UpdateAsync(ProductItem product, CancellationToken cancellationToken);
+    Task ToggleUpvoteAsync(Guid productId, Guid userId, CancellationToken cancellationToken);
+    Task<int> GetUpvoteCountAsync(Guid productId, CancellationToken cancellationToken);
 }
 
 public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand, Result<Guid>>
@@ -37,6 +39,11 @@ public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand,
             request.Description,
             request.Slug,
             request.ThumbnailUrl);
+            
+        if (request.GalleryUrls != null && request.GalleryUrls.Any())
+        {
+            product.SetGalleryUrls(request.GalleryUrls);
+        }
 
         // Auto submit for review
         product.SubmitForReview();

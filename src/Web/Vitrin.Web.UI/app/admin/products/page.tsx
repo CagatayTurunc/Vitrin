@@ -13,17 +13,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import { useSession } from "next-auth/react";
+
 export default function AdminProducts() {
+  const { data: session } = useSession();
   const [products, setProducts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    if (session?.accessToken) {
+      fetchProducts(session.accessToken as string);
+    }
+  }, [session?.accessToken]);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (token: string) => {
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/products/admin/pending");
+      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/products/admin/pending", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (res.ok) {
         const data = await res.json();
         setProducts(data);
@@ -37,7 +44,10 @@ export default function AdminProducts() {
 
   const handleApprove = async (id: string) => {
     try {
-      await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/admin/${id}/approve`, { method: "POST" });
+      await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/admin/${id}/approve`, { 
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.accessToken}` }
+      });
       setProducts(products.filter(p => p.id !== id));
     } catch (err) {
       console.error(err);
@@ -46,7 +56,10 @@ export default function AdminProducts() {
 
   const handleReject = async (id: string) => {
     try {
-      await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/admin/${id}/reject`, { method: "POST" });
+      await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/admin/${id}/reject`, { 
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.accessToken}` }
+      });
       setProducts(products.filter(p => p.id !== id));
     } catch (err) {
       console.error(err);

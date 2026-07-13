@@ -59,6 +59,9 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("About")
+                        .HasColumnType("text");
+
                     b.Property<string>("AvatarUrl")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -66,6 +69,9 @@ namespace Vitrin.Auth.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CurrentStreak")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -80,8 +86,23 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                     b.Property<string>("GithubId")
                         .HasColumnType("text");
 
+                    b.Property<string>("GithubUrl")
+                        .HasColumnType("text");
+
                     b.Property<string>("GoogleId")
                         .HasColumnType("text");
+
+                    b.Property<string>("Headline")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("LastVoteDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LinkedInUrl")
+                        .HasColumnType("text");
+
+                    b.Property<int>("LongestStreak")
+                        .HasColumnType("integer");
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text");
@@ -97,6 +118,9 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("WebsiteUrl")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
@@ -106,6 +130,92 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("Vitrin.Auth.Domain.Entities.UserBadge", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("EarnedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserBadges");
+                });
+
+            modelBuilder.Entity("Vitrin.Auth.Domain.Entities.UserFollow", b =>
+                {
+                    b.Property<Guid>("FollowerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FollowingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("FollowerId", "FollowingId");
+
+                    b.HasIndex("FollowingId");
+
+                    b.ToTable("UserFollows");
+                });
+
+            modelBuilder.Entity("Vitrin.Auth.Domain.Entities.UserBadge", b =>
+                {
+                    b.HasOne("Vitrin.Auth.Domain.Entities.User", "User")
+                        .WithMany("Badges")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Vitrin.Auth.Domain.Entities.UserFollow", b =>
+                {
+                    b.HasOne("Vitrin.Auth.Domain.Entities.User", "Follower")
+                        .WithMany("Following")
+                        .HasForeignKey("FollowerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vitrin.Auth.Domain.Entities.User", "Following")
+                        .WithMany("Followers")
+                        .HasForeignKey("FollowingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Follower");
+
+                    b.Navigation("Following");
+                });
+
+            modelBuilder.Entity("Vitrin.Auth.Domain.Entities.User", b =>
+                {
+                    b.Navigation("Badges");
+
+                    b.Navigation("Followers");
+
+                    b.Navigation("Following");
                 });
 #pragma warning restore 612, 618
         }
