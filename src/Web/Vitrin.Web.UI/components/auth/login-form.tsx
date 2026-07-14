@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
+import { getErrorMessage } from "@/lib/errors";
 import Link from "next/link";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 
@@ -42,9 +43,9 @@ export function LoginForm() {
         router.push("/");
         router.refresh();
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Login Error:", err);
-      setError(err.message || "Giriş yapılırken bir hata oluştu.");
+      setError(getErrorMessage(err, "Giriş yapılırken bir hata oluştu."));
     } finally {
       setIsLoading(false);
     }

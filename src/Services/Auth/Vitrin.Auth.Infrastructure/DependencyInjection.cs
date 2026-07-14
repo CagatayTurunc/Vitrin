@@ -14,9 +14,14 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException("Auth veritabanı bağlantı bilgisi yapılandırılmalıdır.");
+        }
+
         services.AddDbContext<AuthDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")
-                ?? "Host=localhost;Database=vitrin_auth;Username=postgres;Password=123456"));
+            options.UseNpgsql(connectionString));
 
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IJwtProvider, JwtProvider>();

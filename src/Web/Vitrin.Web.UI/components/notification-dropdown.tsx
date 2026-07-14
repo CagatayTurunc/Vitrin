@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { Bell } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useNotificationStore } from '@/core/application/useNotificationStore';
-import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -13,19 +12,21 @@ export function NotificationDropdown() {
   const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(false);
   const { notifications, unreadCount, fetchNotifications, markAsRead } = useNotificationStore();
+  const accessToken = session?.accessToken;
+  const userId = session?.user?.id;
 
   useEffect(() => {
-    if (session?.user?.id && session.accessToken) {
-      fetchNotifications(session.accessToken, session.user.id);
+    if (userId && accessToken) {
+      fetchNotifications(accessToken, userId);
       
       // Optionally set up polling here for real-time updates
       const intervalId = setInterval(() => {
-        fetchNotifications(session.accessToken, session.user.id);
+        fetchNotifications(accessToken, userId);
       }, 15000); // Check every 15 seconds
 
       return () => clearInterval(intervalId);
     }
-  }, [session, fetchNotifications]);
+  }, [accessToken, userId, fetchNotifications]);
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);

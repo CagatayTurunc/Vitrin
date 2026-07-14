@@ -53,7 +53,7 @@ function groupProducts(products: Product[]) {
 
 export function ProductFeed() {
   const { products, isLoading, error, fetchProducts, fetchMyVotes } = useProductStore();
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
 
   useEffect(() => {
     fetchProducts();

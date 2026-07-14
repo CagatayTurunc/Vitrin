@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Microsoft.Extensions.Configuration;
 using Moq;
 using Vitrin.Comment.Application.Commands;
 using Vitrin.Comment.Domain.Entities;
@@ -10,25 +9,29 @@ namespace Vitrin.Comment.Tests.Application;
 public class AddCommentCommandHandlerTests
 {
     private readonly Mock<ICommentRepository> _repositoryMock;
-    private readonly Mock<IConfiguration> _configMock;
+    private readonly Mock<ICommentNotificationPublisher> _notificationPublisherMock;
     private readonly AddCommentCommandHandler _handler;
 
     public AddCommentCommandHandlerTests()
     {
         _repositoryMock = new Mock<ICommentRepository>();
-        _configMock = new Mock<IConfiguration>();
+        _notificationPublisherMock = new Mock<ICommentNotificationPublisher>();
+        _notificationPublisherMock
+            .Setup(p => p.NotifyAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        // Configuration mock — notification ve product URL'leri
-        _configMock.Setup(c => c["ServiceUrls:Notification"]).Returns("http://localhost:5101");
-        _configMock.Setup(c => c["ServiceUrls:Product"]).Returns("http://localhost:5102");
-
-        _handler = new AddCommentCommandHandler(_repositoryMock.Object, _configMock.Object);
+        _handler = new AddCommentCommandHandler(
+            _repositoryMock.Object,
+            _notificationPublisherMock.Object);
     }
 
     [Fact]
     public async Task Handle_WithValidCommand_Should_Return_Success_With_CommentId()
     {
-        // Arrange
         var command = new AddCommentCommand(
             ProductId: Guid.NewGuid(),
             UserId: Guid.NewGuid(),
@@ -39,42 +42,43 @@ public class AddCommentCommandHandlerTests
             .Setup(r => r.AddAsync(It.IsAny<CommentItem>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        // Act
         var result = await _handler.Handle(command, CancellationToken.None);
 
-        // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().NotBeEmpty();
-
-        _repositoryMock.Verify(r => r.AddAsync(It.IsAny<CommentItem>(), It.IsAny<CancellationToken>()), Times.Once);
+        _repositoryMock.Verify(
+            r => r.AddAsync(It.IsAny<CommentItem>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
     public async Task Handle_WithEmptyContent_Should_Return_Failure()
     {
-        // Arrange
         var command = new AddCommentCommand(
             ProductId: Guid.NewGuid(),
             UserId: Guid.NewGuid(),
             UserName: "testuser",
-            Content: "   "); // boş içerik
+            Content: "   ");
 
-        // Act
         var result = await _handler.Handle(command, CancellationToken.None);
 
-        // Assert
         result.IsFailure.Should().BeTrue();
         result.Error.Should().Contain("empty");
-
-        _repositoryMock.Verify(r => r.AddAsync(It.IsAny<CommentItem>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repositoryMock.Verify(
+            r => r.AddAsync(It.IsAny<CommentItem>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _notificationPublisherMock.VerifyNoOtherCalls();
     }
 
     [Fact]
-    public async Task Handle_WithReply_Should_Save_Comment_With_ParentId()
+    public async Task Handle_WithReply_Should_Save_Comment_And_Notify_ParentOwner()
     {
-        // Arrange
         var parentId = Guid.NewGuid();
-        var parentComment = CommentItem.Create(Guid.NewGuid(), Guid.NewGuid(), "parentuser", "Orijinal yorum").Value;
+        var parentComment = CommentItem.Create(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "parentuser",
+            "Orijinal yorum").Value;
 
         var command = new AddCommentCommand(
             ProductId: Guid.NewGuid(),
@@ -86,15 +90,19 @@ public class AddCommentCommandHandlerTests
         _repositoryMock
             .Setup(r => r.GetByIdAsync(parentId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(parentComment);
-
         _repositoryMock
             .Setup(r => r.AddAsync(It.IsAny<CommentItem>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        // Act
         var result = await _handler.Handle(command, CancellationToken.None);
 
-        // Assert
         result.IsSuccess.Should().BeTrue();
+        _notificationPublisherMock.Verify(
+            p => p.NotifyAsync(
+                parentComment.UserId,
+                It.IsAny<string>(),
+                "comment_reply",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

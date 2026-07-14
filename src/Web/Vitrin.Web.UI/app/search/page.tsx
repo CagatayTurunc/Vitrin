@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ProductRow } from "@/components/product-row";
-import { Product } from "@/core/domain/product.types";
+import { Product, ProductApiModel } from "@/core/domain/product.types";
 import { Search, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,17 +18,7 @@ function SearchContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  useEffect(() => {
-    if (initialQuery) {
-      setQuery(initialQuery);
-      performSearch(initialQuery);
-    } else {
-      setProducts([]);
-      setHasSearched(false);
-    }
-  }, [initialQuery]);
-
-  const performSearch = async (searchQuery: string) => {
+  const performSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) return;
     
     setIsLoading(true);
@@ -36,8 +26,8 @@ function SearchContent() {
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/search?q=${encodeURIComponent(searchQuery)}`);
       if (res.ok) {
-        const data = await res.json();
-        const mappedProducts: Product[] = data.map((p: any, index: number) => ({
+        const data = await res.json() as ProductApiModel[];
+        const mappedProducts: Product[] = data.map((p: ProductApiModel, index: number) => ({
           id: p.id,
           rank: index + 1,
           name: p.name,
@@ -58,7 +48,20 @@ function SearchContent() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  /* URL navigation is an external state source; keep the controlled input and results in sync. */
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setQuery(initialQuery);
+    if (initialQuery) {
+      void performSearch(initialQuery);
+    } else {
+      setProducts([]);
+      setHasSearched(false);
+    }
+  }, [initialQuery, performSearch]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +110,7 @@ function SearchContent() {
           products.length > 0 ? (
             <div className="flex flex-col space-y-4">
               <h2 className="text-lg font-medium text-muted-foreground mb-2">
-                "{initialQuery}" için {products.length} sonuç bulundu
+                &ldquo;{initialQuery}&rdquo; için {products.length} sonuç bulundu
               </h2>
               <div className="rounded-3xl border border-border bg-card p-2 shadow-sm sm:p-3 flex flex-col divide-y divide-border/60">
                 {products.map((product) => (
@@ -119,7 +122,7 @@ function SearchContent() {
             <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
               <Search className="h-12 w-12 mb-4 opacity-20" />
               <h3 className="text-xl font-semibold text-foreground mb-2">Sonuç Bulunamadı</h3>
-              <p>"{initialQuery}" ile eşleşen bir ürün göremedik. Farklı kelimeler denemeye ne dersin?</p>
+              <p>&ldquo;{initialQuery}&rdquo; ile eşleşen bir ürün göremedik. Farklı kelimeler denemeye ne dersin?</p>
             </div>
           )
         ) : (

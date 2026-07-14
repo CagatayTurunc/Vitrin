@@ -4,10 +4,10 @@ namespace Vitrin.Auth.Domain.Entities;
 
 public class User : AggregateRoot
 {
-    public string Email { get; private set; }
-    public string Username { get; private set; }
-    public string FullName { get; private set; }
-    public string AvatarUrl { get; private set; }
+    public string Email { get; private set; } = string.Empty;
+    public string Username { get; private set; } = string.Empty;
+    public string FullName { get; private set; } = string.Empty;
+    public string AvatarUrl { get; private set; } = string.Empty;
     public string? Headline { get; private set; }
     public string? About { get; private set; }
     public string? WebsiteUrl { get; private set; }

@@ -15,11 +15,15 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException("Product veritabanı bağlantı bilgisi yapılandırılmalıdır.");
+        }
+
         // EF Core / PostgreSQL
         services.AddDbContext<ProductDbContext>(options =>
-            options.UseNpgsql(
-                configuration.GetConnectionString("DefaultConnection")
-                ?? "Host=localhost;Database=vitrin_product;Username=postgres;Password=123456"));
+            options.UseNpgsql(connectionString));
 
         // Repository
         services.AddScoped<IProductRepository, ProductRepository>();

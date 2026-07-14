@@ -1,24 +1,11 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Plus_Jakarta_Sans, Inter } from 'next/font/google'
 import './globals.css'
 import NextAuthProvider from "@/components/next-auth-provider";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  variable: '--font-jakarta',
-  display: 'swap',
-})
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-})
 
 export const metadata: Metadata = {
   title: 'Vitrin — Günün Ürünleri',
@@ -60,10 +47,9 @@ export default function RootLayout({
   return (
     <html
       lang="tr"
-      className={`${jakarta.variable} ${inter.variable}`}
       suppressHydrationWarning
     >
-      <body className={`${inter.className} antialiased min-h-screen bg-background text-foreground`}>
+      <body className="font-body antialiased min-h-screen bg-background text-foreground">
         <NextAuthProvider>
           <ThemeProvider
             attribute="class"

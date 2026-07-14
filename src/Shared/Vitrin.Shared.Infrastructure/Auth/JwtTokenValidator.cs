@@ -18,10 +18,12 @@ public sealed class JwtTokenValidator
 
     public JwtTokenValidator(IConfiguration configuration)
     {
-        var secret = configuration["Jwt:Secret"]
-            ?? throw new InvalidOperationException(
-                "Jwt:Secret konfigürasyonu bulunamadı. " +
-                "appsettings.json veya ortam değişkenine ekleyin.");
+        var secret = configuration["Jwt:Secret"];
+        if (string.IsNullOrWhiteSpace(secret) || Encoding.UTF8.GetByteCount(secret) < 32)
+        {
+            throw new InvalidOperationException(
+                "Jwt:Secret en az 32 bayt uzunluğunda yapılandırılmalıdır.");
+        }
 
         var issuer   = configuration["Jwt:Issuer"]   ?? "Vitrin";
         var audience = configuration["Jwt:Audience"] ?? "Vitrin";

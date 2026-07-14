@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import Image from "next/image";
 import Link from "next/link";
 import { User as UserIcon } from "lucide-react";
+import type { UserSummary } from "@/core/domain/user.types";
 
 export function FollowersModal({ 
   isOpen, 
@@ -17,28 +18,28 @@ export function FollowersModal({
   username: string;
   type: 'followers' | 'following';
 }) {
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<UserSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (isOpen && username) {
-      fetchUsers();
-    }
-  }, [isOpen, username, type]);
+    if (!isOpen || !username) return;
 
-  const fetchUsers = async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/users/${username}/${type}`);
-      if (res.ok) {
-        setUsers(await res.json());
+    const fetchUsers = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(
+          process.env.NEXT_PUBLIC_API_URL + `/api/auth/users/${username}/${type}`,
+        );
+        if (response.ok) setUsers(await response.json() as UserSummary[]);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
+
+    void fetchUsers();
+  }, [isOpen, username, type]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>

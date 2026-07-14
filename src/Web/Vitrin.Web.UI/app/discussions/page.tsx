@@ -1,7 +1,6 @@
 "use client";
 
-import { MessageCircle, ThumbsUp, Eye, Pin, TrendingUp, Clock, ArrowRight } from "lucide-react";
-import Link from "next/link";
+import { MessageCircle, ThumbsUp, Eye, Pin, TrendingUp, Clock } from "lucide-react";
 
 const discussions = [
   {

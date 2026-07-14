@@ -15,11 +15,15 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException("Comment veritabanı bağlantı bilgisi yapılandırılmalıdır.");
+        }
+
         // EF Core / PostgreSQL
         services.AddDbContext<CommentDbContext>(options =>
-            options.UseNpgsql(
-                configuration.GetConnectionString("DefaultConnection")
-                ?? "Host=localhost;Database=vitrin_comment;Username=postgres;Password=123456"));
+            options.UseNpgsql(connectionString));
 
         // Repository
         services.AddScoped<ICommentRepository, CommentRepository>();

@@ -6,7 +6,6 @@ import { CheckCircle2, XCircle, Clock } from "lucide-react";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -15,52 +14,63 @@ import {
 
 import { useSession } from "next-auth/react";
 
+interface PendingProduct {
+  id: string;
+  name: string;
+  slug: string;
+  tagline: string;
+  createdAt: string;
+}
+
 export default function AdminProducts() {
   const { data: session } = useSession();
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<PendingProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (session?.accessToken) {
-      fetchProducts(session.accessToken as string);
-    }
+    const token = session?.accessToken;
+    if (!token) return;
+
+    const fetchProducts = async () => {
+      try {
+        const response = await fetch(
+          process.env.NEXT_PUBLIC_API_URL + "/api/products/admin/pending",
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (response.ok) setProducts(await response.json() as PendingProduct[]);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void fetchProducts();
   }, [session?.accessToken]);
 
-  const fetchProducts = async (token: string) => {
-    try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/products/admin/pending", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setProducts(data);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleApprove = async (id: string) => {
+    if (!session?.accessToken) return;
+
     try {
       await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/admin/${id}/approve`, { 
         method: "POST",
         headers: { Authorization: `Bearer ${session?.accessToken}` }
       });
-      setProducts(products.filter(p => p.id !== id));
+      setProducts((current) => current.filter((product) => product.id !== id));
     } catch (err) {
       console.error(err);
     }
   };
 
   const handleReject = async (id: string) => {
+    if (!session?.accessToken) return;
+
     try {
       await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/admin/${id}/reject`, { 
         method: "POST",
         headers: { Authorization: `Bearer ${session?.accessToken}` }
       });
-      setProducts(products.filter(p => p.id !== id));
+      setProducts((current) => current.filter((product) => product.id !== id));
     } catch (err) {
       console.error(err);
     }

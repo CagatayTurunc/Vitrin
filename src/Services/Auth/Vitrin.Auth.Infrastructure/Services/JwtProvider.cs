@@ -29,7 +29,11 @@ public class JwtProvider : IJwtProvider
             new Claim("Role", user.Role.ToString())
         };
 
-        var secret = _configuration["Jwt:Secret"] ?? "SuperSecretKeyForVitrinAppThatIsLongEnoughToWorkProperly";
+        var secret = _configuration["Jwt:Secret"];
+        if (string.IsNullOrWhiteSpace(secret) || Encoding.UTF8.GetByteCount(secret) < 32)
+        {
+            throw new InvalidOperationException("Jwt:Secret en az 32 bayt uzunluğunda yapılandırılmalıdır.");
+        }
         var issuer = _configuration["Jwt:Issuer"] ?? "Vitrin";
         var audience = _configuration["Jwt:Audience"] ?? "Vitrin";
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Shield, ShieldAlert, User as UserIcon } from "lucide-react";
 import {
   Table,
@@ -14,34 +13,44 @@ import {
 
 import { useSession } from "next-auth/react";
 
+interface AdminUser {
+  id: string;
+  fullName?: string | null;
+  username?: string | null;
+  email: string;
+  createdAt: string;
+  role: number;
+}
+
 export default function AdminUsers() {
   const { data: session } = useSession();
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (session?.accessToken) {
-      fetchUsers(session.accessToken as string);
-    }
+    const token = session?.accessToken;
+    if (!token) return;
+
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch(
+          process.env.NEXT_PUBLIC_API_URL + "/api/auth/admin/users",
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (response.ok) setUsers(await response.json() as AdminUser[]);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void fetchUsers();
   }, [session?.accessToken]);
 
-  const fetchUsers = async (token: string) => {
-    try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/auth/admin/users", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleRoleChange = async (userId: string, newRole: number) => {
+    if (!session?.accessToken) return;
+
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/admin/users/${userId}/role`, {
         method: "POST",
@@ -53,7 +62,9 @@ export default function AdminUsers() {
       });
       
       if (res.ok) {
-        setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
+        setUsers((current) => current.map((user) =>
+          user.id === userId ? { ...user, role: newRole } : user
+        ));
       }
     } catch (err) {
       console.error(err);

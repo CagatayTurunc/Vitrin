@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Flame, Medal, Trophy } from "lucide-react";
+import Image from "next/image";
+import { Flame, Trophy } from "lucide-react";
+import type { LeaderboardData, LeaderboardMaker } from "@/core/domain/user.types";
 
 export function LeaderboardWidget() {
-  const [makers, setMakers] = useState<any[]>([]);
+  const [makers, setMakers] = useState<LeaderboardMaker[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch(process.env.NEXT_PUBLIC_API_URL + '/api/auth/leaderboard')
       .then(res => res.json())
-      .then(data => {
+      .then((data: LeaderboardData) => {
         setMakers(data.topMakers || []);
         setLoading(false);
       })
@@ -47,18 +49,18 @@ export function LeaderboardWidget() {
           </div>
         ) : (
           <div className="space-y-4">
-            {makers.slice(0, 5).map((maker, index) => (
+            {makers.slice(0, 5).map((maker) => (
               <Link href={`/profile/${maker.username}`} key={maker.id} className="flex items-center gap-3 group">
                 <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted overflow-hidden">
-                  {maker.profilePictureUrl ? (
-                    <img src={maker.profilePictureUrl} alt={maker.username} className="h-full w-full object-cover" />
+                  {maker.avatarUrl ? (
+                    <Image src={maker.avatarUrl} alt={maker.username} fill sizes="32px" className="object-cover" />
                   ) : (
                     <span className="text-xs font-medium uppercase text-muted-foreground">{maker.username.substring(0, 2)}</span>
                   )}
                 </div>
                 <div className="flex-1 overflow-hidden">
                   <p className="truncate text-sm font-medium leading-none group-hover:underline">
-                    {maker.firstName} {maker.lastName}
+                    {maker.fullName || maker.username}
                   </p>
                   <p className="truncate text-xs text-muted-foreground mt-1">
                     @{maker.username}
@@ -67,7 +69,7 @@ export function LeaderboardWidget() {
                 <div className="flex items-center gap-2">
                   <div className="flex items-center text-xs font-semibold text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded-full">
                     <Flame className="h-3 w-3 mr-1" />
-                    {maker.streakCount}
+                    {maker.followerCount}
                   </div>
                 </div>
               </Link>

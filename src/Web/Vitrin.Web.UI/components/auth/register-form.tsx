@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
+import { getErrorMessage } from "@/lib/errors";
 import Link from "next/link";
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from "lucide-react";
 
@@ -58,9 +59,9 @@ export function RegisterForm() {
         router.push("/");
         router.refresh();
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Register Error:", err);
-      setError(err.message || "Bilinmeyen bir hata oluştu.");
+      setError(getErrorMessage(err, "Bilinmeyen bir hata oluştu."));
     } finally {
       setIsLoading(false);
     }
@@ -81,11 +82,11 @@ export function RegisterForm() {
       <div className="flex flex-col space-y-2 text-left">
         <div className="inline-flex items-center rounded-full border border-border/40 bg-muted/50 px-2.5 py-0.5 text-xs font-medium w-fit mb-2">
           <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-[#00A170]"></span>
-          Vitrin'e Katıl
+          Vitrin&apos;e Katıl
         </div>
         <h1 className="text-3xl font-bold tracking-tight">Hesap Oluştur</h1>
         <p className="text-sm text-muted-foreground">
-          Vitrin'e katılmak için bilgilerini gir.
+          Vitrin&apos;e katılmak için bilgilerini gir.
         </p>
       </div>
 

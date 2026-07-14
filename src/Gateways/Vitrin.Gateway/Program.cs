@@ -5,7 +5,11 @@ using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 
 // JWT Authentication configuration
-var secret = builder.Configuration["Jwt:Secret"] ?? "SuperSecretKeyForVitrinAppThatIsLongEnoughToWorkProperly";
+var secret = builder.Configuration["Jwt:Secret"];
+if (string.IsNullOrWhiteSpace(secret) || Encoding.UTF8.GetByteCount(secret) < 32)
+{
+    throw new InvalidOperationException("Jwt:Secret en az 32 bayt uzunluğunda yapılandırılmalıdır.");
+}
 var issuer = builder.Configuration["Jwt:Issuer"] ?? "Vitrin";
 var audience = builder.Configuration["Jwt:Audience"] ?? "Vitrin";
 

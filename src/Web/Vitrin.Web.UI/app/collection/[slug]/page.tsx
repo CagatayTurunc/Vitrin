@@ -3,54 +3,57 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ProductRow } from "@/components/product-row";
-import { Product } from "@/core/domain/product.types";
+import { Product, ProductApiModel } from "@/core/domain/product.types";
+import type { CollectionDetail } from "@/core/domain/collection.types";
 import { Loader2, Bookmark, Calendar } from "lucide-react";
 
 export default function CollectionDetailPage() {
   const params = useParams();
   const slug = params.slug as string;
 
-  const [collection, setCollection] = useState<any>(null);
+  const [collection, setCollection] = useState<CollectionDetail | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (slug) {
-      fetchCollectionDetails();
-    }
-  }, [slug]);
+    if (!slug) return;
 
-  const fetchCollectionDetails = async () => {
-    try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/collections/by-slug/${slug}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCollection(data);
-        
-        if (data.products) {
-          const mappedProducts: Product[] = data.products.map((p: any, index: number) => ({
-            id: p.id,
-            rank: index + 1,
-            name: p.name,
-            slug: p.slug,
-            description: p.tagline || p.description,
-            publishedAt: p.publishedAt,
-            image: p.thumbnailUrl || '/products/notai.png',
-            topics: p.topics || [],
-            votes: p.upvotes || 0,
-          }));
-          setProducts(mappedProducts);
+    const fetchCollectionDetails = async () => {
+      try {
+        const response = await fetch(
+          process.env.NEXT_PUBLIC_API_URL + `/api/collections/by-slug/${slug}`,
+        );
+        if (!response.ok) {
+          setCollection(null);
+          return;
         }
-      } else {
+
+        const data = await response.json() as CollectionDetail;
+        setCollection(data);
+        const mappedProducts: Product[] = (data.products ?? []).map(
+          (product: ProductApiModel, index: number) => ({
+            id: product.id,
+            rank: index + 1,
+            name: product.name,
+            slug: product.slug,
+            description: product.tagline || product.description,
+            publishedAt: product.publishedAt,
+            image: product.thumbnailUrl || '/products/notai.png',
+            topics: product.topics || [],
+            votes: product.upvotes || 0,
+          }),
+        );
+        setProducts(mappedProducts);
+      } catch (error) {
+        console.error(error);
         setCollection(null);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (e) {
-      console.error(e);
-      setCollection(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
+
+    void fetchCollectionDetails();
+  }, [slug]);
 
   if (isLoading) {
     return (

@@ -8,9 +8,16 @@ import { ProductRow } from '@/components/product-row';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, Heart, Box, CheckCircle2, User as UserIcon, CalendarDays, Settings } from 'lucide-react';
-import { format } from 'date-fns';
-import { tr } from 'date-fns/locale';
 import { FollowersModal } from '@/components/followers-modal';
+import Image from 'next/image';
+import type { UserProfile } from '@/core/domain/user.types';
+
+function getRoleString(role: unknown): string {
+  if (role === 0) return 'Member';
+  if (role === 1) return 'Maker';
+  if (role === 2) return 'Admin';
+  return typeof role === 'string' && role ? role : 'Kullanıcı';
+}
 
 export default function ProfilePage() {
   const { data: session, status } = useSession();
@@ -18,7 +25,7 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<'my-products' | 'upvoted'>('my-products');
   
   const { makerProducts, upvotedProducts, fetchMakerProducts, fetchUpvotedProducts, isLoading } = useProductStore();
-  const [profileData, setProfileData] = useState<any>(null);
+  const [profileData, setProfileData] = useState<UserProfile | null>(null);
   const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
   const [isFollowingModalOpen, setIsFollowingModalOpen] = useState(false);
 
@@ -30,7 +37,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (session?.user) {
-      const user = session.user as any;
+      const user = session.user;
       if (user.id) {
         fetchMakerProducts(user.id);
       }
@@ -45,7 +52,7 @@ export default function ProfilePage() {
         }).then(async res => {
           if (!res.ok) return null;
           const text = await res.text();
-          return text ? JSON.parse(text) : null;
+          return text ? JSON.parse(text) as UserProfile : null;
         }).then(data => {
           if (data) setProfileData(data);
         }).catch(err => console.error('Profile fetch error:', err));
@@ -57,18 +64,11 @@ export default function ProfilePage() {
     return <div className="min-h-screen flex items-center justify-center">Yükleniyor...</div>;
   }
 
-  const user = session.user as any;
-  
-  // Convert role to string helper
-  const getRoleString = (roleVal: any) => {
-    if (roleVal === 0) return 'Member';
-    if (roleVal === 1) return 'Maker';
-    if (roleVal === 2) return 'Admin';
-    return roleVal || 'Kullanıcı';
-  };
+  const user = session.user;
   
   const currentRole = profileData?.role !== undefined ? getRoleString(profileData.role) : getRoleString(user.role);
   const isMaker = currentRole === 'Maker' || currentRole === 'Admin';
+  const avatarUrl = profileData?.avatarUrl ?? user.image;
   
   // Avatar baş harfi
   const initials = user.name ? user.name.substring(0, 2).toUpperCase() : user.email?.substring(0, 2).toUpperCase();
@@ -82,8 +82,8 @@ export default function ProfilePage() {
             {/* Avatar */}
             <div className="shrink-0 relative">
               <div className="h-32 w-32 rounded-full border-4 border-background bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-white text-4xl font-bold shadow-2xl overflow-hidden">
-                {profileData?.avatarUrl || user.image ? (
-                  <img src={profileData?.avatarUrl || user.image} alt={user.name} className="h-full w-full object-cover" />
+                {avatarUrl ? (
+                  <Image src={avatarUrl} alt={user.name ?? user.username ?? 'Profil'} fill sizes="128px" className="object-cover" />
                 ) : (
                   initials
                 )}
@@ -139,23 +139,23 @@ export default function ProfilePage() {
                   </button>
                 </div>
                 
-                <FollowersModal isOpen={isFollowersModalOpen} onClose={() => setIsFollowersModalOpen(false)} username={user.username} type="followers" />
-                <FollowersModal isOpen={isFollowingModalOpen} onClose={() => setIsFollowingModalOpen(false)} username={user.username} type="following" />
+                <FollowersModal isOpen={isFollowersModalOpen} onClose={() => setIsFollowersModalOpen(false)} username={user.username ?? ''} type="followers" />
+                <FollowersModal isOpen={isFollowingModalOpen} onClose={() => setIsFollowingModalOpen(false)} username={user.username ?? ''} type="following" />
                 
                 <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground ml-2 border-l pl-4 border-border">
                   <CalendarDays className="w-4 h-4" />
-                  <span>Temmuz 2026'da katıldı</span>
+                  <span>Temmuz 2026&apos;da katıldı</span>
                 </div>
                 
                 {/* Gamification: Streak & Badges */}
-                {(profileData?.currentStreak > 0 || (profileData?.badges && profileData.badges.length > 0)) && (
+                {((profileData?.currentStreak ?? 0) > 0 || (profileData?.badges && profileData.badges.length > 0)) && (
                   <div className="flex items-center gap-3 ml-2 border-l pl-4 border-border">
-                    {profileData.currentStreak > 0 && (
+                    {(profileData?.currentStreak ?? 0) > 0 && (
                       <div className="flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" title="Her gün oy verme serisi">
-                        <span className="text-base">🔥</span> {profileData.currentStreak} Gün
+                        <span className="text-base">🔥</span> {profileData?.currentStreak} Gün
                       </div>
                     )}
-                    {profileData.badges && profileData.badges.map((badge: any, idx: number) => (
+                    {profileData?.badges?.map((badge, idx) => (
                       <div key={idx} className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 shadow-sm border border-amber-200/50 dark:border-amber-700/50 cursor-default transition-transform hover:scale-110" title={badge.name}>
                         {badge.icon === 'Flame' ? '🔥' : badge.icon === 'Award' ? '🏆' : badge.icon === 'Star' ? '🌟' : '🎖️'}
                       </div>

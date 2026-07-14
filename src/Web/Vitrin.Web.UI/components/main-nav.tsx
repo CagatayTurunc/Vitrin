@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { ChevronDown, Rocket, BookOpen, MessageSquare, Trophy, Calendar, Mail, Newspaper, Star, TrendingUp, Layers, Zap } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 const navItems = [
   {

@@ -1,5 +1,4 @@
 import { Calendar, MapPin, Users, ArrowRight, Clock } from "lucide-react";
-import Link from "next/link";
 
 export const metadata = {
   title: "Etkinlikler — Vitrin",

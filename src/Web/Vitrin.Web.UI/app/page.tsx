@@ -1,5 +1,4 @@
 import { CalendarDays } from 'lucide-react'
-import { SiteHeader } from '@/components/site-header'
 import { ProductFeed } from '@/components/product-feed'
 import { CategoryMenu } from '@/components/category-menu'
 import { LeaderboardWidget } from '@/components/leaderboard-widget'

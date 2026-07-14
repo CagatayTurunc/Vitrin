@@ -1,16 +1,21 @@
 #!/bin/sh
-# Önce login ol
-TOKEN=$(wget -qO- \
-  --post-data='{"email":"admin@vitrin.app","password":"Admin1234!"}' \
+set -eu
+
+: "${VITRIN_ADMIN_EMAIL:?VITRIN_ADMIN_EMAIL is required}"
+: "${VITRIN_ADMIN_PASSWORD:?VITRIN_ADMIN_PASSWORD is required}"
+
+payload=$(printf '{"email":"%s","password":"%s"}' "$VITRIN_ADMIN_EMAIL" "$VITRIN_ADMIN_PASSWORD")
+token=$(wget -qO- \
+  --post-data="$payload" \
   --header='Content-Type: application/json' \
   http://vitrin-gateway:8080/api/auth/login | tr -d '"')
 
-echo "Token: ${TOKEN:0:50}..."
+if [ -z "$token" ]; then
+  echo "Login did not return an access token." >&2
+  exit 1
+fi
 
-# Token ile admin users endpoint'ini çağır
-echo "--- Admin Users Response ---"
 wget -qO- \
-  --header="Authorization: Bearer $TOKEN" \
+  --header="Authorization: Bearer $token" \
   http://vitrin-gateway:8080/api/auth/admin/users
-echo ""
-echo "Exit: $?"
+printf '\n'

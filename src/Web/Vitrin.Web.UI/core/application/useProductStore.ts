@@ -1,12 +1,13 @@
 import { create } from 'zustand';
-import { Product } from '../domain/product.types';
+import { Product, ProductApiModel, Topic } from '../domain/product.types';
 import { ProductRepository } from '../infrastructure/product.repository';
+import { getErrorMessage } from '@/lib/errors';
 
 interface ProductStore {
   products: Product[];
   makerProducts: Product[];
   upvotedProducts: Product[];
-  topics: any[];
+  topics: Topic[];
   selectedTopicSlug: string | null;
   isLoading: boolean;
   error: string | null;
@@ -51,7 +52,7 @@ export const useProductStore = create<ProductStore>((set, get) => ({
       
       // BLoC / Store Layer: Map Backend Entity to Frontend Domain Entity
       // Bu katman veriyi UI'ın anlayacağı hale getirir (Business Logic)
-      const mappedProducts: Product[] = data.map((p: any, index: number) => ({
+      const mappedProducts: Product[] = data.map((p: ProductApiModel, index: number) => ({
         id: p.id,
         rank: index + 1,
         name: p.name,
@@ -64,8 +65,8 @@ export const useProductStore = create<ProductStore>((set, get) => ({
       }));
       
       set({ products: mappedProducts, isLoading: false });
-    } catch (error: any) {
-      set({ error: error.message || 'Ürünler yüklenirken hata oluştu.', isLoading: false });
+    } catch (error: unknown) {
+      set({ error: getErrorMessage(error, 'Ürünler yüklenirken hata oluştu.'), isLoading: false });
     }
   },
   
@@ -82,7 +83,7 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const data = await ProductRepository.getMakerProducts(makerId);
-      const mappedProducts: Product[] = data.map((p: any, index: number) => ({
+      const mappedProducts: Product[] = data.map((p: ProductApiModel, index: number) => ({
         id: p.id,
         rank: index + 1,
         name: p.name,
@@ -94,8 +95,8 @@ export const useProductStore = create<ProductStore>((set, get) => ({
         votes: p.upvotes || 0,
       }));
       set({ makerProducts: mappedProducts, isLoading: false });
-    } catch (error: any) {
-      set({ error: error.message || 'Ürünler yüklenirken hata', isLoading: false });
+    } catch (error: unknown) {
+      set({ error: getErrorMessage(error, 'Ürünler yüklenirken hata oluştu.'), isLoading: false });
     }
   },
 
@@ -103,7 +104,7 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const data = await ProductRepository.getUpvotedProducts(token);
-      const mappedProducts: Product[] = data.map((p: any, index: number) => ({
+      const mappedProducts: Product[] = data.map((p: ProductApiModel, index: number) => ({
         id: p.id,
         rank: index + 1,
         name: p.name,
@@ -115,8 +116,8 @@ export const useProductStore = create<ProductStore>((set, get) => ({
         votes: p.upvotes || 0,
       }));
       set({ upvotedProducts: mappedProducts, isLoading: false });
-    } catch (error: any) {
-      set({ error: error.message || 'Oylanan ürünler yüklenirken hata', isLoading: false });
+    } catch (error: unknown) {
+      set({ error: getErrorMessage(error, 'Oylanan ürünler yüklenirken hata oluştu.'), isLoading: false });
     }
   },
 

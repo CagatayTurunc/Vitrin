@@ -3,8 +3,9 @@
 import { Search, Sparkles, User as UserIcon, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useSession, signIn, signOut } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -27,14 +28,14 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
         {/* Logo */}
-        <a href="/" className="flex shrink-0 items-center gap-2">
+        <Link href="/" className="flex shrink-0 items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/40 ring-1 ring-primary/30">
             <Sparkles className="h-5 w-5" aria-hidden="true" />
           </span>
           <span className="font-sans text-xl font-extrabold tracking-tight text-foreground">
             Vitrin
           </span>
-        </a>
+        </Link>
 
         {/* Main Navigation */}
         <MainNav />
@@ -73,11 +74,13 @@ export function SiteHeader() {
               <NotificationDropdown />
               <Link href="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                 <div className="w-8 h-8 rounded-full overflow-hidden border border-border flex items-center justify-center bg-muted/50 shrink-0">
-                  {(session.user as any)?.image || (session.user as any)?.profileImageUrl ? (
-                    <img 
-                      src={(session.user as any)?.image || (session.user as any)?.profileImageUrl} 
-                      alt={session.user?.name || "Avatar"} 
-                      className="w-full h-full object-cover" 
+                  {session.user.image ? (
+                    <Image
+                      src={session.user.image}
+                      alt={session.user.name || "Avatar"}
+                      width={32}
+                      height={32}
+                      className="w-full h-full object-cover"
                     />
                   ) : (
                     <UserIcon className="w-4 h-4 text-muted-foreground" />

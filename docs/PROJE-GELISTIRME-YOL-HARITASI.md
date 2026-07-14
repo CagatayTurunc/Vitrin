@@ -410,32 +410,11 @@ Kubernetes yalnızca gerçekten öğrenme/deployment hedefi varsa eklenmelidir. 
 
 Bu değerler ölçülmeden CV'de sayı olarak kullanılmamalıdır.
 
-## 11. Önerilen hedef mimari
+## 11. Kabul edilen hedef mimari
 
-Mevcut ölçekte yedi mikroservis gereğinden fazla parçalıdır. Servis sayısı tek başına mimari kalite göstermez. Bağımsız deploy, veri sahipliği, contract test, outbox ve observability yoksa çok sayıda servis projeyi daha kırılgan yapar.
+Projenin mikroservis mimarisini öğrenme ve CV üzerinde gösterme hedefi nedeniyle mevcut servis sayısının korunmasına karar verilmiştir. Aşama 0 kapsamında hiçbir servis birleştirilmeyecek veya kaldırılmayacaktır. Kararın bağlamı ve sonuçları [ADR-0001](adr/0001-mikroservis-mimarisini-koruma.md) belgesinde kayıtlıdır.
 
-### Önerilen seçenek: modüler monolith + worker
-
-- Identity
-- Catalog: Product, Topic, Collection
-- Community: Comment, Follow
-- Engagement: Vote, Gamification
-- Async Worker: Notification, Analytics, AI
-
-Modüller aynı deployable içinde, ayrı schema ve net bağımlılık kurallarıyla tutulabilir. Domain event ve Outbox kullanılarak ileride gerçek ihtiyaç oluştuğunda mikroservise ayrılabilir.
-
-### Mikroservis öğrenmek ana hedefse
-
-Deployable sayısı azaltılabilir:
-
-- Identity Service
-- Catalog Service
-- Community/Engagement Service
-- Async Worker Service
-- API Gateway
-- Frontend
-
-Her servis için şu şartlar sağlanmalıdır:
+Servis sayısını korumak, her klasörü otomatik olarak gerçek bir mikroservis yapmaz. Her servis için şu şartlar sağlanmalıdır:
 
 - Tek ve açık veri sahipliği
 - Ayrı migration yönetimi
@@ -447,7 +426,9 @@ Her servis için şu şartlar sağlanmalıdır:
 - Bağımsız build ve deploy
 - Runbook ve SLO
 
-En önemli CV çıktısı kullanılan teknoloji sayısı değil, servis sınırlarını neden seçtiğini açıklayan ADR kayıtlarıdır.
+Voting servisi oyların tek yazma otoritesi olacaktır. Product servisi oy verisini event-driven read model olarak tüketebilir; iki servis aynı oyu bağımsız olarak yazmayacaktır.
+
+En önemli CV çıktısı kullanılan teknoloji sayısı değil; servis sınırlarını neden seçtiğini ve dağıtık sistem maliyetlerini nasıl yönettiğini açıklayan ADR, test ve ölçüm kayıtlarıdır.
 
 ## 12. Eklenebilecek güçlü ürün özellikleri
 
@@ -586,18 +567,18 @@ Coverage, throughput ve latency değerleri ölçülmeden yazılmamalıdır.
 
 ### Aşama 0 — Stabilizasyon ve repo hijyeni
 
-- [ ] Mevcut çalışma ağacını güvenli bir checkpoint commit ile kaydet
-- [ ] Boş ikinci frontend scaffold'ını kaldır
-- [ ] Tek package manager seç
-- [ ] Gereksiz lockfile'ı kaldır
-- [ ] `.gitignore` encoding/NUL sorununu düzelt
-- [ ] SQLite WAL/SHM dosyalarını repodan çıkar
-- [ ] `tsconfig.tsbuildinfo` dosyasını repodan çıkar
-- [ ] Geçici query dosyalarını temizle veya doğru yere taşı
-- [ ] Root README oluştur
-- [ ] Comment test projesini derlenebilir hâle getir
-- [ ] ESLint ve frontend typecheck'i çalışır hâle getir
-- [ ] Bütün test/build komutlarını tek script veya Make/Task dosyasında topla
+- [x] Mevcut çalışma ağacını güvenli bir checkpoint commit ile kaydet
+- [x] Boş ikinci frontend scaffold'ını kaldır
+- [x] Tek package manager seç
+- [x] Gereksiz lockfile'ı kaldır
+- [x] `.gitignore` encoding/NUL sorununu düzelt
+- [x] SQLite WAL/SHM dosyalarını repodan çıkar
+- [x] `tsconfig.tsbuildinfo` dosyasını repodan çıkar
+- [x] Geçici query dosyalarını temizle veya doğru yere taşı
+- [x] Root README oluştur
+- [x] Comment test projesini derlenebilir hâle getir
+- [x] ESLint ve frontend typecheck'i çalışır hâle getir
+- [x] Bütün test/build komutlarını tek script veya Make/Task dosyasında topla
 
 ### Aşama 1 — Güvenlik ve temel doğruluk
 
@@ -618,8 +599,8 @@ Coverage, throughput ve latency değerleri ölçülmeden yazılmamalıdır.
 
 ### Aşama 2 — Mimari tutarlılık ve veri katmanı
 
-- [ ] Voting için tek authoritative source seç
-- [ ] Servis/modül sınırları için ADR yaz
+- [x] Voting için tek authoritative source seç: Voting servisi
+- [x] Mikroservis mimarisini koruma kararını ADR ile kaydet
 - [ ] Kafka topic mapping'i düzelt
 - [ ] Transactional Outbox ekle
 - [ ] Inbox/idempotency ekle

@@ -99,7 +99,7 @@ export function AuthBrandPanel() {
             ))}
           </div>
           <p className="text-sm text-white/90 mb-4 leading-relaxed">
-            "Vitrin sayesinde harika ürünler keşfettim ve kendi projelerimi doğru kitleye ulaştırma şansı buldum."
+            &ldquo;Vitrin sayesinde harika ürünler keşfettim ve kendi projelerimi doğru kitleye ulaştırma şansı buldum.&rdquo;
           </p>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#008f63] font-bold text-sm">

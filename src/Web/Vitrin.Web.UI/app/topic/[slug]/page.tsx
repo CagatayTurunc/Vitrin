@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ProductRow } from "@/components/product-row";
-import { Product } from "@/core/domain/product.types";
+import { Product, ProductApiModel, Topic } from "@/core/domain/product.types";
 import { Loader2, Hash } from "lucide-react";
 import { useParams } from "next/navigation";
 
@@ -24,14 +24,14 @@ export default function TopicPage() {
     ])
     .then(async ([topicsRes, productsRes]) => {
       if (topicsRes.ok) {
-        const topics = await topicsRes.json();
-        const foundTopic = topics.find((t: any) => t.slug === topicSlug);
+        const topics = await topicsRes.json() as Topic[];
+        const foundTopic = topics.find((topic) => topic.slug === topicSlug);
         setTopicName(foundTopic ? foundTopic.name : topicSlug);
       }
       
       if (productsRes.ok) {
-        const data = await productsRes.json();
-        const mappedProducts: Product[] = data.map((p: any, index: number) => ({
+        const data = await productsRes.json() as ProductApiModel[];
+        const mappedProducts: Product[] = data.map((p: ProductApiModel, index: number) => ({
           id: p.id,
           rank: index + 1,
           name: p.name,
@@ -85,7 +85,7 @@ export default function TopicPage() {
           <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
             <Hash className="h-12 w-12 mb-4 opacity-20" />
             <h3 className="text-xl font-semibold text-foreground mb-2">Henüz Ürün Yok</h3>
-            <p>"{topicName}" etiketiyle henüz hiçbir ürün eklenmemiş.</p>
+            <p>&ldquo;{topicName}&rdquo; etiketiyle henüz hiçbir ürün eklenmemiş.</p>
           </div>
         )}
       </div>
