@@ -15,7 +15,7 @@ interface NotificationStore {
   unreadCount: number;
   isLoading: boolean;
   error: string | null;
-  fetchNotifications: (token: string, userId: string) => Promise<void>;
+  fetchNotifications: (token: string) => Promise<void>;
   markAsRead: (notificationId: string, token: string) => Promise<void>;
 }
 
@@ -27,10 +27,10 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
   isLoading: false,
   error: null,
 
-  fetchNotifications: async (token: string, userId: string) => {
+  fetchNotifications: async (token: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.get(`${API_URL}/api/notifications/${userId}`, {
+      const response = await axios.get(`${API_URL}/api/notifications/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const notifications = response.data as Notification[];

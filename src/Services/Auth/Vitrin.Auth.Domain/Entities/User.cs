@@ -48,9 +48,9 @@ public class User : AggregateRoot
     private User(Guid id, string email, string username, string fullName, string avatarUrl, AuthProvider provider, string? passwordHash, string? googleId, string? githubId) 
         : base(id)
     {
-        Email = email;
-        Username = username;
-        FullName = fullName;
+        Email = email.Trim().ToLowerInvariant();
+        Username = username.Trim().ToLowerInvariant();
+        FullName = fullName.Trim();
         AvatarUrl = avatarUrl;
         Provider = provider;
         PasswordHash = passwordHash;
@@ -67,8 +67,8 @@ public class User : AggregateRoot
 
     public void UpdateProfile(string fullName, string username, string? headline, string? about, string? avatarUrl, string? websiteUrl, string? githubUrl, string? linkedInUrl)
     {
-        FullName = fullName;
-        Username = username;
+        FullName = fullName.Trim();
+        Username = username.Trim().ToLowerInvariant();
         Headline = headline;
         About = about;
         if (!string.IsNullOrEmpty(avatarUrl)) AvatarUrl = avatarUrl;

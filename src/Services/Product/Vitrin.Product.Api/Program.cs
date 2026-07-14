@@ -12,8 +12,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
 
-// JWT doğrulama yardımcısı (imza doğrulamalı)
-builder.Services.AddSingleton<JwtTokenValidator>();
+builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 
 // MediatR
 builder.Services.AddMediatR(cfg =>
@@ -37,15 +36,25 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapHealthChecks("/health");
 
-app.MapPost("/api/products/debug", ([FromBody] CreateProductCommand command) =>
+app.MapPost("/api/products", async (HttpContext context, [FromBody] CreateProductRequest request, IMediator mediator) =>
 {
-    return Results.Ok(command);
-});
+    var makerId = context.User.GetUserId();
+    if (makerId is null) return Results.Unauthorized();
 
-app.MapPost("/api/products", async ([FromBody] CreateProductCommand command, IMediator mediator) =>
-{
+    var command = new CreateProductCommand(
+        makerId.Value,
+        request.Name,
+        request.Tagline,
+        request.Description,
+        request.Slug,
+        request.Topics,
+        request.ThumbnailUrl,
+        request.GalleryUrls);
     var result = await mediator.Send(command);
     if (result.IsSuccess)
     {
@@ -54,7 +63,8 @@ app.MapPost("/api/products", async ([FromBody] CreateProductCommand command, IMe
     return Results.BadRequest(new { Error = result.Error });
 })
 .WithName("CreateProduct")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization(VitrinAuthDefaults.MakerOrAdminPolicy);
 
 app.MapGet("/api/products", async (string? topicSlug, ProductDbContext db) =>
 {
@@ -133,9 +143,9 @@ app.MapGet("/api/products/batch", async (string ids, ProductDbContext db) =>
 .WithName("GetProductsBatch")
 .WithOpenApi();
 
-app.MapPost("/api/products/{id}/vote", async (Guid id, HttpContext context, JwtTokenValidator jwt, IMediator mediator) =>
+app.MapPost("/api/products/{id}/vote", async (Guid id, HttpContext context, IMediator mediator) =>
 {
-    var userId = jwt.GetUserId(context);
+    var userId = context.User.GetUserId();
     if (userId == null) return Results.Unauthorized();
 
     var result = await mediator.Send(new ToggleUpvoteCommand(id, userId.Value));
@@ -146,11 +156,12 @@ app.MapPost("/api/products/{id}/vote", async (Guid id, HttpContext context, JwtT
     return Results.BadRequest(new { Error = result.Error });
 })
 .WithName("ToggleUpvote")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization();
 
-app.MapGet("/api/products/my-votes", async (HttpContext context, JwtTokenValidator jwt, ProductDbContext db) =>
+app.MapGet("/api/products/my-votes", async (HttpContext context, ProductDbContext db) =>
 {
-    var userId = jwt.GetUserId(context);
+    var userId = context.User.GetUserId();
     if (userId == null) return Results.Unauthorized();
 
     var votedProductIds = await db.ProductUpvotes
@@ -161,11 +172,12 @@ app.MapGet("/api/products/my-votes", async (HttpContext context, JwtTokenValidat
     return Results.Ok(votedProductIds);
 })
 .WithName("GetMyVotes")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization();
 
-app.MapGet("/api/products/upvoted", async (HttpContext context, JwtTokenValidator jwt, ProductDbContext db) =>
+app.MapGet("/api/products/upvoted", async (HttpContext context, ProductDbContext db) =>
 {
-    var userId = jwt.GetUserId(context);
+    var userId = context.User.GetUserId();
     if (userId == null) return Results.Unauthorized();
 
     var votedProductIds = await db.ProductUpvotes
@@ -186,7 +198,8 @@ app.MapGet("/api/products/upvoted", async (HttpContext context, JwtTokenValidato
     return Results.Ok(products);
 })
 .WithName("GetUpvotedProducts")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization();
 
 app.MapGet("/api/products/maker/{makerId}", async (Guid makerId, ProductDbContext db) =>
 {
@@ -205,11 +218,8 @@ app.MapGet("/api/products/maker/{makerId}", async (Guid makerId, ProductDbContex
 .WithName("GetMakerProducts")
 .WithOpenApi();
 
-app.MapGet("/api/products/admin/pending", async (HttpContext context, JwtTokenValidator jwt, ProductDbContext db) =>
+app.MapGet("/api/products/admin/pending", async (ProductDbContext db) =>
 {
-    var role = jwt.GetRole(context);
-    if (role != "Admin") return Results.Unauthorized();
-
     // ProductStatus.UnderReview is 1
     var products = await db.Products
         .Where(p => p.Status == Vitrin.Product.Domain.Entities.ProductStatus.UnderReview)
@@ -220,13 +230,11 @@ app.MapGet("/api/products/admin/pending", async (HttpContext context, JwtTokenVa
     return Results.Ok(products);
 })
 .WithName("GetPendingProducts")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
-app.MapPost("/api/products/admin/{id}/approve", async (Guid id, HttpContext context, JwtTokenValidator jwt, ProductDbContext db, Vitrin.Product.Infrastructure.Kafka.ProductEventPublisher eventPublisher) =>
+app.MapPost("/api/products/admin/{id}/approve", async (Guid id, ProductDbContext db, Vitrin.Product.Infrastructure.Kafka.ProductEventPublisher eventPublisher) =>
 {
-    var role = jwt.GetRole(context);
-    if (role != "Admin") return Results.Unauthorized();
-
     var product = await db.Products.FindAsync(id);
     if (product == null) return Results.NotFound();
     
@@ -247,13 +255,11 @@ app.MapPost("/api/products/admin/{id}/approve", async (Guid id, HttpContext cont
     return Results.Ok(new { Message = "Product approved successfully!" });
 })
 .WithName("ApproveProduct")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
-app.MapPost("/api/products/admin/{id}/reject", async (Guid id, HttpContext context, JwtTokenValidator jwt, ProductDbContext db) =>
+app.MapPost("/api/products/admin/{id}/reject", async (Guid id, ProductDbContext db) =>
 {
-    var role = jwt.GetRole(context);
-    if (role != "Admin") return Results.Unauthorized();
-
     var product = await db.Products.FindAsync(id);
     if (product == null) return Results.NotFound();
     
@@ -264,7 +270,8 @@ app.MapPost("/api/products/admin/{id}/reject", async (Guid id, HttpContext conte
     return Results.Ok(new { Message = "Product rejected successfully!" });
 })
 .WithName("RejectProduct")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
 app.MapGet("/api/products/search", async (string q, ProductDbContext db) =>
 {
@@ -320,6 +327,23 @@ app.MapGet("/api/collections/user/{userId}", async (Guid userId, ProductDbContex
     return Results.Ok(collections);
 });
 
+app.MapGet("/api/collections/me", async (HttpContext context, ProductDbContext db) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
+    var collections = await db.Collections
+        .Include(c => c.Products)
+        .Where(c => c.UserId == userId.Value)
+        .OrderByDescending(c => c.CreatedAt)
+        .Select(c => new {
+            c.Id, c.Name, c.Slug, c.Description, c.UserId, c.CreatedAt, ProductCount = c.Products.Count
+        })
+        .ToListAsync();
+
+    return Results.Ok(collections);
+}).RequireAuthorization();
+
 app.MapGet("/api/collections/by-slug/{slug}", async (string slug, ProductDbContext db) =>
 {
     var collection = await db.Collections
@@ -340,8 +364,11 @@ app.MapGet("/api/collections/by-slug/{slug}", async (string slug, ProductDbConte
     });
 });
 
-app.MapPost("/api/collections", async ([Microsoft.AspNetCore.Mvc.FromBody] CreateCollectionRequest request, ProductDbContext db) =>
+app.MapPost("/api/collections", async (HttpContext context, [Microsoft.AspNetCore.Mvc.FromBody] CreateCollectionRequest request, ProductDbContext db) =>
 {
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
     var slug = request.Name.ToLower().Replace(" ", "-").Replace("ç", "c").Replace("ğ", "g").Replace("ı", "i").Replace("ö", "o").Replace("ş", "s").Replace("ü", "u");
     
     // Ensure slug is unique
@@ -353,17 +380,21 @@ app.MapPost("/api/collections", async ([Microsoft.AspNetCore.Mvc.FromBody] Creat
         counter++;
     }
     
-    var collection = Vitrin.Product.Domain.Entities.Collection.Create(request.UserId, request.Name, slug, request.Description);
+    var collection = Vitrin.Product.Domain.Entities.Collection.Create(userId.Value, request.Name, slug, request.Description);
     db.Collections.Add(collection);
     await db.SaveChangesAsync();
     
     return Results.Ok(collection);
-});
+}).RequireAuthorization();
 
-app.MapPost("/api/collections/{id}/products/{productId}", async (Guid id, Guid productId, ProductDbContext db) =>
+app.MapPost("/api/collections/{id}/products/{productId}", async (Guid id, Guid productId, HttpContext context, ProductDbContext db) =>
 {
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
     var collection = await db.Collections.Include(c => c.Products).FirstOrDefaultAsync(c => c.Id == id);
     if (collection == null) return Results.NotFound("Collection not found");
+    if (collection.UserId != userId.Value) return Results.Forbid();
     
     var product = await db.Products.FindAsync(productId);
     if (product == null) return Results.NotFound("Product not found");
@@ -372,19 +403,32 @@ app.MapPost("/api/collections/{id}/products/{productId}", async (Guid id, Guid p
     await db.SaveChangesAsync();
     
     return Results.Ok(new { Message = "Product added to collection" });
-});
+}).RequireAuthorization();
 
-app.MapDelete("/api/collections/{id}/products/{productId}", async (Guid id, Guid productId, ProductDbContext db) =>
+app.MapDelete("/api/collections/{id}/products/{productId}", async (Guid id, Guid productId, HttpContext context, ProductDbContext db) =>
 {
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
     var collection = await db.Collections.Include(c => c.Products).FirstOrDefaultAsync(c => c.Id == id);
     if (collection == null) return Results.NotFound("Collection not found");
+    if (collection.UserId != userId.Value) return Results.Forbid();
     
     collection.RemoveProduct(productId);
     await db.SaveChangesAsync();
     
     return Results.Ok(new { Message = "Product removed from collection" });
-});
+}).RequireAuthorization();
 
 app.Run();
 
-public record CreateCollectionRequest(Guid UserId, string Name, string Description);
+public record CreateProductRequest(
+    string Name,
+    string Tagline,
+    string Description,
+    string Slug,
+    List<string> Topics,
+    string? ThumbnailUrl,
+    List<string>? GalleryUrls);
+
+public record CreateCollectionRequest(string Name, string Description);

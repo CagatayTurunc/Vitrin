@@ -25,6 +25,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Services\Auth\Vitrin.Auth.Application\Vitrin.Auth.Application.csproj" />
     <ProjectReference Include="..\..\src\Services\Auth\Vitrin.Auth.Domain\Vitrin.Auth.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Services\Auth\Vitrin.Auth.Infrastructure\Vitrin.Auth.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Shared\Vitrin.Shared.Infrastructure\Vitrin.Shared.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Shared\Vitrin.Shared.Kernel\Vitrin.Shared.Kernel.csproj" />
   </ItemGroup>
 

@@ -95,7 +95,7 @@ SADECE geçerli bir JSON dön, markdown blokları (```json) kullanma.";
 
     private class GeminiResponseFormat
     {
-        public string Summary { get; set; }
-        public string Tags { get; set; }
+        public string Summary { get; set; } = string.Empty;
+        public string Tags { get; set; } = string.Empty;
     }
 }

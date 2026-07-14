@@ -82,10 +82,12 @@ export default function SubmitPage() {
 
       <div className="max-w-3xl mx-auto px-4 pb-24">
         {!isMakerOrAdmin ? (
-          <MakerApplicationForm userId={session.user.id} />
+          session.accessToken
+            ? <MakerApplicationForm accessToken={session.accessToken} />
+            : <p className="text-center text-destructive">Oturum anahtarı bulunamadı. Lütfen yeniden giriş yapın.</p>
         ) : (
           session.accessToken
-            ? <ProductSubmitForm makerId={session.user.id} accessToken={session.accessToken} />
+            ? <ProductSubmitForm accessToken={session.accessToken} />
             : <p className="text-center text-destructive">Oturum anahtarı bulunamadı. Lütfen yeniden giriş yapın.</p>
         )}
       </div>
@@ -93,7 +95,7 @@ export default function SubmitPage() {
   );
 }
 
-function MakerApplicationForm({ userId }: { userId: string }) {
+function MakerApplicationForm({ accessToken }: { accessToken: string }) {
   const [portfolio, setPortfolio] = useState("");
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -105,8 +107,11 @@ function MakerApplicationForm({ userId }: { userId: string }) {
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/auth/maker-applications", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, portfolioUrl: portfolio, reason })
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ portfolioUrl: portfolio, reason })
       });
       if (res.ok) setSuccess(true);
     } catch (err) {
@@ -150,7 +155,7 @@ function MakerApplicationForm({ userId }: { userId: string }) {
   );
 }
 
-function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessToken: string }) {
+function ProductSubmitForm({ accessToken }: { accessToken: string }) {
   const [name, setName] = useState("");
   const [tagline, setTagline] = useState("");
   const [description, setDescription] = useState("");
@@ -248,7 +253,6 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
           "Authorization": `Bearer ${accessToken}`
         },
         body: JSON.stringify({ 
-          makerId,
           name, 
           tagline, 
           description,

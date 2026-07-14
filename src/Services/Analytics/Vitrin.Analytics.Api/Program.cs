@@ -5,12 +5,14 @@ using Vitrin.Analytics.Application.Commands;
 using Vitrin.Analytics.Application.Queries;
 using Vitrin.Analytics.Infrastructure;
 using Vitrin.Analytics.Infrastructure.Data;
+using Vitrin.Shared.Infrastructure.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
+builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 
 // MediatR — Application assembly (Commands + Queries)
 builder.Services.AddMediatR(cfg =>
@@ -36,20 +38,29 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapHealthChecks("/health");
 
 // ─── Commands ──────────────────────────────────────────────────────────────
 
 // Manuel event kayıt (test / internal kullanım)
-app.MapPost("/api/analytics/events", async ([FromBody] TrackEventCommand command, IMediator mediator) =>
+app.MapPost("/api/analytics/events", async (HttpContext context, [FromBody] TrackEventRequest request, IMediator mediator) =>
 {
+    var command = new TrackEventCommand(
+        request.EventType,
+        request.EventData,
+        request.ProductId,
+        context.User.GetUserId());
     var result = await mediator.Send(command);
     return result.IsSuccess
         ? Results.Ok(new { EventId = result.Value })
         : Results.BadRequest(new { Error = result.Error });
 })
 .WithName("TrackEvent")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
 // ─── Product Queries ────────────────────────────────────────────────────────
 
@@ -106,7 +117,8 @@ app.MapGet("/api/analytics/search/top", async (
         : Results.BadRequest(new { Error = result.Error });
 })
 .WithName("GetTopSearches")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
 // ─── Platform Queries ───────────────────────────────────────────────────────
 
@@ -119,6 +131,9 @@ app.MapGet("/api/analytics/platform/summary", async (IMediator mediator) =>
         : Results.BadRequest(new { Error = result.Error });
 })
 .WithName("GetPlatformSummary")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
 app.Run();
+
+public record TrackEventRequest(string EventType, string EventData, Guid? ProductId = null);

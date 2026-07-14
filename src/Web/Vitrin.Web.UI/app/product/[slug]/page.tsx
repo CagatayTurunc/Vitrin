@@ -90,12 +90,15 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
   }, []);
 
   const handleGenerateAi = async () => {
-    if (!product) return;
+    if (!product || !session?.accessToken) return;
     setIsGeneratingAi(true);
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/ai/analyze`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.accessToken}`,
+        },
         body: JSON.stringify({
           productId: product.id,
           productName: product.name,
@@ -229,8 +232,6 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         },
         body: JSON.stringify({
           productId: product.id,
-          userId: session.user.id,
-          userName: session.user.username || session.user.fullName || session.user.name || "Kullanıcı",
           content: contentToSend,
           parentCommentId: parentId || null
         })

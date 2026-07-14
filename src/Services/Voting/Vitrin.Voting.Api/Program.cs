@@ -4,12 +4,14 @@ using Microsoft.EntityFrameworkCore;
 using Vitrin.Voting.Application.Commands;
 using Vitrin.Voting.Infrastructure;
 using Vitrin.Voting.Infrastructure.Data;
+using Vitrin.Shared.Infrastructure.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
+builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 
 // MediatR
 builder.Services.AddMediatR(cfg =>
@@ -32,29 +34,42 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapHealthChecks("/health");
 
 // Oy ekle
-app.MapPost("/api/votes", async ([FromBody] AddVoteCommand command, IMediator mediator) =>
+app.MapPost("/api/votes", async (HttpContext context, [FromBody] VoteRequest request, IMediator mediator) =>
 {
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
+    var command = new AddVoteCommand(userId.Value, request.ProductId);
     var result = await mediator.Send(command);
     return result.IsSuccess
         ? Results.Ok(new { Message = "Vote added successfully!" })
         : Results.BadRequest(new { Error = result.Error });
 })
 .WithName("AddVote")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization();
 
 // Oy geri al
-app.MapDelete("/api/votes", async ([FromBody] RemoveVoteCommand command, IMediator mediator) =>
+app.MapDelete("/api/votes", async (HttpContext context, [FromBody] VoteRequest request, IMediator mediator) =>
 {
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
+    var command = new RemoveVoteCommand(userId.Value, request.ProductId);
     var result = await mediator.Send(command);
     return result.IsSuccess
         ? Results.Ok(new { Message = "Vote removed successfully!" })
         : Results.BadRequest(new { Error = result.Error });
 })
 .WithName("RemoveVote")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization();
 
 // Tüm oyları listele (debug / admin)
 app.MapGet("/api/votes", async (VoteDbContext db) =>
@@ -63,7 +78,8 @@ app.MapGet("/api/votes", async (VoteDbContext db) =>
     return Results.Ok(votes);
 })
 .WithName("GetVotes")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
 // Belirli ürünün oy sayısı
 app.MapGet("/api/votes/count/{productId:guid}", async (Guid productId, VoteDbContext db) =>
@@ -75,3 +91,5 @@ app.MapGet("/api/votes/count/{productId:guid}", async (Guid productId, VoteDbCon
 .WithOpenApi();
 
 app.Run();
+
+public record VoteRequest(Guid ProductId);

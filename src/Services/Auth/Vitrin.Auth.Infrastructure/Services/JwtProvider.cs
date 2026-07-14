@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Vitrin.Auth.Application.Interfaces;
 using Vitrin.Auth.Domain.Entities;
+using Vitrin.Shared.Infrastructure.Auth;
 
 namespace Vitrin.Auth.Infrastructure.Services;
 
@@ -24,9 +25,9 @@ public class JwtProvider : IJwtProvider
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim(JwtRegisteredClaimNames.Name, user.Username),
-            new Claim("FullName", user.FullName),
-            new Claim("AvatarUrl", user.AvatarUrl ?? ""),
-            new Claim("Role", user.Role.ToString())
+            new Claim(VitrinAuthDefaults.FullNameClaim, user.FullName),
+            new Claim(VitrinAuthDefaults.AvatarUrlClaim, user.AvatarUrl),
+            new Claim(VitrinAuthDefaults.RoleClaim, user.Role.ToString())
         };
 
         var secret = _configuration["Jwt:Secret"];

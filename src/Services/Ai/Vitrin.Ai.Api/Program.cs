@@ -6,12 +6,14 @@ using Vitrin.Ai.Infrastructure.Repositories;
 using Vitrin.Ai.Infrastructure.Services;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Vitrin.Shared.Infrastructure.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
+builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AnalyzeProductCommand).Assembly));
 
@@ -35,6 +37,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapHealthChecks("/health");
 
 app.MapPost("/api/ai/analyze", async ([FromBody] AnalyzeProductCommand command, IMediator mediator) =>
@@ -47,7 +52,8 @@ app.MapPost("/api/ai/analyze", async ([FromBody] AnalyzeProductCommand command, 
     return Results.BadRequest(new { Error = result.Error });
 })
 .WithName("AnalyzeProduct")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization(VitrinAuthDefaults.MakerOrAdminPolicy);
 
 app.MapGet("/api/ai/product/{productId}", async (Guid productId, AiDbContext db) =>
 {

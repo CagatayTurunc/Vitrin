@@ -18,10 +18,20 @@ public class UserRepository : IUserRepository
         => _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
 
     public Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
-        => _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+    {
+        var normalizedEmail = email.Trim().ToLower();
+        return _dbContext.Users.FirstOrDefaultAsync(
+            u => u.Email.ToLower() == normalizedEmail,
+            cancellationToken);
+    }
 
     public Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
-        => _dbContext.Users.FirstOrDefaultAsync(u => u.Username == username, cancellationToken);
+    {
+        var normalizedUsername = username.Trim().ToLower();
+        return _dbContext.Users.FirstOrDefaultAsync(
+            u => u.Username.ToLower() == normalizedUsername,
+            cancellationToken);
+    }
 
     public Task<User?> GetByGoogleIdAsync(string googleId, CancellationToken cancellationToken = default)
         => _dbContext.Users.FirstOrDefaultAsync(u => u.GoogleId == googleId, cancellationToken);

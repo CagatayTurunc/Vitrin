@@ -27,14 +27,16 @@ export function AddToCollectionModal({ isOpen, onClose, productId }: AddToCollec
   const [newCollectionDesc, setNewCollectionDesc] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  const userId = session?.user?.id;
+  const accessToken = session?.accessToken;
 
   const fetchCollections = useCallback(async () => {
-    if (!userId) return;
+    if (!accessToken) return;
 
     setIsLoading(true);
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/collections/user/${userId}`);
+      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/collections/me", {
+        headers: { "Authorization": `Bearer ${accessToken}` },
+      });
       if (res.ok) {
         setCollections(await res.json() as CollectionSummary[]);
       }
@@ -43,17 +45,17 @@ export function AddToCollectionModal({ isOpen, onClose, productId }: AddToCollec
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, [accessToken]);
 
   useEffect(() => {
     // Opening the controlled dialog intentionally triggers an async collection refresh.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (isOpen && userId) void fetchCollections();
-  }, [fetchCollections, isOpen, userId]);
+    if (isOpen && accessToken) void fetchCollections();
+  }, [accessToken, fetchCollections, isOpen]);
 
   const handleCreateCollection = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e) e.preventDefault();
-    if (!newCollectionName.trim() || !userId) return;
+    if (!newCollectionName.trim() || !accessToken) return;
     
     setIsCreating(true);
     try {
@@ -61,9 +63,9 @@ export function AddToCollectionModal({ isOpen, onClose, productId }: AddToCollec
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          userId,
           name: newCollectionName,
           description: newCollectionDesc
         }),
@@ -99,9 +101,12 @@ export function AddToCollectionModal({ isOpen, onClose, productId }: AddToCollec
   };
 
   const handleAddToCollection = async (collectionId: string) => {
+    if (!accessToken) return;
+
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/collections/${collectionId}/products/${productId}`, {
         method: "POST",
+        headers: { "Authorization": `Bearer ${accessToken}` },
       });
       
       if (res.ok) {

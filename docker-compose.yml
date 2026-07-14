@@ -110,6 +110,7 @@ services:
       Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       Jwt__Issuer: Vitrin
       Jwt__Audience: Vitrin
+      OAuth__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
     networks:
       - vitrin-network
     healthcheck:
@@ -158,6 +159,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://+:8080
+      Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       ConnectionStrings__DefaultConnection: "Data Source=/app/data/voting_db.sqlite"
     volumes:
       - ./data/voting:/app/data
@@ -185,6 +187,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: "Host=postgres;Database=vitrin_comment;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
     networks:
       - vitrin-network
     healthcheck:
@@ -206,6 +209,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://+:8080
+      Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       ConnectionStrings__DefaultConnection: "Data Source=/app/data/notification_db.sqlite"
     volumes:
       - ./data/notification:/app/data
@@ -230,6 +234,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://+:8080
+      Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       ConnectionStrings__DefaultConnection: "Data Source=/app/data/analytics_db.sqlite"
     volumes:
       - ./data/analytics:/app/data
@@ -251,6 +256,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://+:8080
+      Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       ConnectionStrings__DefaultConnection: "Data Source=/app/data/ai_db.sqlite"
       Gemini__ApiKey: ${GEMINI_API_KEY:-}
     volumes:

@@ -13,20 +13,19 @@ export function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const { notifications, unreadCount, fetchNotifications, markAsRead } = useNotificationStore();
   const accessToken = session?.accessToken;
-  const userId = session?.user?.id;
 
   useEffect(() => {
-    if (userId && accessToken) {
-      fetchNotifications(accessToken, userId);
+    if (accessToken) {
+      fetchNotifications(accessToken);
       
       // Optionally set up polling here for real-time updates
       const intervalId = setInterval(() => {
-        fetchNotifications(accessToken, userId);
+        fetchNotifications(accessToken);
       }, 15000); // Check every 15 seconds
 
       return () => clearInterval(intervalId);
     }
-  }, [accessToken, userId, fetchNotifications]);
+  }, [accessToken, fetchNotifications]);
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);

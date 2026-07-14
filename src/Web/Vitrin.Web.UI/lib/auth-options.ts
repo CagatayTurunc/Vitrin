@@ -40,6 +40,7 @@ export const authOptions: NextAuthOptions = {
     GithubProvider({
       clientId: process.env.GITHUB_CLIENT_ID ?? "",
       clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
+      authorization: { params: { scope: "read:user user:email" } },
     }),
     CredentialsProvider({
       name: "Credentials",
@@ -86,26 +87,31 @@ export const authOptions: NextAuthOptions = {
       }
 
       if (account && (account.provider === "google" || account.provider === "github")) {
-        try {
-          const response = await fetch(`${getApiUrl()}/api/auth/external-login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: user.email,
-              fullName: user.name,
-              avatarUrl: user.image,
-              providerId: account.providerAccountId,
-              provider: account.provider === "google" ? 1 : 2,
-            }),
-          });
-
-          if (response.ok) {
-            const accessToken: unknown = await response.json();
-            if (typeof accessToken === "string") token.accessToken = accessToken;
-          }
-        } catch (error) {
-          console.error("External login sync failed", error);
+        const providerToken = account.provider === "google"
+          ? account.id_token
+          : account.access_token;
+        if (!providerToken) {
+          throw new Error("External provider did not return a verification token.");
         }
+
+        const response = await fetch(`${getApiUrl()}/api/auth/external-login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider: account.provider === "google" ? 1 : 2,
+            providerToken,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("External identity verification failed.");
+        }
+
+        const accessToken: unknown = await response.json();
+        if (typeof accessToken !== "string") {
+          throw new Error("Auth service returned an invalid access token.");
+        }
+        token.accessToken = accessToken;
       } else if (user?.accessToken) {
         token.accessToken = user.accessToken;
       }

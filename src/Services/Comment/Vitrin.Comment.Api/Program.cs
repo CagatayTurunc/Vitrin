@@ -4,12 +4,14 @@ using Microsoft.EntityFrameworkCore;
 using Vitrin.Comment.Application.Commands;
 using Vitrin.Comment.Infrastructure;
 using Vitrin.Comment.Infrastructure.Data;
+using Vitrin.Shared.Infrastructure.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
+builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 
 // MediatR
 builder.Services.AddMediatR(cfg =>
@@ -32,10 +34,22 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapHealthChecks("/health");
 
-app.MapPost("/api/comments", async ([FromBody] AddCommentCommand command, IMediator mediator) =>
+app.MapPost("/api/comments", async (HttpContext context, [FromBody] AddCommentRequest request, IMediator mediator) =>
 {
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
+    var command = new AddCommentCommand(
+        request.ProductId,
+        userId.Value,
+        context.User.GetUsername(),
+        request.Content,
+        request.ParentCommentId);
     var result = await mediator.Send(command);
     if (result.IsSuccess)
     {
@@ -44,7 +58,8 @@ app.MapPost("/api/comments", async ([FromBody] AddCommentCommand command, IMedia
     return Results.BadRequest(new { Error = result.Error });
 })
 .WithName("AddComment")
-.WithOpenApi();
+.WithOpenApi()
+.RequireAuthorization();
 
 app.MapGet("/api/comments/{productId}", async (Guid productId, CommentDbContext db) =>
 {
@@ -57,25 +72,9 @@ app.MapGet("/api/comments/{productId}", async (Guid productId, CommentDbContext 
 .WithName("GetCommentsByProduct")
 .WithOpenApi();
 
-Guid? GetUserIdFromRequest(HttpContext context)
-{
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (authHeader != null && authHeader.StartsWith("Bearer "))
-    {
-        var token = authHeader.Substring("Bearer ".Length);
-        try {
-            var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-            var jwt = handler.ReadJwtToken(token);
-            var sub = jwt.Claims.FirstOrDefault(c => c.Type == System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
-            if (Guid.TryParse(sub, out Guid userId)) return userId;
-        } catch { }
-    }
-    return null;
-}
-
 app.MapPut("/api/comments/{id}", async (Guid id, [FromBody] UpdateCommentRequest req, HttpContext context, IMediator mediator) =>
 {
-    var userId = GetUserIdFromRequest(context);
+    var userId = context.User.GetUserId();
     if (userId == null) return Results.Unauthorized();
 
     var result = await mediator.Send(new UpdateCommentCommand(id, userId.Value, req.Content));
@@ -84,11 +83,11 @@ app.MapPut("/api/comments/{id}", async (Guid id, [FromBody] UpdateCommentRequest
         return Results.Ok(new { Message = "Comment updated successfully!" });
     }
     return Results.BadRequest(new { Error = result.Error });
-});
+}).RequireAuthorization();
 
 app.MapDelete("/api/comments/{id}", async (Guid id, HttpContext context, IMediator mediator) =>
 {
-    var userId = GetUserIdFromRequest(context);
+    var userId = context.User.GetUserId();
     if (userId == null) return Results.Unauthorized();
 
     var result = await mediator.Send(new DeleteCommentCommand(id, userId.Value));
@@ -97,8 +96,9 @@ app.MapDelete("/api/comments/{id}", async (Guid id, HttpContext context, IMediat
         return Results.Ok(new { Message = "Comment deleted successfully!" });
     }
     return Results.BadRequest(new { Error = result.Error });
-});
+}).RequireAuthorization();
 
 app.Run();
 
 public record UpdateCommentRequest(string Content);
+public record AddCommentRequest(Guid ProductId, string Content, Guid? ParentCommentId = null);

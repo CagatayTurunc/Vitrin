@@ -25,6 +25,10 @@ public static class DependencyInjection
 
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IJwtProvider, JwtProvider>();
+        services.AddSingleton<IExternalIdentityVerifier>(_ =>
+            new ExternalIdentityVerifier(
+                configuration,
+                new HttpClient { Timeout = TimeSpan.FromSeconds(10) }));
 
         // Kafka Producer + Notification Publisher
         services.AddSingleton<IEventPublisher, KafkaProducer>();

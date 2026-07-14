@@ -582,18 +582,18 @@ Coverage, throughput ve latency değerleri ölçülmeden yazılmamalıdır.
 
 ### Aşama 1 — Güvenlik ve temel doğruluk
 
-- [ ] OAuth external-login açığını kapat
-- [ ] Merkezi JWT authentication yapılandırması oluştur
-- [ ] Policy-based authorization ekle
-- [ ] Request body'den alınan UserId/MakerId alanlarını kaldır
-- [ ] Collection sahiplik kontrollerini ekle
-- [ ] Notification IDOR açığını kapat
-- [ ] Comment create kimlik doğrulamasını düzelt
-- [ ] Voting endpoint'lerini doğrulanmış kullanıcıya bağla
-- [ ] AI endpoint'ine auth, quota ve rate limit ekle
-- [ ] Analytics admin endpoint'lerini koru
+- [x] OAuth external-login açığını kapat
+- [x] Merkezi JWT authentication yapılandırması oluştur
+- [x] Policy-based authorization ekle
+- [x] Request body'den alınan UserId/MakerId alanlarını kaldır
+- [x] Collection sahiplik kontrollerini ekle
+- [x] Notification IDOR açığını kapat
+- [x] Comment create kimlik doğrulamasını düzelt
+- [x] Voting endpoint'lerini doğrulanmış kullanıcıya bağla
+- [ ] AI endpoint'ine auth, quota ve rate limit ekle — auth tamamlandı; quota ve rate limit bekliyor
+- [x] Analytics admin endpoint'lerini koru
 - [ ] Login/register rate limiting ekle
-- [ ] Secret fallback'lerini kaldır
+- [x] Secret fallback'lerini kaldır
 - [ ] Validation ve ProblemDetails ekle
 - [ ] Audit log temelini oluştur
 
