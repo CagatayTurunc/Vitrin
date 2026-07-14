@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Vitrin.Notification.Infrastructure\Vitrin.Notification.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Vitrin.Shared.Infrastructure\Vitrin.Shared.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,9 +1,9 @@
-using Microsoft.EntityFrameworkCore;
-using Vitrin.Comment.Application.Commands;
-using Vitrin.Comment.Infrastructure.Data;
-using Vitrin.Comment.Infrastructure.Repositories;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Vitrin.Comment.Application.Commands;
+using Vitrin.Comment.Infrastructure;
+using Vitrin.Comment.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,12 +11,12 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
 
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AddCommentCommand).Assembly));
+// MediatR
+builder.Services.AddMediatR(cfg =>
+    cfg.RegisterServicesFromAssembly(typeof(AddCommentCommand).Assembly));
 
-builder.Services.AddDbContext<CommentDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-builder.Services.AddScoped<ICommentRepository, CommentRepository>();
+// Infrastructure: DbContext + Repository + Kafka Publisher
+builder.Services.AddCommentInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 

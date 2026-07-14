@@ -20,6 +20,7 @@
     <ProjectReference Include="..\Vitrin.Product.Application\Vitrin.Product.Application.csproj" />
     <ProjectReference Include="..\Vitrin.Product.Domain\Vitrin.Product.Domain.csproj" />
     <ProjectReference Include="..\Vitrin.Product.Infrastructure\Vitrin.Product.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Vitrin.Shared.Infrastructure\Vitrin.Shared.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

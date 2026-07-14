@@ -1,58 +1,58 @@
 using MediatR;
 using Vitrin.Product.Domain.Entities;
+using Vitrin.Shared.Contracts.Events;
 using Vitrin.Shared.Kernel.Results;
-using System.Net.Http;
 
 namespace Vitrin.Product.Application.Commands;
 
+/// <summary>
+/// Upvote/downvote event'lerini yayınlamak için abstraction.
+/// Infrastructure katmanında KafkaProducer ile implement edilir.
+/// </summary>
+public interface IProductEventPublisher
+{
+    Task PublishUpvoteToggled(ProductUpvotedEvent @event, CancellationToken cancellationToken = default);
+    Task PublishProductPublished(ProductPublishedEvent @event, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Ürüne oy ekler/çıkarır ve "analytics-events" topic'ine event publish eder.
+/// ProductUpvote tablosunun sync'i artık Voting servisinden gelen
+/// "voting-events" consumer tarafından yapılır — bu handler sadece
+/// kendi DB'sindeki toggle işlemini yapar.
+/// </summary>
 public class ToggleUpvoteCommandHandler : IRequestHandler<ToggleUpvoteCommand, Result<int>>
 {
     private readonly IProductRepository _repository;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IProductEventPublisher _eventPublisher;
 
-    public ToggleUpvoteCommandHandler(IProductRepository repository, IHttpClientFactory httpClientFactory)
+    public ToggleUpvoteCommandHandler(
+        IProductRepository repository,
+        IProductEventPublisher eventPublisher)
     {
-        _repository = repository;
-        _httpClientFactory = httpClientFactory;
+        _repository     = repository;
+        _eventPublisher = eventPublisher;
     }
 
     public async Task<Result<int>> Handle(ToggleUpvoteCommand request, CancellationToken cancellationToken)
     {
         var product = await _repository.GetByIdWithUpvotesAsync(request.ProductId, cancellationToken);
-        if (product == null)
+        if (product is null)
             return Result<int>.Failure("Product not found.");
 
         bool isNewUpvote = !product.Upvotes.Any(u => u.UserId == request.UserId);
 
-        // Bypass loading the whole product and its upvotes collection for performance and to avoid EF tracking bugs.
         await _repository.ToggleUpvoteAsync(request.ProductId, request.UserId, cancellationToken);
         var count = await _repository.GetUpvoteCountAsync(request.ProductId, cancellationToken);
 
-        if (isNewUpvote && product.MakerId != request.UserId)
+        // Kafka'ya analytics event publish et
+        await _eventPublisher.PublishUpvoteToggled(new ProductUpvotedEvent
         {
-            try
-            {
-                var client = _httpClientFactory.CreateClient();
-                var notificationPayload = new
-                {
-                    UserId = product.MakerId,
-                    Message = $"Biri '{product.Name}' adlı ürününüzü oyladı!"
-                };
-                
-                // Notification API port is 5101
-                var content = new System.Net.Http.StringContent(System.Text.Json.JsonSerializer.Serialize(notificationPayload), System.Text.Encoding.UTF8, "application/json");
-                var res = await client.PostAsync("http://localhost:5101/api/notifications", content, cancellationToken);
-                Console.WriteLine($"[NOTIFICATION SENT] Response: {res.StatusCode}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[NOTIFICATION ERROR] {ex.Message}");
-            }
-        }
-        else
-        {
-            Console.WriteLine($"[NOTIFICATION SKIPPED] isNewUpvote={isNewUpvote}, MakerId={product.MakerId}, UserId={request.UserId}");
-        }
+            ProductId   = product.Id,
+            ProductSlug = product.Slug,
+            UserId      = request.UserId,
+            IsUpvote    = isNewUpvote
+        }, cancellationToken);
 
         return Result<int>.Success(count);
     }

@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Vitrin.Product.Application.Commands;
+using Vitrin.Product.Infrastructure;
 using Vitrin.Product.Infrastructure.Data;
-using Vitrin.Product.Infrastructure.Repositories;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Vitrin.Shared.Infrastructure.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,17 +12,15 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
 
-// Register MediatR
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(CreateProductCommand).Assembly));
+// JWT doğrulama yardımcısı (imza doğrulamalı)
+builder.Services.AddSingleton<JwtTokenValidator>();
 
-// EF Core PostgreSQL
-builder.Services.AddDbContext<ProductDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Host=localhost;Database=vitrin_product;Username=postgres;Password=123456"));
+// MediatR
+builder.Services.AddMediatR(cfg =>
+    cfg.RegisterServicesFromAssembly(typeof(CreateProductCommand).Assembly));
 
-// Register Real Repository
-builder.Services.AddScoped<IProductRepository, ProductRepository>();
-
-builder.Services.AddHttpClient();
+// Infrastructure: DbContext + Repository + Kafka Producer + Kafka Consumer (VotingEventsConsumer)
+builder.Services.AddProductInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
@@ -134,40 +133,9 @@ app.MapGet("/api/products/batch", async (string ids, ProductDbContext db) =>
 .WithName("GetProductsBatch")
 .WithOpenApi();
 
-Guid? GetUserIdFromRequest(HttpContext context)
+app.MapPost("/api/products/{id}/vote", async (Guid id, HttpContext context, JwtTokenValidator jwt, IMediator mediator) =>
 {
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (authHeader != null && authHeader.StartsWith("Bearer "))
-    {
-        var token = authHeader.Substring("Bearer ".Length);
-        try {
-            var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-            var jwt = handler.ReadJwtToken(token);
-            var sub = jwt.Claims.FirstOrDefault(c => c.Type == "sub" || c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (Guid.TryParse(sub, out var userId)) return userId;
-        } catch { }
-    }
-    return null;
-}
-
-string? GetUserRoleFromRequest(HttpContext context)
-{
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (authHeader != null && authHeader.StartsWith("Bearer "))
-    {
-        var token = authHeader.Substring("Bearer ".Length);
-        try {
-            var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-            var jwt = handler.ReadJwtToken(token);
-            return jwt.Claims.FirstOrDefault(c => c.Type == "Role" || c.Type == System.Security.Claims.ClaimTypes.Role)?.Value;
-        } catch { }
-    }
-    return null;
-}
-
-app.MapPost("/api/products/{id}/vote", async (Guid id, HttpContext context, IMediator mediator) =>
-{
-    var userId = GetUserIdFromRequest(context);
+    var userId = jwt.GetUserId(context);
     if (userId == null) return Results.Unauthorized();
 
     var result = await mediator.Send(new ToggleUpvoteCommand(id, userId.Value));
@@ -180,9 +148,9 @@ app.MapPost("/api/products/{id}/vote", async (Guid id, HttpContext context, IMed
 .WithName("ToggleUpvote")
 .WithOpenApi();
 
-app.MapGet("/api/products/my-votes", async (HttpContext context, ProductDbContext db) =>
+app.MapGet("/api/products/my-votes", async (HttpContext context, JwtTokenValidator jwt, ProductDbContext db) =>
 {
-    var userId = GetUserIdFromRequest(context);
+    var userId = jwt.GetUserId(context);
     if (userId == null) return Results.Unauthorized();
 
     var votedProductIds = await db.ProductUpvotes
@@ -195,9 +163,9 @@ app.MapGet("/api/products/my-votes", async (HttpContext context, ProductDbContex
 .WithName("GetMyVotes")
 .WithOpenApi();
 
-app.MapGet("/api/products/upvoted", async (HttpContext context, ProductDbContext db) =>
+app.MapGet("/api/products/upvoted", async (HttpContext context, JwtTokenValidator jwt, ProductDbContext db) =>
 {
-    var userId = GetUserIdFromRequest(context);
+    var userId = jwt.GetUserId(context);
     if (userId == null) return Results.Unauthorized();
 
     var votedProductIds = await db.ProductUpvotes
@@ -237,9 +205,9 @@ app.MapGet("/api/products/maker/{makerId}", async (Guid makerId, ProductDbContex
 .WithName("GetMakerProducts")
 .WithOpenApi();
 
-app.MapGet("/api/products/admin/pending", async (HttpContext context, ProductDbContext db) =>
+app.MapGet("/api/products/admin/pending", async (HttpContext context, JwtTokenValidator jwt, ProductDbContext db) =>
 {
-    var role = GetUserRoleFromRequest(context);
+    var role = jwt.GetRole(context);
     if (role != "Admin") return Results.Unauthorized();
 
     // ProductStatus.UnderReview is 1
@@ -254,9 +222,9 @@ app.MapGet("/api/products/admin/pending", async (HttpContext context, ProductDbC
 .WithName("GetPendingProducts")
 .WithOpenApi();
 
-app.MapPost("/api/products/admin/{id}/approve", async (Guid id, HttpContext context, ProductDbContext db, IConfiguration configuration) =>
+app.MapPost("/api/products/admin/{id}/approve", async (Guid id, HttpContext context, JwtTokenValidator jwt, ProductDbContext db, Vitrin.Product.Infrastructure.Kafka.ProductEventPublisher eventPublisher) =>
 {
-    var role = GetUserRoleFromRequest(context);
+    var role = jwt.GetRole(context);
     if (role != "Admin") return Results.Unauthorized();
 
     var product = await db.Products.FindAsync(id);
@@ -267,39 +235,23 @@ app.MapPost("/api/products/admin/{id}/approve", async (Guid id, HttpContext cont
     
     await db.SaveChangesAsync();
 
-    // Send notifications to followers
-    try {
-        var authUrl = configuration["ServiceUrls:Auth"] ?? "http://vitrin-auth:8080";
-        var notificationUrl = configuration["ServiceUrls:Notification"] ?? "http://vitrin-notification:8080";
-
-        using var client = new HttpClient();
-        
-        // 1. Get followers of the Maker
-        var followersResponse = await client.GetAsync($"{authUrl}/api/auth/users/{product.MakerId}/followers-ids");
-        if (followersResponse.IsSuccessStatusCode)
-        {
-            var followerIds = await followersResponse.Content.ReadFromJsonAsync<List<Guid>>();
-            if (followerIds != null)
-            {
-                // 2. Send notification to each follower
-                foreach (var followerId in followerIds)
-                {
-                    var notifPayload = new { userId = followerId, message = $"Takip ettiğiniz bir Maker yeni bir ürün yayınladı: {product.Name}" };
-                    var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(notifPayload), System.Text.Encoding.UTF8, "application/json");
-                    await client.PostAsync($"{notificationUrl}/api/notifications", content);
-                }
-            }
-        }
-    } catch { }
+    // Kafka'ya ProductPublishedEvent publish et — Notification consumer karşılar
+    await eventPublisher.PublishProductPublished(new Vitrin.Shared.Contracts.Events.ProductPublishedEvent
+    {
+        ProductId   = product.Id,
+        MakerId     = product.MakerId,
+        ProductName = product.Name,
+        ProductSlug = product.Slug
+    });
 
     return Results.Ok(new { Message = "Product approved successfully!" });
 })
 .WithName("ApproveProduct")
 .WithOpenApi();
 
-app.MapPost("/api/products/admin/{id}/reject", async (Guid id, HttpContext context, ProductDbContext db) =>
+app.MapPost("/api/products/admin/{id}/reject", async (Guid id, HttpContext context, JwtTokenValidator jwt, ProductDbContext db) =>
 {
-    var role = GetUserRoleFromRequest(context);
+    var role = jwt.GetRole(context);
     if (role != "Admin") return Results.Unauthorized();
 
     var product = await db.Products.FindAsync(id);

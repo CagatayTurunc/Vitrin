@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Vitrin.Analytics.Infrastructure\Vitrin.Analytics.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Vitrin.Shared.Infrastructure\Vitrin.Shared.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

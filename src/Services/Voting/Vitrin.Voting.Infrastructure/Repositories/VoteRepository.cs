@@ -25,4 +25,16 @@ public class VoteRepository : IVoteRepository
         await _context.Votes.AddAsync(vote, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task RemoveAsync(Guid userId, Guid productId, CancellationToken cancellationToken)
+    {
+        var vote = await _context.Votes
+            .FirstOrDefaultAsync(v => v.UserId == userId && v.ProductId == productId, cancellationToken);
+
+        if (vote is not null)
+        {
+            _context.Votes.Remove(vote);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
 }

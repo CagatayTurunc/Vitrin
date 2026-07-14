@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Vitrin.Voting.Domain\Vitrin.Voting.Domain.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Vitrin.Shared.Kernel\Vitrin.Shared.Kernel.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Vitrin.Shared.Contracts\Vitrin.Shared.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

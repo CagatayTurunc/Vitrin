@@ -1,9 +1,9 @@
-using Microsoft.EntityFrameworkCore;
-using Vitrin.Notification.Application.Commands;
-using Vitrin.Notification.Infrastructure.Data;
-using Vitrin.Notification.Infrastructure.Repositories;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Vitrin.Notification.Application.Commands;
+using Vitrin.Notification.Infrastructure;
+using Vitrin.Notification.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,12 +11,12 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
 
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(SendNotificationCommand).Assembly));
+// MediatR
+builder.Services.AddMediatR(cfg =>
+    cfg.RegisterServicesFromAssembly(typeof(SendNotificationCommand).Assembly));
 
-builder.Services.AddDbContext<NotificationDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=notification_db.sqlite"));
-
-builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+// Infrastructure: DbContext + Repository + Kafka Consumer (BackgroundService)
+builder.Services.AddNotificationInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
@@ -34,52 +34,97 @@ if (app.Environment.IsDevelopment())
 
 app.MapHealthChecks("/health");
 
+// ─── Endpoints ──────────────────────────────────────────────────────────────
+
+// Manuel bildirim gönder (internal/test kullanım — üretimde Kafka üzerinden gelir)
 app.MapPost("/api/notifications", async ([FromBody] SendNotificationCommand command, IMediator mediator) =>
 {
     var result = await mediator.Send(command);
-    if (result.IsSuccess)
-    {
-        return Results.Ok(new { NotificationId = result.Value, Message = "Notification sent successfully!" });
-    }
-    return Results.BadRequest(new { Error = result.Error });
+    return result.IsSuccess
+        ? Results.Ok(new { NotificationId = result.Value })
+        : Results.BadRequest(new { Error = result.Error });
 })
 .WithName("SendNotification")
 .WithOpenApi();
 
-app.MapGet("/api/notifications/{userId}", async (Guid userId, NotificationDbContext db) =>
+// Kullanıcının bildirimlerini getir
+app.MapGet("/api/notifications/{userId:guid}", async (Guid userId, NotificationDbContext db) =>
 {
     var notifications = await db.Notifications
         .Where(n => n.UserId == userId)
         .OrderByDescending(n => n.CreatedAt)
+        .Select(n => new
+        {
+            n.Id,
+            n.UserId,
+            n.Message,
+            n.IsRead,
+            n.CreatedAt
+        })
         .ToListAsync();
+
     return Results.Ok(notifications);
 })
 .WithName("GetNotificationsByUser")
 .WithOpenApi();
 
-app.MapPost("/api/notifications/{id}/read", async (Guid id, HttpContext context, IMediator mediator) =>
+// Okunmamış bildirim sayısı
+app.MapGet("/api/notifications/{userId:guid}/unread-count", async (Guid userId, NotificationDbContext db) =>
 {
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (authHeader == null || !authHeader.StartsWith("Bearer "))
-        return Results.Unauthorized();
+    var count = await db.Notifications
+        .CountAsync(n => n.UserId == userId && !n.IsRead);
+    return Results.Ok(new { UserId = userId, UnreadCount = count });
+})
+.WithName("GetUnreadCount")
+.WithOpenApi();
 
-    var token = authHeader.Substring("Bearer ".Length);
-    Guid userId = Guid.Empty;
-    try {
-        var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-        var jwt = handler.ReadJwtToken(token);
-        var sub = jwt.Claims.FirstOrDefault(c => c.Type == "sub" || c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (!Guid.TryParse(sub, out userId)) return Results.Unauthorized();
-    } catch { return Results.Unauthorized(); }
+// Bildirimi okundu işaretle
+app.MapPost("/api/notifications/{id:guid}/read", async (Guid id, HttpContext context, IMediator mediator) =>
+{
+    var userId = GetUserIdFromToken(context);
+    if (userId is null) return Results.Unauthorized();
 
-    var result = await mediator.Send(new Vitrin.Notification.Application.Commands.MarkAsReadCommand(id, userId));
-    if (result.IsSuccess)
-    {
-        return Results.Ok(new { Message = "Notification marked as read." });
-    }
-    return Results.BadRequest(new { Error = result.Error });
+    var result = await mediator.Send(new MarkAsReadCommand(id, userId.Value));
+    return result.IsSuccess
+        ? Results.Ok(new { Message = "Notification marked as read." })
+        : Results.BadRequest(new { Error = result.Error });
 })
 .WithName("MarkNotificationAsRead")
 .WithOpenApi();
 
+// Tüm bildirimleri okundu işaretle
+app.MapPost("/api/notifications/read-all", async (HttpContext context, NotificationDbContext db) =>
+{
+    var userId = GetUserIdFromToken(context);
+    if (userId is null) return Results.Unauthorized();
+
+    var unread = await db.Notifications
+        .Where(n => n.UserId == userId.Value && !n.IsRead)
+        .ToListAsync();
+
+    foreach (var n in unread) n.MarkAsRead();
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { MarkedAsRead = unread.Count });
+})
+.WithName("MarkAllAsRead")
+.WithOpenApi();
+
 app.Run();
+
+// ─── Yardımcı ───────────────────────────────────────────────────────────────
+
+static Guid? GetUserIdFromToken(HttpContext context)
+{
+    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+    if (authHeader is null || !authHeader.StartsWith("Bearer ")) return null;
+    try
+    {
+        var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+        var jwt = handler.ReadJwtToken(authHeader["Bearer ".Length..]);
+        var sub = jwt.Claims.FirstOrDefault(c => c.Type == "sub"
+            || c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(sub, out var id) ? id : null;
+    }
+    catch { return null; }
+}
