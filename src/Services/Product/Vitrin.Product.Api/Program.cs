@@ -7,6 +7,11 @@ using Microsoft.AspNetCore.Mvc;
 using Vitrin.Shared.Infrastructure.Auth;
 using Vitrin.Shared.Infrastructure.Api;
 using Vitrin.Shared.Infrastructure.Audit;
+using Vitrin.Shared.Infrastructure.Migrations;
+using Vitrin.Shared.Kernel.Pagination;
+using Vitrin.Shared.Kernel.Text;
+using Vitrin.Product.Api.Products;
+using Vitrin.Product.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,12 +34,9 @@ var app = builder.Build();
 
 app.UseVitrinApiErrors();
 
-// Migrate Database on startup for ease of development
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<ProductDbContext>();
-    db.Database.Migrate();
-}
+if (await app.MigrateDatabaseAndExitAsync<ProductDbContext>(
+    args,
+    static (db, cancellationToken) => db.Database.MigrateAsync(cancellationToken))) return;
 
 if (app.Environment.IsDevelopment())
 {
@@ -72,33 +74,71 @@ app.MapPost("/api/products", async (HttpContext context, [FromBody] CreateProduc
 .WithOpenApi()
 .RequireAuthorization(VitrinAuthDefaults.MakerOrAdminPolicy);
 
-app.MapGet("/api/products", async (string? topicSlug, ProductDbContext db) =>
+app.MapGet("/api/products", async (
+    string? topicSlug,
+    string? cursor,
+    int? pageSize,
+    HttpContext context,
+    ProductDbContext db) =>
 {
-    // ProductStatus.Published is 2
+    var requestedPageSize = pageSize ?? 20;
+    if (requestedPageSize is < 1 or > 100)
+    {
+        return ApiProblemResults.BadRequest("Page size must be between 1 and 100.", "pagination.invalid_page_size");
+    }
+
+    KeysetCursor? decodedCursor = null;
+    if (cursor is not null)
+    {
+        if (!KeysetCursorCodec.TryDecode(cursor, out var parsedCursor))
+        {
+            return ApiProblemResults.BadRequest("The pagination cursor is invalid.", "pagination.invalid_cursor");
+        }
+
+        decodedCursor = parsedCursor;
+    }
+
     var query = db.Products
-        .Include(p => p.Topics)
-        .Include(p => p.Upvotes)
-        .Where(p => p.Status == Vitrin.Product.Domain.Entities.ProductStatus.Published);
+        .AsNoTracking()
+        .Where(product => product.Status == Vitrin.Product.Domain.Entities.ProductStatus.Published);
 
     if (!string.IsNullOrEmpty(topicSlug))
     {
-        query = query.Where(p => p.Topics.Any(t => t.Slug == topicSlug));
+        query = query.Where(product => product.Topics.Any(topic => topic.Slug == topicSlug));
     }
 
-    var products = await query
-        .Select(p => new {
-            p.Id, p.Name, p.Slug, p.Tagline, p.Description, p.ThumbnailUrl, p.GalleryUrls, p.MakerId, p.Status, p.CreatedAt, p.PublishedAt, p.Topics,
-            Upvotes = p.Upvotes.Count
-        })
-        .ToListAsync();
-    return Results.Ok(products);
+    if (decodedCursor is { } keyset)
+    {
+        query = query.Where(product =>
+            product.PublishedAt < keyset.TimestampUtc ||
+            (product.PublishedAt == keyset.TimestampUtc && product.Id.CompareTo(keyset.Id) < 0));
+    }
+
+    var rows = await query
+        .OrderByDescending(product => product.PublishedAt)
+        .ThenByDescending(product => product.Id)
+        .Take(requestedPageSize + 1)
+        .ProjectToResponse()
+        .ToListAsync(context.RequestAborted);
+    var hasMore = rows.Count > requestedPageSize;
+    var items = rows.Take(requestedPageSize).ToList();
+    var lastItem = items.LastOrDefault();
+    var nextCursor = hasMore && lastItem?.PublishedAt is { } publishedAt
+        ? KeysetCursorCodec.Encode(publishedAt, lastItem.Id)
+        : null;
+
+    return Results.Ok(new CursorPage<ProductResponse>(items, nextCursor, hasMore));
 })
 .WithName("GetProducts")
 .WithOpenApi();
 
 app.MapGet("/api/topics", async (ProductDbContext db) =>
 {
-    var topics = await db.Topics.ToListAsync();
+    var topics = await db.Topics
+        .AsNoTracking()
+        .OrderBy(topic => topic.Name)
+        .Select(topic => new TopicResponse(topic.Id, topic.Name, topic.Slug))
+        .ToListAsync();
     return Results.Ok(topics);
 })
 .WithName("GetTopics")
@@ -107,13 +147,9 @@ app.MapGet("/api/topics", async (ProductDbContext db) =>
 app.MapGet("/api/products/{slug}", async (string slug, ProductDbContext db) =>
 {
     var product = await db.Products
-        .Include(p => p.Topics)
-        .Include(p => p.Upvotes)
+        .AsNoTracking()
         .Where(p => p.Status == Vitrin.Product.Domain.Entities.ProductStatus.Published && p.Slug == slug)
-        .Select(p => new {
-            p.Id, p.Name, p.Slug, p.Tagline, p.Description, p.ThumbnailUrl, p.GalleryUrls, p.MakerId, p.Status, p.CreatedAt, p.PublishedAt, p.Topics,
-            Upvotes = p.Upvotes.Count
-        })
+        .ProjectToResponse()
         .FirstOrDefaultAsync();
 
     if (product == null) return Results.NotFound();
@@ -126,13 +162,23 @@ app.MapGet("/api/products/{slug}", async (string slug, ProductDbContext db) =>
 app.MapGet("/api/products/batch", async (string ids, ProductDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(ids)) return Results.Ok(new List<object>());
+    if (ids.Length > 4_000)
+    {
+        return ApiProblemResults.BadRequest("The batch query is too large.", "product.batch_limit_exceeded");
+    }
     
     var idList = ids.Split(',', StringSplitOptions.RemoveEmptyEntries)
                     .Select(idStr => Guid.TryParse(idStr, out var g) ? g : Guid.Empty)
                     .Where(g => g != Guid.Empty)
                     .ToList();
+
+    if (idList.Count > 100)
+    {
+        return ApiProblemResults.BadRequest("A batch can contain at most 100 product ids.", "product.batch_limit_exceeded");
+    }
                     
     var products = await db.Products
+        .AsNoTracking()
         .Where(p => idList.Contains(p.Id))
         .Select(p => new {
             p.Id,
@@ -155,6 +201,7 @@ app.MapGet("/api/products/my-votes", async (HttpContext context, ProductDbContex
     if (userId == null) return Results.Unauthorized();
 
     var votedProductIds = await db.ProductUpvotes
+        .AsNoTracking()
         .Where(u => u.UserId == userId)
         .Select(u => u.ProductItemId)
         .ToListAsync();
@@ -171,18 +218,17 @@ app.MapGet("/api/products/upvoted", async (HttpContext context, ProductDbContext
     if (userId == null) return Results.Unauthorized();
 
     var votedProductIds = await db.ProductUpvotes
+        .AsNoTracking()
         .Where(u => u.UserId == userId)
         .Select(u => u.ProductItemId)
         .ToListAsync();
 
     var products = await db.Products
-        .Include(p => p.Topics)
-        .Include(p => p.Upvotes)
+        .AsNoTracking()
         .Where(p => votedProductIds.Contains(p.Id) && p.Status == Vitrin.Product.Domain.Entities.ProductStatus.Published)
-        .Select(p => new {
-            p.Id, p.Name, p.Slug, p.Tagline, p.Description, p.ThumbnailUrl, p.GalleryUrls, p.MakerId, p.Status, p.CreatedAt, p.PublishedAt, p.Topics,
-            Upvotes = p.Upvotes.Count
-        })
+        .OrderByDescending(product => product.PublishedAt)
+        .Take(100)
+        .ProjectToResponse()
         .ToListAsync();
         
     return Results.Ok(products);
@@ -194,13 +240,11 @@ app.MapGet("/api/products/upvoted", async (HttpContext context, ProductDbContext
 app.MapGet("/api/products/maker/{makerId}", async (Guid makerId, ProductDbContext db) =>
 {
     var products = await db.Products
-        .Include(p => p.Topics)
-        .Include(p => p.Upvotes)
+        .AsNoTracking()
         .Where(p => p.MakerId == makerId)
-        .Select(p => new {
-            p.Id, p.Name, p.Slug, p.Tagline, p.Description, p.ThumbnailUrl, p.GalleryUrls, p.MakerId, p.Status, p.CreatedAt, p.PublishedAt, p.Topics,
-            Upvotes = p.Upvotes.Count
-        })
+        .OrderByDescending(product => product.CreatedAt)
+        .Take(100)
+        .ProjectToResponse()
         .ToListAsync();
         
     return Results.Ok(products);
@@ -212,7 +256,10 @@ app.MapGet("/api/products/admin/pending", async (ProductDbContext db) =>
 {
     // ProductStatus.UnderReview is 1
     var products = await db.Products
+        .AsNoTracking()
         .Where(p => p.Status == Vitrin.Product.Domain.Entities.ProductStatus.UnderReview)
+        .OrderBy(product => product.CreatedAt)
+        .Take(100)
         .Select(p => new {
             p.Id, p.Name, p.Slug, p.Tagline, p.Description, p.ThumbnailUrl, p.GalleryUrls, p.MakerId, p.Status, p.CreatedAt, p.PublishedAt
         })
@@ -268,26 +315,30 @@ app.MapPost("/api/products/admin/{id}/reject", async (Guid id, HttpContext conte
 .WithOpenApi()
 .RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
-app.MapGet("/api/products/search", async (string q, ProductDbContext db) =>
+app.MapGet("/api/products/search", async (string q, int? limit, ProductDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(q)) return Results.Ok(new List<object>());
-    
-    var lowerQ = q.ToLower();
+
+    var requestedLimit = Math.Clamp(limit ?? 20, 1, 50);
+    var term = q.Trim();
+    var escapedTerm = EscapeLikePattern(term);
+    var containsPattern = $"%{escapedTerm}%";
+    var prefixPattern = $"{escapedTerm}%";
 
     var query = db.Products
-        .Include(p => p.Topics)
-        .Include(p => p.Upvotes)
+        .AsNoTracking()
         .Where(p => p.Status == Vitrin.Product.Domain.Entities.ProductStatus.Published)
-        .Where(p => p.Name.ToLower().Contains(lowerQ) || 
-                    p.Tagline.ToLower().Contains(lowerQ) || 
-                    p.Description.ToLower().Contains(lowerQ) || 
-                    p.Topics.Any(t => t.Name.ToLower().Contains(lowerQ)));
+        .Where(p => EF.Functions.ILike(p.Name, containsPattern, "\\") ||
+                    EF.Functions.ILike(p.Tagline, containsPattern, "\\") ||
+                    EF.Functions.ILike(p.Description, containsPattern, "\\") ||
+                    p.Topics.Any(t => EF.Functions.ILike(t.Name, containsPattern, "\\")));
 
     var products = await query
-        .Select(p => new {
-            p.Id, p.Name, p.Slug, p.Tagline, p.Description, p.ThumbnailUrl, p.GalleryUrls, p.MakerId, p.Status, p.CreatedAt, p.PublishedAt, p.Topics,
-            Upvotes = p.Upvotes.Count
-        })
+        .OrderByDescending(product => EF.Functions.ILike(product.Name, escapedTerm, "\\"))
+        .ThenByDescending(product => EF.Functions.ILike(product.Name, prefixPattern, "\\"))
+        .ThenByDescending(product => product.PublishedAt)
+        .Take(requestedLimit)
+        .ProjectToResponse()
         .ToListAsync();
         
     return Results.Ok(products);
@@ -300,8 +351,9 @@ app.MapGet("/api/products/search", async (string q, ProductDbContext db) =>
 app.MapGet("/api/collections", async (ProductDbContext db) =>
 {
     var collections = await db.Collections
-        .Include(c => c.Products)
+        .AsNoTracking()
         .OrderByDescending(c => c.CreatedAt)
+        .Take(100)
         .Select(c => new {
             c.Id, c.Name, c.Slug, c.Description, c.UserId, c.CreatedAt, ProductCount = c.Products.Count
         })
@@ -312,9 +364,10 @@ app.MapGet("/api/collections", async (ProductDbContext db) =>
 app.MapGet("/api/collections/user/{userId}", async (Guid userId, ProductDbContext db) =>
 {
     var collections = await db.Collections
-        .Include(c => c.Products)
+        .AsNoTracking()
         .Where(c => c.UserId == userId)
         .OrderByDescending(c => c.CreatedAt)
+        .Take(100)
         .Select(c => new {
             c.Id, c.Name, c.Slug, c.Description, c.UserId, c.CreatedAt, ProductCount = c.Products.Count
         })
@@ -328,9 +381,10 @@ app.MapGet("/api/collections/me", async (HttpContext context, ProductDbContext d
     if (userId is null) return Results.Unauthorized();
 
     var collections = await db.Collections
-        .Include(c => c.Products)
+        .AsNoTracking()
         .Where(c => c.UserId == userId.Value)
         .OrderByDescending(c => c.CreatedAt)
+        .Take(100)
         .Select(c => new {
             c.Id, c.Name, c.Slug, c.Description, c.UserId, c.CreatedAt, ProductCount = c.Products.Count
         })
@@ -342,21 +396,14 @@ app.MapGet("/api/collections/me", async (HttpContext context, ProductDbContext d
 app.MapGet("/api/collections/by-slug/{slug}", async (string slug, ProductDbContext db) =>
 {
     var collection = await db.Collections
-        .Include(c => c.Products)
-        .ThenInclude(p => p.Topics)
-        .Include(c => c.Products)
-        .ThenInclude(p => p.Upvotes)
-        .FirstOrDefaultAsync(c => c.Slug == slug);
+        .AsNoTracking()
+        .Where(c => c.Slug == slug)
+        .ProjectToDetailsResponse()
+        .FirstOrDefaultAsync();
         
     if (collection == null) return Results.NotFound();
     
-    return Results.Ok(new {
-        collection.Id, collection.Name, collection.Slug, collection.Description, collection.UserId, collection.CreatedAt,
-        Products = collection.Products.Select(p => new {
-            p.Id, p.Name, p.Slug, p.Tagline, p.Description, p.ThumbnailUrl, p.GalleryUrls, p.MakerId, p.Status, p.CreatedAt, p.PublishedAt, p.Topics,
-            Upvotes = p.Upvotes.Count
-        })
-    });
+    return Results.Ok(collection);
 });
 
 app.MapPost("/api/collections", async (HttpContext context, [Microsoft.AspNetCore.Mvc.FromBody] CreateCollectionRequest request, ProductDbContext db) =>
@@ -364,20 +411,31 @@ app.MapPost("/api/collections", async (HttpContext context, [Microsoft.AspNetCor
     var userId = context.User.GetUserId();
     if (userId is null) return Results.Unauthorized();
 
-    var slug = request.Name.ToLower().Replace(" ", "-").Replace("ç", "c").Replace("ğ", "g").Replace("ı", "i").Replace("ö", "o").Replace("ş", "s").Replace("ü", "u");
-    
-    // Ensure slug is unique
-    var baseSlug = slug;
-    int counter = 1;
-    while (await db.Collections.AnyAsync(c => c.Slug == slug))
+    var baseSlug = SlugGenerator.Generate(request.Name);
+    if (string.IsNullOrEmpty(baseSlug))
     {
-        slug = $"{baseSlug}-{counter}";
-        counter++;
+        return ApiProblemResults.BadRequest("Collection name must produce a valid slug.", "collection.invalid_name");
     }
-    
+
+    // Avoid a check-then-insert race. The database unique constraint remains authoritative.
+    var suffix = Guid.NewGuid().ToString("N")[..8];
+    var slugPrefix = baseSlug[..Math.Min(baseSlug.Length, 91)];
+    var slug = $"{slugPrefix}-{suffix}";
+
     var collection = Vitrin.Product.Domain.Entities.Collection.Create(userId.Value, request.Name, slug, request.Description);
     db.Collections.Add(collection);
-    await db.SaveChangesAsync();
+    try
+    {
+        await db.SaveChangesAsync();
+    }
+    catch (DbUpdateException exception) when (
+        ProductDatabaseErrors.TryGetUniqueConstraint(exception, out var constraint) &&
+        constraint == ProductDatabaseConstraints.CollectionSlug)
+    {
+        return ApiProblemResults.Conflict(
+            "Collection slug collision. Please retry.",
+            "collection.slug_conflict");
+    }
     
     return Results.Ok(collection);
 }).RequireAuthorization();
@@ -416,6 +474,11 @@ app.MapDelete("/api/collections/{id}/products/{productId}", async (Guid id, Guid
 }).RequireAuthorization();
 
 app.Run();
+
+static string EscapeLikePattern(string value) => value
+    .Replace("\\", "\\\\", StringComparison.Ordinal)
+    .Replace("%", "\\%", StringComparison.Ordinal)
+    .Replace("_", "\\_", StringComparison.Ordinal);
 
 public record CreateProductRequest(
     string Name,

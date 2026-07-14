@@ -35,12 +35,16 @@ Ortam dosyasını oluşturun ve bütün `CHANGE_ME` değerlerini güçlü, yerel
 Copy-Item .env.example .env
 ```
 
-Tüm sistemi çalıştırın:
+İmajları oluşturun, her servisin migration job'ını tek sefer çalıştırın ve sistemi başlatın:
 
 ```powershell
-docker compose up -d --build
+docker compose build
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-migrations.ps1
+docker compose up -d
 docker compose ps
 ```
+
+Uygulama process'leri normal startup sırasında schema değiştirmez. Yeni bir sürüm migration içeriyorsa rollout öncesinde aynı migration job'ı tekrar çalıştırılır.
 
 - Web: `http://localhost:3000`
 - Gateway / API: `http://localhost:5000`
@@ -102,7 +106,9 @@ docker-compose.yml         Yerel mikroservis orkestrasyonu
 - [ADR-0002 — Merkezi JWT ve güvenilir kimlik sınırı](docs/adr/0002-merkezi-jwt-ve-kimlik-siniri.md)
 - [ADR-0003 — API hata, kota, rate limit ve audit katmanları](docs/adr/0003-api-koruma-katmanlari.md)
 - [ADR-0004 — Güvenilir event teslimatı, Outbox ve Inbox](docs/adr/0004-event-teslimati-outbox-inbox.md)
+- [ADR-0005 — Migration deployment job](docs/adr/0005-migration-deployment-job.md)
 - [Event Catalog — topic, producer ve consumer matrisi](docs/event-catalog.md)
+- [Veri erişimi, indeks ve EXPLAIN ANALYZE rehberi](docs/data-access-performance.md)
 
 ## Güvenlik notları
 
@@ -122,4 +128,4 @@ docker-compose.yml         Yerel mikroservis orkestrasyonu
 
 ## Proje durumu
 
-Aşama 0 stabilizasyonu, Aşama 1 güvenlik/doğruluk çalışmaları ve Aşama 2'nin event-driven tutarlılık dilimi tamamlanmıştır. OAuth sağlayıcı doğrulaması, merkezi JWT/policy katmanı, güvenilir caller identity sınırı, sahiplik kontrolleri, Gateway rate limiting, merkezi ProblemDetails, kalıcı AI kotası ve yapılandırılmış audit log temeline ek olarak semantik event catalog, Transactional Outbox, Inbox idempotency, bounded retry/backoff, Kafka DLQ ve event schema versioning uygulanmıştır. Voting oyların tek yazma otoritesidir; Product oy verisini event-driven read model olarak tutar. Aşama 2'nin sıradaki dilimi sorgu, indeks, pagination, full-text search ve migration deployment modelidir.
+Aşama 0 stabilizasyonu, Aşama 1 güvenlik/doğruluk çalışmaları ve Aşama 2 tamamlanmıştır. OAuth sağlayıcı doğrulaması, merkezi JWT/policy katmanı, güvenilir caller identity sınırı, sahiplik kontrolleri, Gateway rate limiting, merkezi ProblemDetails, kalıcı AI kotası ve yapılandırılmış audit log temeline ek olarak semantik event catalog, Transactional Outbox, Inbox idempotency, bounded retry/backoff, Kafka DLQ ve event schema versioning uygulanmıştır. Voting oyların tek yazma otoritesidir; Product oy verisini event-driven read model olarak tutar. Veri katmanında keyset cursor pagination, DTO projection, `AsNoTracking`, sorguya göre bileşik indeksler, PostgreSQL `pg_trgm` araması, yarışa dayanıklı slug üretimi ve ayrı migration deployment job'ı bulunur. Sıradaki çalışma Aşama 3 test mimarisidir.

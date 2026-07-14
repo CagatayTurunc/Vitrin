@@ -1,9 +1,12 @@
 import apiClient from './api-client';
-import type { ProductApiModel, Topic } from '../domain/product.types';
+import type { CursorPage, ProductApiModel, Topic } from '../domain/product.types';
 
 export const ProductRepository = {
-  async getProducts(topicSlug?: string): Promise<ProductApiModel[]> {
-    const url = topicSlug ? `/products?topicSlug=${topicSlug}` : '/products';
+  async getProducts(topicSlug?: string, cursor?: string): Promise<CursorPage<ProductApiModel>> {
+    const params = new URLSearchParams({ pageSize: '20' });
+    if (topicSlug) params.set('topicSlug', topicSlug);
+    if (cursor) params.set('cursor', cursor);
+    const url = `/products?${params.toString()}`;
     const response = await apiClient.get(url);
     return response.data;
   },

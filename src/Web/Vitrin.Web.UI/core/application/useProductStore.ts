@@ -10,9 +10,13 @@ interface ProductStore {
   topics: Topic[];
   selectedTopicSlug: string | null;
   isLoading: boolean;
+  isLoadingMore: boolean;
   error: string | null;
+  nextCursor: string | null;
+  hasMore: boolean;
   votedProductIds: string[];
   fetchProducts: (topicSlug?: string) => Promise<void>;
+  loadMoreProducts: () => Promise<void>;
   fetchMakerProducts: (makerId: string) => Promise<void>;
   fetchUpvotedProducts: (token: string) => Promise<void>;
   fetchTopics: () => Promise<void>;
@@ -29,7 +33,10 @@ export const useProductStore = create<ProductStore>((set, get) => ({
   selectedTopicSlug: null,
   votedProductIds: [],
   isLoading: false,
+  isLoadingMore: false,
   error: null,
+  nextCursor: null,
+  hasMore: false,
   
   setTopicFilter: (topicSlug) => {
     set({ selectedTopicSlug: topicSlug });
@@ -46,13 +53,21 @@ export const useProductStore = create<ProductStore>((set, get) => ({
   },
 
   fetchProducts: async (topicSlug?: string) => {
-    set({ isLoading: true, error: null });
+    const requestedTopicSlug = topicSlug ?? null;
+    set({
+      selectedTopicSlug: requestedTopicSlug,
+      isLoading: true,
+      error: null,
+      nextCursor: null,
+      hasMore: false,
+    });
     try {
-      const data = await ProductRepository.getProducts(topicSlug);
+      const page = await ProductRepository.getProducts(topicSlug);
+      if (get().selectedTopicSlug !== requestedTopicSlug) return;
       
       // BLoC / Store Layer: Map Backend Entity to Frontend Domain Entity
       // Bu katman veriyi UI'ın anlayacağı hale getirir (Business Logic)
-      const mappedProducts: Product[] = data.map((p: ProductApiModel, index: number) => ({
+      const mappedProducts: Product[] = page.items.map((p: ProductApiModel, index: number) => ({
         id: p.id,
         rank: index + 1,
         name: p.name,
@@ -64,9 +79,54 @@ export const useProductStore = create<ProductStore>((set, get) => ({
         votes: p.upvotes || 0, // Gerçek upvote sayısı backend'den dönüyor
       }));
       
-      set({ products: mappedProducts, isLoading: false });
+      set({
+        products: mappedProducts,
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+        isLoading: false
+      });
     } catch (error: unknown) {
-      set({ error: getErrorMessage(error, 'Ürünler yüklenirken hata oluştu.'), isLoading: false });
+      if (get().selectedTopicSlug === requestedTopicSlug) {
+        set({ error: getErrorMessage(error, 'Ürünler yüklenirken hata oluştu.'), isLoading: false });
+      }
+    }
+  },
+
+  loadMoreProducts: async () => {
+    const { nextCursor, selectedTopicSlug, products, isLoadingMore } = get();
+    if (!nextCursor || isLoadingMore) return;
+
+    set({ isLoadingMore: true, error: null });
+    try {
+      const page = await ProductRepository.getProducts(selectedTopicSlug || undefined, nextCursor);
+      if (get().selectedTopicSlug !== selectedTopicSlug) {
+        set({ isLoadingMore: false });
+        return;
+      }
+      const offset = products.length;
+      const mappedProducts: Product[] = page.items.map((p: ProductApiModel, index: number) => ({
+        id: p.id,
+        rank: offset + index + 1,
+        name: p.name,
+        slug: p.slug,
+        description: p.tagline || p.description,
+        publishedAt: p.publishedAt,
+        image: p.thumbnailUrl || '/products/notai.png',
+        topics: p.topics || [],
+        votes: p.upvotes || 0,
+      }));
+
+      set((state) => ({
+        products: [...state.products, ...mappedProducts],
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+        isLoadingMore: false,
+      }));
+    } catch (error: unknown) {
+      set({
+        error: getErrorMessage(error, 'Daha fazla ürün yüklenirken hata oluştu.'),
+        isLoadingMore: false,
+      });
     }
   },
   

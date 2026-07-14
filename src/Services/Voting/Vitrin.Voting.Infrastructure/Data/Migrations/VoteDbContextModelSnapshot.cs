@@ -94,6 +94,9 @@ namespace Vitrin.Voting.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ProductId", "CreatedAt")
+                        .HasDatabaseName("IX_Votes_ProductId_CreatedAt");
+
                     b.HasIndex("UserId", "ProductId")
                         .IsUnique();
 

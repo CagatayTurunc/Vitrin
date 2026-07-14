@@ -41,6 +41,9 @@ namespace Vitrin.Ai.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ProductId", "AnalyzedAt")
+                        .HasDatabaseName("IX_AiAnalysisResults_ProductId_AnalyzedAt");
+
                     b.ToTable("AiAnalysisResults");
                 });
 

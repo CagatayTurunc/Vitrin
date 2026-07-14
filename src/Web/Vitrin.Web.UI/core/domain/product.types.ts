@@ -35,3 +35,9 @@ export interface ProductDetailApiModel extends ProductApiModel {
   galleryUrls?: string[];
   upvotes: number;
 }
+
+export interface CursorPage<T> {
+  items: T[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}

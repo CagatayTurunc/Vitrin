@@ -39,6 +39,9 @@ namespace Vitrin.Notification.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("UserId", "IsRead", "CreatedAt", "Id")
+                        .HasDatabaseName("IX_Notifications_UserId_IsRead_CreatedAt_Id");
+
                     b.ToTable("Notifications");
                 });
 

@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { ProductRow } from "@/components/product-row";
-import { Product, ProductApiModel, Topic } from "@/core/domain/product.types";
+import { CursorPage, Product, ProductApiModel, Topic } from "@/core/domain/product.types";
 import { Loader2, Hash } from "lucide-react";
 import { useParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 export default function TopicPage() {
   const params = useParams();
@@ -13,14 +14,18 @@ export default function TopicPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [topicName, setTopicName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
   useEffect(() => {
     if (!topicSlug) return;
     
     // Paralel olarak topic ismini ve ürünleri çekelim
     Promise.all([
-      fetch(process.env.NEXT_PUBLIC_API_URL + "/api/topics"),
-      fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products?topicSlug=${topicSlug}`)
+      fetch(`${apiUrl}/api/topics`),
+      fetch(`${apiUrl}/api/products?topicSlug=${encodeURIComponent(topicSlug)}&pageSize=20`)
     ])
     .then(async ([topicsRes, productsRes]) => {
       if (topicsRes.ok) {
@@ -30,8 +35,8 @@ export default function TopicPage() {
       }
       
       if (productsRes.ok) {
-        const data = await productsRes.json() as ProductApiModel[];
-        const mappedProducts: Product[] = data.map((p: ProductApiModel, index: number) => ({
+        const page = await productsRes.json() as CursorPage<ProductApiModel>;
+        const mappedProducts: Product[] = page.items.map((p: ProductApiModel, index: number) => ({
           id: p.id,
           rank: index + 1,
           name: p.name,
@@ -43,8 +48,12 @@ export default function TopicPage() {
           votes: p.upvotes || 0,
         }));
         setProducts(mappedProducts);
+        setNextCursor(page.nextCursor);
+        setHasMore(page.hasMore);
       } else {
         setProducts([]);
+        setNextCursor(null);
+        setHasMore(false);
       }
     })
     .catch((error) => {
@@ -53,7 +62,41 @@ export default function TopicPage() {
     .finally(() => {
       setIsLoading(false);
     });
-  }, [topicSlug]);
+  }, [apiUrl, topicSlug]);
+
+  const loadMore = async () => {
+    if (!nextCursor || isLoadingMore) return;
+
+    setIsLoadingMore(true);
+    try {
+      const response = await fetch(
+        `${apiUrl}/api/products?topicSlug=${encodeURIComponent(topicSlug)}&pageSize=20&cursor=${encodeURIComponent(nextCursor)}`
+      );
+      if (!response.ok) return;
+
+      const page = await response.json() as CursorPage<ProductApiModel>;
+      setProducts((current) => [
+        ...current,
+        ...page.items.map((product, index) => ({
+          id: product.id,
+          rank: current.length + index + 1,
+          name: product.name,
+          slug: product.slug,
+          description: product.tagline || product.description,
+          publishedAt: product.publishedAt,
+          image: product.thumbnailUrl || '/products/notai.png',
+          topics: product.topics || [],
+          votes: product.upvotes || 0,
+        }))
+      ]);
+      setNextCursor(page.nextCursor);
+      setHasMore(page.hasMore);
+    } catch (error) {
+      console.error("Daha fazla ürün alınırken hata:", error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-12 min-h-screen">
@@ -76,10 +119,23 @@ export default function TopicPage() {
             <p>Ürünler yükleniyor...</p>
           </div>
         ) : products.length > 0 ? (
-          <div className="rounded-3xl border border-border bg-card p-2 shadow-sm sm:p-3 flex flex-col divide-y divide-border/60">
-            {products.map((product) => (
-              <ProductRow key={product.id} product={product} />
-            ))}
+          <div className="flex flex-col gap-6">
+            <div className="rounded-3xl border border-border bg-card p-2 shadow-sm sm:p-3 flex flex-col divide-y divide-border/60">
+              {products.map((product) => (
+                <ProductRow key={product.id} product={product} />
+              ))}
+            </div>
+            {hasMore && (
+              <Button
+                type="button"
+                variant="outline"
+                className="self-center"
+                disabled={isLoadingMore}
+                onClick={() => void loadMore()}
+              >
+                {isLoadingMore ? "Yükleniyor..." : "Daha fazla ürün yükle"}
+              </Button>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">

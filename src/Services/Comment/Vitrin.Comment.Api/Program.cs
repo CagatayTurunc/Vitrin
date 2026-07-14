@@ -6,6 +6,7 @@ using Vitrin.Comment.Infrastructure;
 using Vitrin.Comment.Infrastructure.Data;
 using Vitrin.Shared.Infrastructure.Auth;
 using Vitrin.Shared.Infrastructure.Api;
+using Vitrin.Shared.Infrastructure.Migrations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,11 +27,9 @@ var app = builder.Build();
 
 app.UseVitrinApiErrors();
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<CommentDbContext>();
-    db.Database.Migrate();
-}
+if (await app.MigrateDatabaseAndExitAsync<CommentDbContext>(
+    args,
+    static (db, cancellationToken) => db.Database.MigrateAsync(cancellationToken))) return;
 
 if (app.Environment.IsDevelopment())
 {
@@ -68,8 +67,22 @@ app.MapPost("/api/comments", async (HttpContext context, [FromBody] AddCommentRe
 app.MapGet("/api/comments/{productId}", async (Guid productId, CommentDbContext db) =>
 {
     var comments = await db.Comments
+        .AsNoTracking()
         .Where(c => c.ProductId == productId)
         .OrderByDescending(c => c.CreatedAt)
+        .Take(500)
+        .Select(comment => new
+        {
+            comment.Id,
+            comment.ProductId,
+            comment.UserId,
+            comment.UserName,
+            Content = comment.IsDeleted ? "[deleted]" : comment.Content,
+            comment.CreatedAt,
+            comment.ParentCommentId,
+            comment.IsDeleted,
+            comment.UpdatedAt
+        })
         .ToListAsync();
     return Results.Ok(comments);
 })

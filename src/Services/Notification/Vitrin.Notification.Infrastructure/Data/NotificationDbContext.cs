@@ -24,6 +24,8 @@ public class NotificationDbContext : DbContext
             builder.Property(n => n.Message).IsRequired().HasMaxLength(500);
             builder.Property(n => n.IsRead).IsRequired();
             builder.Property(n => n.CreatedAt).IsRequired();
+            builder.HasIndex(n => new { n.UserId, n.IsRead, n.CreatedAt, n.Id })
+                .HasDatabaseName("IX_Notifications_UserId_IsRead_CreatedAt_Id");
         });
 
         modelBuilder.ConfigureVitrinInbox();

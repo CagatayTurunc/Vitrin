@@ -6,6 +6,7 @@ using Vitrin.Voting.Infrastructure;
 using Vitrin.Voting.Infrastructure.Data;
 using Vitrin.Shared.Infrastructure.Auth;
 using Vitrin.Shared.Infrastructure.Api;
+using Vitrin.Shared.Infrastructure.Migrations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,11 +27,9 @@ var app = builder.Build();
 
 app.UseVitrinApiErrors();
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<VoteDbContext>();
-    db.Database.Migrate();
-}
+if (await app.MigrateDatabaseAndExitAsync<VoteDbContext>(
+    args,
+    static (db, cancellationToken) => db.Database.MigrateAsync(cancellationToken))) return;
 
 if (app.Environment.IsDevelopment())
 {
@@ -95,7 +94,11 @@ app.MapGet("/api/votes/me", async (HttpContext context, VoteDbContext db) =>
 // Tüm oyları listele (debug / admin)
 app.MapGet("/api/votes", async (VoteDbContext db) =>
 {
-    var votes = await db.Votes.ToListAsync();
+    var votes = await db.Votes
+        .AsNoTracking()
+        .OrderByDescending(vote => vote.CreatedAt)
+        .Take(500)
+        .ToListAsync();
     return Results.Ok(votes);
 })
 .WithName("GetVotes")
@@ -105,7 +108,9 @@ app.MapGet("/api/votes", async (VoteDbContext db) =>
 // Belirli ürünün oy sayısı
 app.MapGet("/api/votes/count/{productId:guid}", async (Guid productId, VoteDbContext db) =>
 {
-    var count = await db.Votes.CountAsync(v => v.ProductId == productId);
+    var count = await db.Votes
+        .AsNoTracking()
+        .CountAsync(v => v.ProductId == productId);
     return Results.Ok(new { ProductId = productId, Count = count });
 })
 .WithName("GetVoteCount")

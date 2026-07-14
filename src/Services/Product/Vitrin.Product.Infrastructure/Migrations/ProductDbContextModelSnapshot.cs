@@ -21,6 +21,7 @@ namespace Vitrin.Product.Infrastructure.Migrations
                 .HasAnnotation("ProductVersion", "8.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("CollectionProductItem", b =>
@@ -83,7 +84,11 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Slug")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_Collections_Slug");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("IX_Collections_UserId_CreatedAt");
 
                     b.ToTable("Collections");
                 });
@@ -135,8 +140,33 @@ namespace Vitrin.Product.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Description")
+                        .HasDatabaseName("IX_Products_Description_Trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Description"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Description"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("MakerId")
+                        .HasDatabaseName("IX_Products_MakerId");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("IX_Products_Name_Trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
                     b.HasIndex("Slug")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_Products_Slug");
+
+                    b.HasIndex("Tagline")
+                        .HasDatabaseName("IX_Products_Tagline_Trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Tagline"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Tagline"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("Status", "PublishedAt", "Id")
+                        .HasDatabaseName("IX_Products_Status_PublishedAt_Id");
 
                     b.ToTable("Products");
                 });
@@ -184,7 +214,9 @@ namespace Vitrin.Product.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProductItemId");
+                    b.HasIndex("ProductItemId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProductUpvotes_ProductId_UserId");
 
                     b.ToTable("ProductUpvotes");
                 });
@@ -207,8 +239,15 @@ namespace Vitrin.Product.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Name")
+                        .HasDatabaseName("IX_Topics_Name_Trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
                     b.HasIndex("Slug")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_Topics_Slug");
 
                     b.ToTable("Topics");
                 });

@@ -29,6 +29,7 @@ public class AnalyticsRepository : IAnalyticsRepository
         CancellationToken cancellationToken = default)
     {
         var query = _context.AnalyticsEvents
+            .AsNoTracking()
             .Where(a => a.EventType == eventType);
 
         if (productId.HasValue)
@@ -49,7 +50,7 @@ public class AnalyticsRepository : IAnalyticsRepository
         int limit = 50,
         CancellationToken cancellationToken = default)
     {
-        var query = _context.AnalyticsEvents.AsQueryable();
+        var query = _context.AnalyticsEvents.AsNoTracking();
 
         if (!string.IsNullOrEmpty(eventType))
             query = query.Where(a => a.EventType == eventType);
@@ -59,7 +60,7 @@ public class AnalyticsRepository : IAnalyticsRepository
 
         return await query
             .OrderByDescending(a => a.CreatedAt)
-            .Take(limit)
+            .Take(Math.Clamp(limit, 1, 500))
             .ToListAsync(cancellationToken);
     }
 
@@ -69,6 +70,7 @@ public class AnalyticsRepository : IAnalyticsRepository
         CancellationToken cancellationToken = default)
     {
         var query = _context.AnalyticsEvents
+            .AsNoTracking()
             .Where(a => a.EventType == "Search");
 
         if (from.HasValue)
@@ -95,7 +97,7 @@ public class AnalyticsRepository : IAnalyticsRepository
             .Where(q => !string.IsNullOrEmpty(q))
             .GroupBy(q => q!)
             .OrderByDescending(g => g.Count())
-            .Take(limit)
+            .Take(Math.Clamp(limit, 1, 100))
             .Select(g => new TopSearchTerm(g.Key, g.Count()))
             .ToList();
 

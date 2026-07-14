@@ -43,6 +43,9 @@ namespace Vitrin.Analytics.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("EventType", "ProductId", "CreatedAt")
+                        .HasDatabaseName("IX_AnalyticsEvents_EventType_ProductId_CreatedAt");
+
                     b.ToTable("AnalyticsEvents");
                 });
 

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Vitrin.Shared.Infrastructure.Auth;
 using Vitrin.Shared.Infrastructure.Api;
 using Vitrin.Shared.Infrastructure.Audit;
+using Vitrin.Shared.Infrastructure.Migrations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,11 +38,9 @@ var app = builder.Build();
 
 app.UseVitrinApiErrors();
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AiDbContext>();
-    db.Database.Migrate();
-}
+if (await app.MigrateDatabaseAndExitAsync<AiDbContext>(
+    args,
+    static (db, cancellationToken) => db.Database.MigrateAsync(cancellationToken))) return;
 
 if (app.Environment.IsDevelopment())
 {
@@ -109,7 +108,10 @@ app.MapPost("/api/ai/analyze", async ([FromBody] AnalyzeProductCommand command, 
 
 app.MapGet("/api/ai/product/{productId}", async (Guid productId, AiDbContext db) =>
 {
-    var analysis = await db.AiAnalysisResults.FirstOrDefaultAsync(a => a.ProductId == productId);
+    var analysis = await db.AiAnalysisResults
+        .AsNoTracking()
+        .OrderByDescending(item => item.AnalyzedAt)
+        .FirstOrDefaultAsync(a => a.ProductId == productId);
     if (analysis == null)
         return Results.NotFound();
         
@@ -120,13 +122,17 @@ app.MapGet("/api/ai/product/{productId}", async (Guid productId, AiDbContext db)
 
 app.MapGet("/api/ai/product/{productId}/recommendations", async (Guid productId, AiDbContext db) =>
 {
-    var analysis = await db.AiAnalysisResults.FirstOrDefaultAsync(a => a.ProductId == productId);
+    var analysis = await db.AiAnalysisResults
+        .AsNoTracking()
+        .OrderByDescending(item => item.AnalyzedAt)
+        .FirstOrDefaultAsync(a => a.ProductId == productId);
     if (analysis == null || string.IsNullOrEmpty(analysis.Tags))
         return Results.Ok(new List<Guid>());
         
     var tags = analysis.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
     
     var allAnalyses = await db.AiAnalysisResults
+        .AsNoTracking()
         .Where(a => a.ProductId != productId && !string.IsNullOrEmpty(a.Tags))
         .ToListAsync();
         

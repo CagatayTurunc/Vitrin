@@ -79,7 +79,15 @@ public record ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand
                 ? User.CreateWithGoogle(identity.Email, uniqueUsername, identity.FullName, identity.AvatarUrl, identity.ProviderId)
                 : User.CreateWithGithub(identity.Email, uniqueUsername, identity.FullName, identity.AvatarUrl, identity.ProviderId);
 
-            await _userRepository.AddAsync(user, cancellationToken);
+            try
+            {
+                await _userRepository.AddAsync(user, cancellationToken);
+            }
+            catch (Interfaces.DuplicateIdentityException)
+            {
+                return Result<string>.Failure(
+                    "This external identity or email was registered by another concurrent request.");
+            }
         }
 
         var token = _jwtProvider.Generate(user);

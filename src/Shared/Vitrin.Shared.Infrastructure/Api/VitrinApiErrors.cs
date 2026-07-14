@@ -104,6 +104,13 @@ public static class ApiProblemResults
             detail: detail,
             extensions: Extensions(code));
 
+    public static IResult Conflict(string detail, string code = "resource.conflict") =>
+        Results.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "The request conflicts with the current resource state.",
+            detail: detail,
+            extensions: Extensions(code));
+
     public static IResult TooManyRequests(
         string detail,
         string code,

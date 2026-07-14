@@ -7,6 +7,7 @@ using Vitrin.Auth.Api;
 using Vitrin.Shared.Infrastructure.Api;
 using Vitrin.Shared.Infrastructure.Audit;
 using Vitrin.Shared.Infrastructure.Auth;
+using Vitrin.Shared.Infrastructure.Migrations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,15 +26,9 @@ var app = builder.Build();
 
 app.UseVitrinApiErrors();
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<Vitrin.Auth.Infrastructure.Data.AuthDbContext>();
-    try {
-        db.Database.Migrate();
-    } catch {
-        // Log error or ignore if DB is not ready, though depends_on should handle it
-    }
-}
+if (await app.MigrateDatabaseAndExitAsync<Vitrin.Auth.Infrastructure.Data.AuthDbContext>(
+    args,
+    static (db, cancellationToken) => db.Database.MigrateAsync(cancellationToken))) return;
 
 if (app.Environment.IsDevelopment())
 {
@@ -78,22 +73,28 @@ app.MapPost("/api/auth/external-login", async (ExternalLoginCommand command, Htt
 
 app.MapGet("/api/auth/admin/users", async (Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var users = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(db.Users);
-    return Results.Ok(users.Select(u => new { 
-        u.Id, 
-        u.Email, 
-        u.Username, 
-        u.FullName, 
-        u.Headline,
-        u.Role, 
-        u.CreatedAt 
-    }));
+    var users = await db.Users
+        .AsNoTracking()
+        .OrderByDescending(user => user.CreatedAt)
+        .Take(500)
+        .Select(user => new {
+            user.Id,
+            user.Email,
+            user.Username,
+            user.FullName,
+            user.Headline,
+            user.Role,
+            user.CreatedAt
+        })
+        .ToListAsync();
+    return Results.Ok(users);
 }).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
 app.MapGet("/api/auth/users/by-username/{username}", async (string username, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
+    var normalizedUsername = username.Trim();
     var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
-        db.Users.Include(u => u.Badges), u => u.Username.ToLower() == username.ToLower());
+        db.Users.AsNoTracking().Include(u => u.Badges), u => u.Username == normalizedUsername);
         
     if (user == null) return Results.NotFound();
     
@@ -129,7 +130,7 @@ app.MapGet("/api/auth/users/by-username/{username}", async (string username, Htt
 
 app.MapGet("/api/auth/users/{userId:guid}", async (Guid userId, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users.Include(u => u.Badges), u => u.Id == userId);
+    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users.AsNoTracking().Include(u => u.Badges), u => u.Id == userId);
     if (user == null) return Results.NotFound();
     
     var followerCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(db.UserFollows, uf => uf.FollowingId == user.Id);
@@ -167,7 +168,7 @@ app.MapGet("/api/auth/users/me", async (HttpContext context, Vitrin.Auth.Infrast
     var userId = context.User.GetUserId();
     if (userId == null) return Results.Unauthorized();
     
-    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users.Include(u => u.Badges), u => u.Id == userId.Value);
+    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users.AsNoTracking().Include(u => u.Badges), u => u.Id == userId.Value);
     if (user == null) return Results.NotFound();
 
     var followerCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(db.UserFollows, uf => uf.FollowingId == user.Id);
@@ -248,21 +249,21 @@ app.MapPost("/api/auth/maker-applications", async (HttpContext context, [Microso
 
 app.MapGet("/api/auth/admin/maker-applications", async (Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var apps = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
-        db.MakerApplications.Where(m => m.Status == Vitrin.Auth.Domain.Entities.ApplicationStatus.Pending)
-    );
-    
-    // We want to return user details as well
-    var users = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(db.Users);
-    
-    var result = apps.Select(a => new {
-        a.Id,
-        a.PortfolioUrl,
-        a.Reason,
-        a.CreatedAt,
-        User = users.FirstOrDefault(u => u.Id == a.UserId)?.Email,
-        FullName = users.FirstOrDefault(u => u.Id == a.UserId)?.FullName
-    });
+    var result = await (
+        from application in db.MakerApplications.AsNoTracking()
+        join user in db.Users.AsNoTracking() on application.UserId equals user.Id
+        where application.Status == Vitrin.Auth.Domain.Entities.ApplicationStatus.Pending
+        orderby application.CreatedAt
+        select new {
+            application.Id,
+            application.PortfolioUrl,
+            application.Reason,
+            application.CreatedAt,
+            User = user.Email,
+            user.FullName
+        })
+        .Take(100)
+        .ToListAsync();
     
     return Results.Ok(result);
 }).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
@@ -311,7 +312,8 @@ app.MapPost("/api/auth/users/{username}/follow", async (string username, HttpCon
     var followerId = context.User.GetUserId();
     if (followerId == null) return Results.Unauthorized();
 
-    var userToFollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Username.ToLower() == username.ToLower());
+    var normalizedUsername = username.Trim();
+    var userToFollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Username == normalizedUsername);
     if (userToFollow == null) return Results.NotFound();
     if (userToFollow.Id == followerId.Value) return ApiProblemResults.BadRequest("You cannot follow yourself.", "follow.self_not_allowed");
 
@@ -336,7 +338,8 @@ app.MapDelete("/api/auth/users/{username}/follow", async (string username, HttpC
     var followerId = context.User.GetUserId();
     if (followerId == null) return Results.Unauthorized();
 
-    var userToUnfollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Username.ToLower() == username.ToLower());
+    var normalizedUsername = username.Trim();
+    var userToUnfollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Username == normalizedUsername);
     if (userToUnfollow == null) return Results.NotFound();
 
     var existingFollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.UserFollows, uf => uf.FollowerId == followerId.Value && uf.FollowingId == userToUnfollow.Id);
@@ -350,12 +353,16 @@ app.MapDelete("/api/auth/users/{username}/follow", async (string username, HttpC
 
 app.MapGet("/api/auth/users/{username}/followers", async (string username, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Username.ToLower() == username.ToLower());
+    var normalizedUsername = username.Trim();
+    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users.AsNoTracking(), u => u.Username == normalizedUsername);
     if (user == null) return Results.NotFound();
 
     var followers = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
         db.UserFollows
+          .AsNoTracking()
           .Where(uf => uf.FollowingId == user.Id)
+          .OrderByDescending(uf => uf.CreatedAt)
+          .Take(500)
           .Select(uf => new { 
               uf.Follower.Id, 
               uf.Follower.Username, 
@@ -370,12 +377,16 @@ app.MapGet("/api/auth/users/{username}/followers", async (string username, Vitri
 
 app.MapGet("/api/auth/users/{username}/following", async (string username, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Username.ToLower() == username.ToLower());
+    var normalizedUsername = username.Trim();
+    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users.AsNoTracking(), u => u.Username == normalizedUsername);
     if (user == null) return Results.NotFound();
 
     var following = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
         db.UserFollows
+          .AsNoTracking()
           .Where(uf => uf.FollowerId == user.Id)
+          .OrderByDescending(uf => uf.CreatedAt)
+          .Take(500)
           .Select(uf => new { 
               uf.Following.Id, 
               uf.Following.Username, 
@@ -392,7 +403,9 @@ app.MapGet("/api/auth/users/{userId}/followers-ids", async (Guid userId, Vitrin.
 {
     var followerIds = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
         db.UserFollows
+          .AsNoTracking()
           .Where(uf => uf.FollowingId == userId)
+          .Take(5_000)
           .Select(uf => uf.FollowerId)
     );
 
@@ -433,6 +446,7 @@ app.MapGet("/api/auth/leaderboard", async (Vitrin.Auth.Infrastructure.Data.AuthD
 {
     var topStreaks = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
         db.Users
+          .AsNoTracking()
           .OrderByDescending(u => u.CurrentStreak)
           .Take(10)
           .Select(u => new { u.Id, u.Username, u.FullName, u.AvatarUrl, u.Headline, u.CurrentStreak })
@@ -441,6 +455,7 @@ app.MapGet("/api/auth/leaderboard", async (Vitrin.Auth.Infrastructure.Data.AuthD
     // SQL'de Follower sayısını hesaplayarak sıralamak için Follower sistemini kullanıyoruz.
     var topMakers = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
         db.Users
+          .AsNoTracking()
           .OrderByDescending(u => db.UserFollows.Count(f => f.FollowingId == u.Id))
           .Take(10)
           .Select(u => new { 

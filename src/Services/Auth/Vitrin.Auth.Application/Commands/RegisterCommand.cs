@@ -34,7 +34,14 @@ public record RegisterCommandHandler : IRequestHandler<RegisterCommand, Result<s
         
         var user = Domain.Entities.User.CreateWithPassword(request.Email, request.Username, request.FullName, passwordHash);
 
-        await _userRepository.AddAsync(user, cancellationToken);
+        try
+        {
+            await _userRepository.AddAsync(user, cancellationToken);
+        }
+        catch (Interfaces.DuplicateIdentityException)
+        {
+            return Result<string>.Failure("E-posta adresi veya kullanıcı adı eşzamanlı başka bir istek tarafından alındı.");
+        }
 
         var token = _jwtProvider.Generate(user);
         return Result<string>.Success(token);

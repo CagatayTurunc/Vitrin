@@ -17,17 +17,20 @@ public class AuthDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.HasPostgresExtension("citext");
 
         modelBuilder.Entity<User>(builder =>
         {
             builder.HasKey(u => u.Id);
-            builder.Property(u => u.Email).IsRequired().HasMaxLength(255);
-            builder.Property(u => u.Username).IsRequired().HasMaxLength(50);
+            builder.Property(u => u.Email).IsRequired().HasMaxLength(255).HasColumnType("citext");
+            builder.Property(u => u.Username).IsRequired().HasMaxLength(50).HasColumnType("citext");
             builder.Property(u => u.FullName).HasMaxLength(100);
             builder.Property(u => u.AvatarUrl).HasMaxLength(1000);
             
-            builder.HasIndex(u => u.Email).IsUnique();
-            builder.HasIndex(u => u.Username).IsUnique();
+            builder.HasIndex(u => u.Email).IsUnique().HasDatabaseName("UX_Users_Email");
+            builder.HasIndex(u => u.Username).IsUnique().HasDatabaseName("UX_Users_Username");
+            builder.HasIndex(u => u.GoogleId).IsUnique().HasDatabaseName("UX_Users_GoogleId");
+            builder.HasIndex(u => u.GithubId).IsUnique().HasDatabaseName("UX_Users_GithubId");
         });
 
         modelBuilder.Entity<UserFollow>(builder =>
@@ -43,6 +46,9 @@ public class AuthDbContext : DbContext
                 .WithMany(u => u.Followers)
                 .HasForeignKey(uf => uf.FollowingId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasIndex(uf => new { uf.FollowingId, uf.CreatedAt })
+                .HasDatabaseName("IX_UserFollows_FollowingId_CreatedAt");
         });
 
         modelBuilder.Entity<UserBadge>(builder =>
@@ -55,6 +61,12 @@ public class AuthDbContext : DbContext
                 .WithMany(u => u.Badges)
                 .HasForeignKey(ub => ub.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MakerApplication>(builder =>
+        {
+            builder.HasIndex(application => new { application.Status, application.CreatedAt })
+                .HasDatabaseName("IX_MakerApplications_Status_CreatedAt");
         });
 
         modelBuilder.ConfigureVitrinOutbox();

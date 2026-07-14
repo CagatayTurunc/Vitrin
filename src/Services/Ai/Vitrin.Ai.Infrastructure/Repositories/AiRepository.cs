@@ -22,6 +22,9 @@ public class AiRepository : IAiAnalysisRepository
 
     public async Task<AiAnalysisResult?> GetByProductIdAsync(Guid productId, CancellationToken cancellationToken)
     {
-        return await _context.AiAnalysisResults.FirstOrDefaultAsync(a => a.ProductId == productId, cancellationToken);
+        return await _context.AiAnalysisResults
+            .AsNoTracking()
+            .OrderByDescending(analysis => analysis.AnalyzedAt)
+            .FirstOrDefaultAsync(a => a.ProductId == productId, cancellationToken);
     }
 }

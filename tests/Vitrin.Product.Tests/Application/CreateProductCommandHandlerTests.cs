@@ -151,4 +151,30 @@ public class CreateProductCommandHandlerTests
         // Assert — ürün gönderildiğinde otomatik olarak inceleme kuyruğuna alınmalı
         capturedProduct!.Status.Should().Be(ProductStatus.UnderReview);
     }
+
+    [Fact]
+    public async Task Handle_WhenDatabaseDetectsConcurrentSlugConflict_ShouldReturnFailure()
+    {
+        var command = new CreateProductCommand(
+            Guid.NewGuid(),
+            "Concurrent Product",
+            "Tagline",
+            "Description",
+            "concurrent-product",
+            [],
+            null,
+            null);
+
+        _repositoryMock
+            .Setup(repository => repository.IsSlugUniqueAsync(command.Slug, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _repositoryMock
+            .Setup(repository => repository.AddAsync(It.IsAny<ProductItem>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DuplicateSlugException("product", new InvalidOperationException()));
+
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().Contain("slug");
+    }
 }

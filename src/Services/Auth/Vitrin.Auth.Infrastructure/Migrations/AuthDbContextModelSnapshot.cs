@@ -20,6 +20,7 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                 .HasAnnotation("ProductVersion", "8.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "citext");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Vitrin.Auth.Domain.Entities.MakerApplication", b =>
@@ -50,6 +51,9 @@ namespace Vitrin.Auth.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("IX_MakerApplications_Status_CreatedAt");
+
                     b.ToTable("MakerApplications");
                 });
 
@@ -76,7 +80,7 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                        .HasColumnType("citext");
 
                     b.Property<string>("FullName")
                         .IsRequired()
@@ -116,7 +120,7 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("citext");
 
                     b.Property<string>("WebsiteUrl")
                         .HasColumnType("text");
@@ -124,10 +128,20 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_Users_Email");
+
+                    b.HasIndex("GithubId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Users_GithubId");
+
+                    b.HasIndex("GoogleId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Users_GoogleId");
 
                     b.HasIndex("Username")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_Users_Username");
 
                     b.ToTable("Users");
                 });
@@ -174,7 +188,8 @@ namespace Vitrin.Auth.Infrastructure.Migrations
 
                     b.HasKey("FollowerId", "FollowingId");
 
-                    b.HasIndex("FollowingId");
+                    b.HasIndex("FollowingId", "CreatedAt")
+                        .HasDatabaseName("IX_UserFollows_FollowingId_CreatedAt");
 
                     b.ToTable("UserFollows");
                 });

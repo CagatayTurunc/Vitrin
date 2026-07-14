@@ -52,7 +52,16 @@ function groupProducts(products: Product[]) {
 }
 
 export function ProductFeed() {
-  const { products, isLoading, error, fetchProducts, fetchMyVotes } = useProductStore();
+  const {
+    products,
+    isLoading,
+    isLoadingMore,
+    error,
+    hasMore,
+    fetchProducts,
+    loadMoreProducts,
+    fetchMyVotes
+  } = useProductStore();
   const { data: session } = useSession();
 
   useEffect(() => {
@@ -141,6 +150,19 @@ export function ProductFeed() {
             ))}
           </div>
         </section>
+      )}
+
+      {hasMore && (
+        <div className="flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isLoadingMore}
+            onClick={() => void loadMoreProducts()}
+          >
+            {isLoadingMore ? 'Yükleniyor...' : 'Daha fazla ürün yükle'}
+          </Button>
+        </div>
       )}
     </div>
   );

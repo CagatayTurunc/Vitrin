@@ -25,6 +25,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Services\Product\Vitrin.Product.Application\Vitrin.Product.Application.csproj" />
     <ProjectReference Include="..\..\src\Services\Product\Vitrin.Product.Domain\Vitrin.Product.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Services\Product\Vitrin.Product.Infrastructure\Vitrin.Product.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Services\Product\Vitrin.Product.Api\Vitrin.Product.Api.csproj" />
     <ProjectReference Include="..\..\src\Shared\Vitrin.Shared.Kernel\Vitrin.Shared.Kernel.csproj" />
     <ProjectReference Include="..\..\src\Shared\Vitrin.Shared.Contracts\Vitrin.Shared.Contracts.csproj" />
   </ItemGroup>

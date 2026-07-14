@@ -57,6 +57,12 @@ namespace Vitrin.Comment.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ParentCommentId")
+                        .HasDatabaseName("IX_Comments_ParentCommentId");
+
+                    b.HasIndex("ProductId", "CreatedAt", "Id")
+                        .HasDatabaseName("IX_Comments_ProductId_CreatedAt_Id");
+
                     b.ToTable("Comments");
                 });
 

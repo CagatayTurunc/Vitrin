@@ -6,6 +6,7 @@ using Vitrin.Notification.Infrastructure;
 using Vitrin.Notification.Infrastructure.Data;
 using Vitrin.Shared.Infrastructure.Auth;
 using Vitrin.Shared.Infrastructure.Api;
+using Vitrin.Shared.Infrastructure.Migrations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,11 +27,9 @@ var app = builder.Build();
 
 app.UseVitrinApiErrors();
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
-    db.Database.Migrate();
-}
+if (await app.MigrateDatabaseAndExitAsync<NotificationDbContext>(
+    args,
+    static (db, cancellationToken) => db.Database.MigrateAsync(cancellationToken))) return;
 
 if (app.Environment.IsDevelopment())
 {
@@ -65,8 +64,10 @@ app.MapGet("/api/notifications/me", async (HttpContext context, NotificationDbCo
     if (userId is null) return Results.Unauthorized();
 
     var notifications = await db.Notifications
+        .AsNoTracking()
         .Where(n => n.UserId == userId.Value)
         .OrderByDescending(n => n.CreatedAt)
+        .Take(100)
         .Select(n => new
         {
             n.Id,
@@ -90,6 +91,7 @@ app.MapGet("/api/notifications/me/unread-count", async (HttpContext context, Not
     if (userId is null) return Results.Unauthorized();
 
     var count = await db.Notifications
+        .AsNoTracking()
         .CountAsync(n => n.UserId == userId.Value && !n.IsRead);
     return Results.Ok(new { UnreadCount = count });
 })

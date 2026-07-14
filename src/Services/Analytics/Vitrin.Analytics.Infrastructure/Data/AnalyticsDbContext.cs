@@ -22,6 +22,8 @@ public class AnalyticsDbContext : DbContext
             builder.HasKey(a => a.Id);
             builder.Property(a => a.EventType).IsRequired().HasMaxLength(100);
             builder.Property(a => a.CreatedAt).IsRequired();
+            builder.HasIndex(a => new { a.EventType, a.ProductId, a.CreatedAt })
+                .HasDatabaseName("IX_AnalyticsEvents_EventType_ProductId_CreatedAt");
         });
 
         modelBuilder.ConfigureVitrinInbox();

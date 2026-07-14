@@ -136,6 +136,32 @@ public class ExternalLoginCommandHandlerTests
         capturedUser.Provider.Should().Be(AuthProvider.Google);
     }
 
+    [Fact]
+    public async Task Handle_WhenProviderIdentityIsConcurrentlyRegistered_ShouldReturnFailure()
+    {
+        var identity = VerifiedGoogleIdentity();
+        var command = new ExternalLoginCommand(AuthProvider.Google, "valid-token");
+
+        SetupVerifiedIdentity(command, identity);
+        _repository
+            .Setup(repository => repository.GetByGoogleIdAsync(identity.ProviderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+        _repository
+            .Setup(repository => repository.GetByEmailAsync(identity.Email, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+        _repository
+            .Setup(repository => repository.GetByUsernameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+        _repository
+            .Setup(repository => repository.AddAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DuplicateIdentityException("GoogleId", new InvalidOperationException()));
+
+        var result = await CreateHandler().Handle(command, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        _jwtProvider.Verify(provider => provider.Generate(It.IsAny<User>()), Times.Never);
+    }
+
     private ExternalLoginCommandHandler CreateHandler() =>
         new(_repository.Object, _jwtProvider.Object, _identityVerifier.Object);
 

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Vitrin.Auth.Application.Interfaces;
 using Vitrin.Auth.Domain.Entities;
 using Vitrin.Auth.Infrastructure.Data;
@@ -19,17 +20,17 @@ public class UserRepository : IUserRepository
 
     public Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
-        var normalizedEmail = email.Trim().ToLower();
+        var normalizedEmail = email.Trim();
         return _dbContext.Users.FirstOrDefaultAsync(
-            u => u.Email.ToLower() == normalizedEmail,
+            u => u.Email == normalizedEmail,
             cancellationToken);
     }
 
     public Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
     {
-        var normalizedUsername = username.Trim().ToLower();
+        var normalizedUsername = username.Trim();
         return _dbContext.Users.FirstOrDefaultAsync(
-            u => u.Username.ToLower() == normalizedUsername,
+            u => u.Username == normalizedUsername,
             cancellationToken);
     }
 
@@ -42,7 +43,23 @@ public class UserRepository : IUserRepository
     public async Task AddAsync(User user, CancellationToken cancellationToken = default)
     {
         await _dbContext.Users.AddAsync(user, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (
+            exception.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation,
+                ConstraintName: "UX_Users_Email" or
+                    "UX_Users_Username" or
+                    "UX_Users_GoogleId" or
+                    "UX_Users_GithubId"
+            } postgresException)
+        {
+            var field = postgresException.ConstraintName?["UX_Users_".Length..] ?? "identity";
+            throw new DuplicateIdentityException(field, exception);
+        }
     }
 
     public async Task UpdateAsync(User user, CancellationToken cancellationToken = default)

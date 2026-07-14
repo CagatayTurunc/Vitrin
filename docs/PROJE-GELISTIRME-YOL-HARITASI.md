@@ -4,7 +4,7 @@
 > Durum: Mevcut çalışma ağacı üzerinden hazırlanmıştır.
 > Amaç: Projeyi güvenli, test edilebilir, gözlemlenebilir, deploy edilebilir ve CV'de savunulabilir bir ürün hâline getirmek.
 
-> Uygulama durumu: Aşama 2'nin event-driven tutarlılık dilimi tamamlandı. Kararlar [ADR-0004](adr/0004-event-teslimati-outbox-inbox.md), sözleşmeler [Event Catalog](event-catalog.md) içinde kayıtlıdır.
+> Uygulama durumu: Aşama 2 tamamlandı. Event kararları [ADR-0004](adr/0004-event-teslimati-outbox-inbox.md), migration kararı [ADR-0005](adr/0005-migration-deployment-job.md), sorgu/indeks sözleşmesi [veri erişimi rehberinde](data-access-performance.md) kayıtlıdır.
 
 ## 1. Genel değerlendirme
 
@@ -608,12 +608,12 @@ Coverage, throughput ve latency değerleri ölçülmeden yazılmamalıdır.
 - [x] Inbox/idempotency ekle
 - [x] Retry/backoff ve DLQ ekle
 - [x] Event schema versioning ekle
-- [ ] Gerekli DB indekslerini ekle
-- [ ] Cursor pagination ekle
-- [ ] Read sorgularına projection ve `AsNoTracking` ekle
-- [ ] PostgreSQL full-text search veya `pg_trgm` ekle
-- [ ] Slug concurrency problemini düzelt
-- [ ] Migration'ları uygulama startup'ından deployment job'a taşı
+- [x] Gerekli DB indekslerini ekle
+- [x] Cursor pagination ekle
+- [x] Read sorgularına projection ve `AsNoTracking` ekle
+- [x] PostgreSQL full-text search veya `pg_trgm` ekle
+- [x] Slug concurrency problemini düzelt
+- [x] Migration'ları uygulama startup'ından deployment job'a taşı
 
 ### Aşama 3 — Test mimarisi
 

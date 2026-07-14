@@ -23,6 +23,8 @@ public class AiDbContext : DbContext
             builder.Property(a => a.Summary).IsRequired().HasMaxLength(1000);
             builder.Property(a => a.Tags).IsRequired().HasMaxLength(500);
             builder.Property(a => a.AnalyzedAt).IsRequired();
+            builder.HasIndex(a => new { a.ProductId, a.AnalyzedAt })
+                .HasDatabaseName("IX_AiAnalysisResults_ProductId_AnalyzedAt");
         });
 
         modelBuilder.Entity<AiUsageQuota>(builder =>

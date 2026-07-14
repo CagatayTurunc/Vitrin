@@ -98,4 +98,24 @@ public class RegisterCommandHandlerTests
 
         _userRepositoryMock.Verify(r => r.AddAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task Handle_WhenUniqueConstraintDetectsConcurrentRegistration_ShouldReturnFailure()
+    {
+        var command = new RegisterCommand("race@example.com", "raceuser", "Race User", "Password123!");
+        _userRepositoryMock
+            .Setup(repository => repository.GetByEmailAsync(command.Email, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+        _userRepositoryMock
+            .Setup(repository => repository.GetByUsernameAsync(command.Username, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+        _userRepositoryMock
+            .Setup(repository => repository.AddAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DuplicateIdentityException("Email", new InvalidOperationException()));
+
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        _jwtProviderMock.Verify(provider => provider.Generate(It.IsAny<User>()), Times.Never);
+    }
 }
