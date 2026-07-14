@@ -590,12 +590,12 @@ Coverage, throughput ve latency değerleri ölçülmeden yazılmamalıdır.
 - [x] Notification IDOR açığını kapat
 - [x] Comment create kimlik doğrulamasını düzelt
 - [x] Voting endpoint'lerini doğrulanmış kullanıcıya bağla
-- [ ] AI endpoint'ine auth, quota ve rate limit ekle — auth tamamlandı; quota ve rate limit bekliyor
+- [x] AI endpoint'ine auth, quota ve rate limit ekle
 - [x] Analytics admin endpoint'lerini koru
-- [ ] Login/register rate limiting ekle
+- [x] Login/register rate limiting ekle
 - [x] Secret fallback'lerini kaldır
-- [ ] Validation ve ProblemDetails ekle
-- [ ] Audit log temelini oluştur
+- [x] Validation ve ProblemDetails ekle
+- [x] Audit log temelini oluştur
 
 ### Aşama 2 — Mimari tutarlılık ve veri katmanı
 
@@ -615,7 +615,7 @@ Coverage, throughput ve latency değerleri ölçülmeden yazılmamalıdır.
 
 ### Aşama 3 — Test mimarisi
 
-- [ ] Bütün unit testleri yeşile getir
+- [x] Bütün unit testleri yeşile getir
 - [ ] Testcontainers PostgreSQL testleri ekle
 - [ ] Testcontainers Kafka testleri ekle
 - [ ] Testcontainers Redis testleri ekle

@@ -259,6 +259,7 @@ services:
       Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       ConnectionStrings__DefaultConnection: "Data Source=/app/data/ai_db.sqlite"
       Gemini__ApiKey: ${GEMINI_API_KEY:-}
+      AiQuota__DailyRequestLimit: ${AI_DAILY_REQUEST_LIMIT:-10}
     volumes:
       - ./data/ai:/app/data
     networks:

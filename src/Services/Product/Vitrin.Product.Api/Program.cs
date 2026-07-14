@@ -5,6 +5,8 @@ using Vitrin.Product.Infrastructure.Data;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Vitrin.Shared.Infrastructure.Auth;
+using Vitrin.Shared.Infrastructure.Api;
+using Vitrin.Shared.Infrastructure.Audit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +15,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
 
 builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
+builder.Services.AddVitrinApiErrors();
+builder.Services.AddVitrinAuditLogging();
 
 // MediatR
 builder.Services.AddMediatR(cfg =>
@@ -22,6 +26,8 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddProductInfrastructure(builder.Configuration);
 
 var app = builder.Build();
+
+app.UseVitrinApiErrors();
 
 // Migrate Database on startup for ease of development
 using (var scope = app.Services.CreateScope())
@@ -60,7 +66,7 @@ app.MapPost("/api/products", async (HttpContext context, [FromBody] CreateProduc
     {
         return Results.Ok(new { ProductId = result.Value, Message = "Product created successfully!" });
     }
-    return Results.BadRequest(new { Error = result.Error });
+    return ApiProblemResults.BadRequest(result.Error, "product.create_failed");
 })
 .WithName("CreateProduct")
 .WithOpenApi()
@@ -153,7 +159,7 @@ app.MapPost("/api/products/{id}/vote", async (Guid id, HttpContext context, IMed
     {
         return Results.Ok(new { Upvotes = result.Value });
     }
-    return Results.BadRequest(new { Error = result.Error });
+    return ApiProblemResults.BadRequest(result.Error, "product.vote_failed");
 })
 .WithName("ToggleUpvote")
 .WithOpenApi()
@@ -233,13 +239,13 @@ app.MapGet("/api/products/admin/pending", async (ProductDbContext db) =>
 .WithOpenApi()
 .RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
-app.MapPost("/api/products/admin/{id}/approve", async (Guid id, ProductDbContext db, Vitrin.Product.Infrastructure.Kafka.ProductEventPublisher eventPublisher) =>
+app.MapPost("/api/products/admin/{id}/approve", async (Guid id, HttpContext context, ProductDbContext db, Vitrin.Product.Infrastructure.Kafka.ProductEventPublisher eventPublisher, IAuditLogger auditLogger) =>
 {
     var product = await db.Products.FindAsync(id);
     if (product == null) return Results.NotFound();
     
     var result = product.Approve();
-    if (result.IsFailure) return Results.BadRequest(new { Error = result.Error });
+    if (result.IsFailure) return ApiProblemResults.BadRequest(result.Error, "product.approve_failed");
     
     await db.SaveChangesAsync();
 
@@ -252,21 +258,28 @@ app.MapPost("/api/products/admin/{id}/approve", async (Guid id, ProductDbContext
         ProductSlug = product.Slug
     });
 
+    await auditLogger.WriteAsync(
+        new AuditEvent("admin.product_approved", context.User.GetUserId(), "Product", id.ToString(), "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
+
     return Results.Ok(new { Message = "Product approved successfully!" });
 })
 .WithName("ApproveProduct")
 .WithOpenApi()
 .RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
-app.MapPost("/api/products/admin/{id}/reject", async (Guid id, ProductDbContext db) =>
+app.MapPost("/api/products/admin/{id}/reject", async (Guid id, HttpContext context, ProductDbContext db, IAuditLogger auditLogger) =>
 {
     var product = await db.Products.FindAsync(id);
     if (product == null) return Results.NotFound();
     
     var result = product.Reject();
-    if (result.IsFailure) return Results.BadRequest(new { Error = result.Error });
+    if (result.IsFailure) return ApiProblemResults.BadRequest(result.Error, "product.reject_failed");
     
     await db.SaveChangesAsync();
+    await auditLogger.WriteAsync(
+        new AuditEvent("admin.product_rejected", context.User.GetUserId(), "Product", id.ToString(), "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
     return Results.Ok(new { Message = "Product rejected successfully!" });
 })
 .WithName("RejectProduct")

@@ -5,6 +5,7 @@ using Vitrin.Notification.Application.Commands;
 using Vitrin.Notification.Infrastructure;
 using Vitrin.Notification.Infrastructure.Data;
 using Vitrin.Shared.Infrastructure.Auth;
+using Vitrin.Shared.Infrastructure.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
 builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
+builder.Services.AddVitrinApiErrors();
 
 // MediatR
 builder.Services.AddMediatR(cfg =>
@@ -21,6 +23,8 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddNotificationInfrastructure(builder.Configuration);
 
 var app = builder.Build();
+
+app.UseVitrinApiErrors();
 
 using (var scope = app.Services.CreateScope())
 {
@@ -48,7 +52,7 @@ app.MapPost("/api/notifications", async ([FromBody] SendNotificationRequest requ
     var result = await mediator.Send(command);
     return result.IsSuccess
         ? Results.Ok(new { NotificationId = result.Value })
-        : Results.BadRequest(new { Error = result.Error });
+        : ApiProblemResults.BadRequest(result.Error, "notification.send_failed");
 })
 .WithName("SendNotification")
 .WithOpenApi()
@@ -102,7 +106,7 @@ app.MapPost("/api/notifications/{id:guid}/read", async (Guid id, HttpContext con
     var result = await mediator.Send(new MarkAsReadCommand(id, userId.Value));
     return result.IsSuccess
         ? Results.Ok(new { Message = "Notification marked as read." })
-        : Results.BadRequest(new { Error = result.Error });
+        : ApiProblemResults.BadRequest(result.Error, "notification.mark_read_failed");
 })
 .WithName("MarkNotificationAsRead")
 .WithOpenApi()

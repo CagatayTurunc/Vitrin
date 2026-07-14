@@ -1,9 +1,12 @@
 using Vitrin.Shared.Infrastructure.Auth;
+using Vitrin.Shared.Infrastructure.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 builder.Services.AddHealthChecks();
+builder.Services.AddVitrinApiErrors();
+builder.Services.AddVitrinRateLimiting();
 
 // YARP konfigürasyonunu appsettings.json dosyasındaki "ReverseProxy" bölümünden alıyoruz.
 builder.Services.AddReverseProxy()
@@ -25,9 +28,11 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+app.UseVitrinApiErrors();
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");

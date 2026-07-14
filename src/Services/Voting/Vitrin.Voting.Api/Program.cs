@@ -5,6 +5,7 @@ using Vitrin.Voting.Application.Commands;
 using Vitrin.Voting.Infrastructure;
 using Vitrin.Voting.Infrastructure.Data;
 using Vitrin.Shared.Infrastructure.Auth;
+using Vitrin.Shared.Infrastructure.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
 builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
+builder.Services.AddVitrinApiErrors();
 
 // MediatR
 builder.Services.AddMediatR(cfg =>
@@ -21,6 +23,8 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddVotingInfrastructure(builder.Configuration);
 
 var app = builder.Build();
+
+app.UseVitrinApiErrors();
 
 using (var scope = app.Services.CreateScope())
 {
@@ -49,7 +53,7 @@ app.MapPost("/api/votes", async (HttpContext context, [FromBody] VoteRequest req
     var result = await mediator.Send(command);
     return result.IsSuccess
         ? Results.Ok(new { Message = "Vote added successfully!" })
-        : Results.BadRequest(new { Error = result.Error });
+        : ApiProblemResults.BadRequest(result.Error, "vote.add_failed");
 })
 .WithName("AddVote")
 .WithOpenApi()
@@ -65,7 +69,7 @@ app.MapDelete("/api/votes", async (HttpContext context, [FromBody] VoteRequest r
     var result = await mediator.Send(command);
     return result.IsSuccess
         ? Results.Ok(new { Message = "Vote removed successfully!" })
-        : Results.BadRequest(new { Error = result.Error });
+        : ApiProblemResults.BadRequest(result.Error, "vote.remove_failed");
 })
 .WithName("RemoveVote")
 .WithOpenApi()

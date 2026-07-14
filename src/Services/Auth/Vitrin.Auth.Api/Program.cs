@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Vitrin.Auth.Application;
 using Vitrin.Auth.Application.Commands;
 using Vitrin.Auth.Infrastructure;
+using Vitrin.Auth.Api;
+using Vitrin.Shared.Infrastructure.Api;
+using Vitrin.Shared.Infrastructure.Audit;
 using Vitrin.Shared.Infrastructure.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +13,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
+builder.Services.AddVitrinApiErrors();
+builder.Services.AddVitrinAuditLogging();
 
 builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 
@@ -17,6 +22,8 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
+
+app.UseVitrinApiErrors();
 
 using (var scope = app.Services.CreateScope())
 {
@@ -39,23 +46,35 @@ app.UseAuthorization();
 
 app.MapHealthChecks("/health");
 
-app.MapPost("/api/auth/register", async (RegisterCommand command, IMediator mediator) =>
+app.MapPost("/api/auth/register", async (RegisterCommand command, HttpContext context, IMediator mediator, IAuditLogger auditLogger) =>
 {
     var result = await mediator.Send(command);
-    return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-});
+    await auditLogger.WriteAsync(
+        new AuditEvent("auth.register", null, "Session", null, result.IsSuccess ? "Succeeded" : "Failed", context.TraceIdentifier),
+        context.RequestAborted);
+    return result.IsSuccess ? Results.Ok(result.Value) : ApiProblemResults.BadRequest(result.Error, "auth.registration_failed");
+})
+.AddEndpointFilter<ValidationEndpointFilter<RegisterCommand>>();
 
-app.MapPost("/api/auth/login", async (LoginCommand command, IMediator mediator) =>
+app.MapPost("/api/auth/login", async (LoginCommand command, HttpContext context, IMediator mediator, IAuditLogger auditLogger) =>
 {
     var result = await mediator.Send(command);
-    return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-});
+    await auditLogger.WriteAsync(
+        new AuditEvent("auth.login", null, "Session", null, result.IsSuccess ? "Succeeded" : "Failed", context.TraceIdentifier),
+        context.RequestAborted);
+    return result.IsSuccess ? Results.Ok(result.Value) : ApiProblemResults.BadRequest(result.Error, "auth.login_failed");
+})
+.AddEndpointFilter<ValidationEndpointFilter<LoginCommand>>();
 
-app.MapPost("/api/auth/external-login", async (ExternalLoginCommand command, IMediator mediator) =>
+app.MapPost("/api/auth/external-login", async (ExternalLoginCommand command, HttpContext context, IMediator mediator, IAuditLogger auditLogger) =>
 {
     var result = await mediator.Send(command);
-    return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-});
+    await auditLogger.WriteAsync(
+        new AuditEvent("auth.external_login", null, "Session", null, result.IsSuccess ? "Succeeded" : "Failed", context.TraceIdentifier),
+        context.RequestAborted);
+    return result.IsSuccess ? Results.Ok(result.Value) : ApiProblemResults.BadRequest(result.Error, "auth.external_login_failed");
+})
+.AddEndpointFilter<ValidationEndpointFilter<ExternalLoginCommand>>();
 
 app.MapGet("/api/auth/admin/users", async (Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
@@ -173,7 +192,7 @@ app.MapGet("/api/auth/users/me", async (HttpContext context, Vitrin.Auth.Infrast
     });
 }).RequireAuthorization();
 
-app.MapPut("/api/auth/users/me", async (HttpContext context, [Microsoft.AspNetCore.Mvc.FromBody] UpdateProfileRequest request, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+app.MapPut("/api/auth/users/me", async (HttpContext context, [Microsoft.AspNetCore.Mvc.FromBody] UpdateProfileRequest request, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, IAuditLogger auditLogger) =>
 {
     var userId = context.User.GetUserId();
     if (userId == null) return Results.Unauthorized();
@@ -184,22 +203,33 @@ app.MapPut("/api/auth/users/me", async (HttpContext context, [Microsoft.AspNetCo
     // Check if new username is taken by someone else
     if (request.Username != user.Username && await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(db.Users, u => u.Username == request.Username && u.Id != userId.Value))
     {
-        return Results.BadRequest("This username is already taken.");
+        return ApiProblemResults.BadRequest("This username is already taken.", "profile.username_taken");
     }
 
     user.UpdateProfile(request.FullName, request.Username, request.Headline, request.About, request.AvatarUrl, request.WebsiteUrl, request.GithubUrl, request.LinkedInUrl);
     await db.SaveChangesAsync();
 
+    await auditLogger.WriteAsync(
+        new AuditEvent("user.profile_updated", userId, "User", userId.ToString(), "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
+
     return Results.Ok(new { Message = "Profile updated successfully." });
 }).RequireAuthorization();
 
-app.MapPost("/api/auth/admin/users/{id}/role", async (Guid id, [Microsoft.AspNetCore.Mvc.FromBody] int role, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+app.MapPost("/api/auth/admin/users/{id}/role", async (Guid id, [Microsoft.AspNetCore.Mvc.FromBody] int role, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, IAuditLogger auditLogger) =>
 {
+    if (!Enum.IsDefined(typeof(Vitrin.Auth.Domain.Entities.UserRole), role))
+        return ApiProblemResults.BadRequest("The requested role is invalid.", "admin.invalid_role");
+
     var user = await db.Users.FindAsync(id);
-    if (user == null) return Results.NotFound("User not found");
+    if (user == null) return ApiProblemResults.NotFound("User not found.", "user.not_found");
     
     user.UpdateRole((Vitrin.Auth.Domain.Entities.UserRole)role);
     await db.SaveChangesAsync();
+
+    await auditLogger.WriteAsync(
+        new AuditEvent("admin.user_role_updated", context.User.GetUserId(), "User", id.ToString(), "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
     
     return Results.Ok(new { Message = "User role updated successfully" });
 }).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
@@ -237,7 +267,7 @@ app.MapGet("/api/auth/admin/maker-applications", async (Vitrin.Auth.Infrastructu
     return Results.Ok(result);
 }).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
-app.MapPost("/api/auth/admin/maker-applications/{id}/approve", async (Guid id, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, Vitrin.Auth.Infrastructure.Kafka.IAuthNotificationPublisher notificationPublisher) =>
+app.MapPost("/api/auth/admin/maker-applications/{id}/approve", async (Guid id, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, Vitrin.Auth.Infrastructure.Kafka.IAuthNotificationPublisher notificationPublisher, IAuditLogger auditLogger) =>
 {
     var appToApprove = await db.MakerApplications.FindAsync(id);
     if (appToApprove == null) return Results.NotFound();
@@ -255,16 +285,22 @@ app.MapPost("/api/auth/admin/maker-applications/{id}/approve", async (Guid id, V
     }
     
     await db.SaveChangesAsync();
+    await auditLogger.WriteAsync(
+        new AuditEvent("admin.maker_application_approved", context.User.GetUserId(), "MakerApplication", id.ToString(), "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
     return Results.Ok(new { Message = "Approved successfully." });
 }).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
-app.MapPost("/api/auth/admin/maker-applications/{id}/reject", async (Guid id, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+app.MapPost("/api/auth/admin/maker-applications/{id}/reject", async (Guid id, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, IAuditLogger auditLogger) =>
 {
     var appToReject = await db.MakerApplications.FindAsync(id);
     if (appToReject == null) return Results.NotFound();
     
     appToReject.Reject();
     await db.SaveChangesAsync();
+    await auditLogger.WriteAsync(
+        new AuditEvent("admin.maker_application_rejected", context.User.GetUserId(), "MakerApplication", id.ToString(), "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
     return Results.Ok(new { Message = "Rejected successfully." });
 }).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
@@ -276,7 +312,7 @@ app.MapPost("/api/auth/users/{username}/follow", async (string username, HttpCon
 
     var userToFollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Username.ToLower() == username.ToLower());
     if (userToFollow == null) return Results.NotFound();
-    if (userToFollow.Id == followerId.Value) return Results.BadRequest("You cannot follow yourself.");
+    if (userToFollow.Id == followerId.Value) return ApiProblemResults.BadRequest("You cannot follow yourself.", "follow.self_not_allowed");
 
     var existingFollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.UserFollows, uf => uf.FollowerId == followerId.Value && uf.FollowingId == userToFollow.Id);
     if (existingFollow != null) return Results.Ok(new { Message = "Already following." });

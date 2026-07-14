@@ -61,7 +61,7 @@ public class LoginCommandHandlerTests
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        result.Error.Should().Contain("bulunamadı");
+        result.Error.Should().Be("E-posta veya şifre hatalı.");
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class LoginCommandHandlerTests
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        result.Error.Should().Contain("Hatalı şifre");
+        result.Error.Should().Be("E-posta veya şifre hatalı.");
     }
 
     [Fact]
@@ -102,6 +102,6 @@ public class LoginCommandHandlerTests
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        // Google user has Provider != Local, so should fail
+        result.Error.Should().Be("E-posta veya şifre hatalı.");
     }
 }

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
-import { getErrorMessage } from "@/lib/errors";
+import { getApiProblemMessage, getErrorMessage } from "@/lib/errors";
 import Link from "next/link";
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from "lucide-react";
 
@@ -42,8 +42,11 @@ export function RegisterForm() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.detail || "Kayıt işlemi başarısız oldu. Lütfen tekrar deneyin.");
+        const data: unknown = await response.json();
+        throw new Error(getApiProblemMessage(
+          data,
+          "Kayıt işlemi başarısız oldu. Lütfen tekrar deneyin.",
+        ));
       }
 
       // Kayıt başarılı, şimdi login yapıyoruz
@@ -105,6 +108,8 @@ export function RegisterForm() {
                   autoComplete="name"
                   disabled={isLoading}
                   required
+                  minLength={2}
+                  maxLength={100}
                   value={formData.fullName}
                   onChange={handleChange}
                   className="pl-10 rounded-xl h-10"
@@ -123,6 +128,9 @@ export function RegisterForm() {
                   autoComplete="username"
                   disabled={isLoading}
                   required
+                  minLength={3}
+                  maxLength={50}
+                  pattern="[A-Za-z0-9_]+"
                   value={formData.username}
                   onChange={handleChange}
                   className="pl-8 rounded-xl h-10"
@@ -143,6 +151,7 @@ export function RegisterForm() {
                   autoCorrect="off"
                   disabled={isLoading}
                   required
+                  maxLength={255}
                   value={formData.email}
                   onChange={handleChange}
                   className="pl-10 rounded-xl h-10"
@@ -161,6 +170,8 @@ export function RegisterForm() {
                   autoComplete="new-password"
                   disabled={isLoading}
                   required
+                  minLength={12}
+                  maxLength={128}
                   value={formData.password}
                   onChange={handleChange}
                   className="pl-10 pr-10 rounded-xl h-10"
@@ -177,6 +188,9 @@ export function RegisterForm() {
                   )}
                 </button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                En az 12 karakter; büyük/küçük harf, rakam ve özel karakter kullanın.
+              </p>
             </div>
             
             {error && (

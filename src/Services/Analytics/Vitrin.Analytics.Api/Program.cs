@@ -6,6 +6,7 @@ using Vitrin.Analytics.Application.Queries;
 using Vitrin.Analytics.Infrastructure;
 using Vitrin.Analytics.Infrastructure.Data;
 using Vitrin.Shared.Infrastructure.Auth;
+using Vitrin.Shared.Infrastructure.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +14,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
 builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
+builder.Services.AddVitrinApiErrors();
 
 // MediatR — Application assembly (Commands + Queries)
 builder.Services.AddMediatR(cfg =>
@@ -25,6 +27,8 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddAnalyticsInfrastructure(builder.Configuration);
 
 var app = builder.Build();
+
+app.UseVitrinApiErrors();
 
 using (var scope = app.Services.CreateScope())
 {
@@ -56,7 +60,7 @@ app.MapPost("/api/analytics/events", async (HttpContext context, [FromBody] Trac
     var result = await mediator.Send(command);
     return result.IsSuccess
         ? Results.Ok(new { EventId = result.Value })
-        : Results.BadRequest(new { Error = result.Error });
+        : ApiProblemResults.BadRequest(result.Error, "analytics.event_rejected");
 })
 .WithName("TrackEvent")
 .WithOpenApi()
@@ -70,7 +74,7 @@ app.MapGet("/api/analytics/product/{productId:guid}/summary", async (Guid produc
     var result = await mediator.Send(new GetProductSummaryQuery(productId));
     return result.IsSuccess
         ? Results.Ok(result.Value)
-        : Results.BadRequest(new { Error = result.Error });
+        : ApiProblemResults.BadRequest(result.Error, "analytics.query_failed");
 })
 .WithName("GetProductSummary")
 .WithOpenApi();
@@ -81,7 +85,7 @@ app.MapGet("/api/analytics/product/{productId:guid}/views", async (Guid productI
     var result = await mediator.Send(new GetProductSummaryQuery(productId));
     return result.IsSuccess
         ? Results.Ok(new { ProductId = productId, Views = result.Value.Views })
-        : Results.BadRequest(new { Error = result.Error });
+        : ApiProblemResults.BadRequest(result.Error, "analytics.query_failed");
 })
 .WithName("GetProductViews")
 .WithOpenApi();
@@ -98,7 +102,7 @@ app.MapGet("/api/analytics/product/{productId:guid}/upvotes", async (Guid produc
             Downvotes  = result.Value.Downvotes,
             NetUpvotes = result.Value.NetUpvotes
         })
-        : Results.BadRequest(new { Error = result.Error });
+        : ApiProblemResults.BadRequest(result.Error, "analytics.query_failed");
 })
 .WithName("GetProductUpvotes")
 .WithOpenApi();
@@ -114,7 +118,7 @@ app.MapGet("/api/analytics/search/top", async (
     var result = await mediator.Send(new GetTopSearchesQuery(limit, from));
     return result.IsSuccess
         ? Results.Ok(result.Value)
-        : Results.BadRequest(new { Error = result.Error });
+        : ApiProblemResults.BadRequest(result.Error, "analytics.query_failed");
 })
 .WithName("GetTopSearches")
 .WithOpenApi()
@@ -128,7 +132,7 @@ app.MapGet("/api/analytics/platform/summary", async (IMediator mediator) =>
     var result = await mediator.Send(new GetPlatformSummaryQuery());
     return result.IsSuccess
         ? Results.Ok(result.Value)
-        : Results.BadRequest(new { Error = result.Error });
+        : ApiProblemResults.BadRequest(result.Error, "analytics.query_failed");
 })
 .WithName("GetPlatformSummary")
 .WithOpenApi()

@@ -5,6 +5,7 @@ using Vitrin.Comment.Application.Commands;
 using Vitrin.Comment.Infrastructure;
 using Vitrin.Comment.Infrastructure.Data;
 using Vitrin.Shared.Infrastructure.Auth;
+using Vitrin.Shared.Infrastructure.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
 builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
+builder.Services.AddVitrinApiErrors();
 
 // MediatR
 builder.Services.AddMediatR(cfg =>
@@ -21,6 +23,8 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddCommentInfrastructure(builder.Configuration);
 
 var app = builder.Build();
+
+app.UseVitrinApiErrors();
 
 using (var scope = app.Services.CreateScope())
 {
@@ -55,7 +59,7 @@ app.MapPost("/api/comments", async (HttpContext context, [FromBody] AddCommentRe
     {
         return Results.Ok(new { CommentId = result.Value, Message = "Comment added successfully!" });
     }
-    return Results.BadRequest(new { Error = result.Error });
+    return ApiProblemResults.BadRequest(result.Error, "comment.create_failed");
 })
 .WithName("AddComment")
 .WithOpenApi()
@@ -82,7 +86,7 @@ app.MapPut("/api/comments/{id}", async (Guid id, [FromBody] UpdateCommentRequest
     {
         return Results.Ok(new { Message = "Comment updated successfully!" });
     }
-    return Results.BadRequest(new { Error = result.Error });
+    return ApiProblemResults.BadRequest(result.Error, "comment.update_failed");
 }).RequireAuthorization();
 
 app.MapDelete("/api/comments/{id}", async (Guid id, HttpContext context, IMediator mediator) =>
@@ -95,7 +99,7 @@ app.MapDelete("/api/comments/{id}", async (Guid id, HttpContext context, IMediat
     {
         return Results.Ok(new { Message = "Comment deleted successfully!" });
     }
-    return Results.BadRequest(new { Error = result.Error });
+    return ApiProblemResults.BadRequest(result.Error, "comment.delete_failed");
 }).RequireAuthorization();
 
 app.Run();

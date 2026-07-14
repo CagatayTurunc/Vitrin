@@ -14,6 +14,7 @@ import "@uiw/react-markdown-preview/markdown.css";
 const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
 
 import type { UserProfile } from "@/core/domain/user.types";
+import { getApiProblemMessage } from "@/lib/errors";
 
 function getRoleString(role: unknown): string {
   if (role === 0) return 'Member';
@@ -265,8 +266,8 @@ function ProductSubmitForm({ accessToken }: { accessToken: string }) {
       
       if (res.ok) setSuccess(true);
       else {
-        const data = await res.json();
-        setError(data.Error || "Bir hata oluştu.");
+        const data: unknown = await res.json();
+        setError(getApiProblemMessage(data, "Bir hata oluştu."));
       }
     } catch {
       setError("Bağlantı hatası.");

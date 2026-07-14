@@ -100,6 +100,7 @@ docker-compose.yml         Yerel mikroservis orkestrasyonu
 - [Kapsamlı proje incelemesi ve geliştirme yol haritası](docs/PROJE-GELISTIRME-YOL-HARITASI.md)
 - [ADR-0001 — Mikroservis mimarisini koruma kararı](docs/adr/0001-mikroservis-mimarisini-koruma.md)
 - [ADR-0002 — Merkezi JWT ve güvenilir kimlik sınırı](docs/adr/0002-merkezi-jwt-ve-kimlik-siniri.md)
+- [ADR-0003 — API hata, kota, rate limit ve audit katmanları](docs/adr/0003-api-koruma-katmanlari.md)
 
 ## Güvenlik notları
 
@@ -109,10 +110,14 @@ docker-compose.yml         Yerel mikroservis orkestrasyonu
 - Caller kimliği request body'den değil, doğrulanmış token içindeki `sub` claim'inden alınır.
 - Admin ve Maker işlemleri ortak authorization policy'leriyle korunur.
 - Google ID tokenı ve GitHub access tokenı Auth servisinde sağlayıcıya karşı doğrulanmadan Vitrin tokenı üretilmez.
+- Login, register ve external-login istekleri Gateway'de istemci IP'sine göre sınırlanır.
+- AI analizi hem kullanıcı bazlı dakikalık rate limit hem de SQLite'ta kalıcı UTC günlük kota uygular.
+- API hata yanıtları RFC 7807 ProblemDetails biçimini ve izleme için `traceId` alanını kullanır.
+- Kimlik, yönetim ve AI güvenlik olayları yapılandırılmış audit olayları olarak loglanır; token ve parola audit verisine yazılmaz.
 - OAuth, Cloudinary ve Gemini değerleri ihtiyaca göre yerel ortamdan sağlanır.
 - Örnek veya test kullanıcı parolalarını kaynak koda yazmayın.
 - Sır sızıntısı şüphesinde değeri yalnızca dosyadan silmeyin; sağlayıcı tarafında da döndürün (rotate).
 
 ## Proje durumu
 
-Aşama 0 stabilizasyonu tamamlanmıştır. Aşama 1 kapsamında OAuth sağlayıcı doğrulaması, merkezi JWT authentication, policy-based authorization, caller identity sınırı, Collection sahipliği ve Notification IDOR koruması uygulanmıştır. Kalan Aşama 1 işleri rate limiting, validation/ProblemDetails, AI quota ve audit log temelidir.
+Aşama 0 stabilizasyonu ve Aşama 1 güvenlik/doğruluk çalışmaları tamamlanmıştır. OAuth sağlayıcı doğrulaması, merkezi JWT/policy katmanı, güvenilir caller identity sınırı, sahiplik kontrolleri, Gateway rate limiting, merkezi ProblemDetails, kalıcı AI kotası ve yapılandırılmış audit log temeli uygulanmıştır. Sıradaki ana çalışma Aşama 2'deki event-driven veri tutarlılığıdır.
