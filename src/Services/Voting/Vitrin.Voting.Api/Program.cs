@@ -75,6 +75,23 @@ app.MapDelete("/api/votes", async (HttpContext context, [FromBody] VoteRequest r
 .WithOpenApi()
 .RequireAuthorization();
 
+app.MapGet("/api/votes/me", async (HttpContext context, VoteDbContext db) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
+    var productIds = await db.Votes
+        .AsNoTracking()
+        .Where(vote => vote.UserId == userId.Value)
+        .Select(vote => vote.ProductId)
+        .ToListAsync(context.RequestAborted);
+
+    return Results.Ok(productIds);
+})
+.WithName("GetMyVotes")
+.WithOpenApi()
+.RequireAuthorization();
+
 // Tüm oyları listele (debug / admin)
 app.MapGet("/api/votes", async (VoteDbContext db) =>
 {

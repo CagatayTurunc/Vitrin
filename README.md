@@ -101,6 +101,8 @@ docker-compose.yml         Yerel mikroservis orkestrasyonu
 - [ADR-0001 — Mikroservis mimarisini koruma kararı](docs/adr/0001-mikroservis-mimarisini-koruma.md)
 - [ADR-0002 — Merkezi JWT ve güvenilir kimlik sınırı](docs/adr/0002-merkezi-jwt-ve-kimlik-siniri.md)
 - [ADR-0003 — API hata, kota, rate limit ve audit katmanları](docs/adr/0003-api-koruma-katmanlari.md)
+- [ADR-0004 — Güvenilir event teslimatı, Outbox ve Inbox](docs/adr/0004-event-teslimati-outbox-inbox.md)
+- [Event Catalog — topic, producer ve consumer matrisi](docs/event-catalog.md)
 
 ## Güvenlik notları
 
@@ -120,4 +122,4 @@ docker-compose.yml         Yerel mikroservis orkestrasyonu
 
 ## Proje durumu
 
-Aşama 0 stabilizasyonu ve Aşama 1 güvenlik/doğruluk çalışmaları tamamlanmıştır. OAuth sağlayıcı doğrulaması, merkezi JWT/policy katmanı, güvenilir caller identity sınırı, sahiplik kontrolleri, Gateway rate limiting, merkezi ProblemDetails, kalıcı AI kotası ve yapılandırılmış audit log temeli uygulanmıştır. Sıradaki ana çalışma Aşama 2'deki event-driven veri tutarlılığıdır.
+Aşama 0 stabilizasyonu, Aşama 1 güvenlik/doğruluk çalışmaları ve Aşama 2'nin event-driven tutarlılık dilimi tamamlanmıştır. OAuth sağlayıcı doğrulaması, merkezi JWT/policy katmanı, güvenilir caller identity sınırı, sahiplik kontrolleri, Gateway rate limiting, merkezi ProblemDetails, kalıcı AI kotası ve yapılandırılmış audit log temeline ek olarak semantik event catalog, Transactional Outbox, Inbox idempotency, bounded retry/backoff, Kafka DLQ ve event schema versioning uygulanmıştır. Voting oyların tek yazma otoritesidir; Product oy verisini event-driven read model olarak tutar. Aşama 2'nin sıradaki dilimi sorgu, indeks, pagination, full-text search ve migration deployment modelidir.

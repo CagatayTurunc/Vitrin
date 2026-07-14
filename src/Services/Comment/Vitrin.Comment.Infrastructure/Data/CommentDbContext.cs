@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Vitrin.Comment.Domain.Entities;
+using Vitrin.Shared.Infrastructure.Outbox;
 
 namespace Vitrin.Comment.Infrastructure.Data;
 
@@ -10,6 +11,7 @@ public class CommentDbContext : DbContext
     }
 
     public DbSet<CommentItem> Comments { get; set; }
+    public DbSet<OutboxMessage> OutboxMessages { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -23,5 +25,7 @@ public class CommentDbContext : DbContext
             builder.Property(c => c.Content).IsRequired().HasMaxLength(1000);
             builder.Property(c => c.CreatedAt).IsRequired();
         });
+
+        modelBuilder.ConfigureVitrinOutbox();
     }
 }

@@ -25,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Services\Voting\Vitrin.Voting.Application\Vitrin.Voting.Application.csproj" />
     <ProjectReference Include="..\..\src\Services\Voting\Vitrin.Voting.Domain\Vitrin.Voting.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Services\Voting\Vitrin.Voting.Infrastructure\Vitrin.Voting.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Shared\Vitrin.Shared.Kernel\Vitrin.Shared.Kernel.csproj" />
     <ProjectReference Include="..\..\src\Shared\Vitrin.Shared.Contracts\Vitrin.Shared.Contracts.csproj" />
   </ItemGroup>

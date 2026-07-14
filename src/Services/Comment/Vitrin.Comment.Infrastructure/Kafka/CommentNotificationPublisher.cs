@@ -1,50 +1,42 @@
 using Microsoft.Extensions.Logging;
 using Vitrin.Comment.Application.Commands;
+using Vitrin.Comment.Infrastructure.Data;
 using Vitrin.Shared.Contracts.Events;
-using Vitrin.Shared.Infrastructure.Kafka;
+using Vitrin.Shared.Infrastructure.Outbox;
 
 namespace Vitrin.Comment.Infrastructure.Kafka;
 
 /// <summary>
-/// ICommentNotificationPublisher'ın Kafka implementasyonu.
-/// HTTP yerine "notification-events" topic'ine publish eder.
+/// Adds notification events to Comment's unit of work. The command handler commits
+/// the comment and every generated event in one SaveChanges operation.
 /// </summary>
-public class CommentNotificationPublisher : ICommentNotificationPublisher
+public sealed class CommentNotificationPublisher(
+    CommentDbContext dbContext,
+    TimeProvider timeProvider,
+    ILogger<CommentNotificationPublisher> logger) : ICommentNotificationPublisher
 {
-    private readonly IEventPublisher _kafkaProducer;
-    private readonly ILogger<CommentNotificationPublisher> _logger;
-
-    public CommentNotificationPublisher(IEventPublisher kafkaProducer, ILogger<CommentNotificationPublisher> logger)
-    {
-        _kafkaProducer = kafkaProducer;
-        _logger        = logger;
-    }
-
-    public async Task NotifyAsync(
+    public Task NotifyAsync(
         Guid recipientUserId,
         string message,
         string notificationType,
         CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
         var @event = new SendNotificationEvent
         {
-            RecipientUserId  = recipientUserId,
-            Message          = message,
+            RecipientUserId = recipientUserId,
+            Message = message,
             NotificationType = notificationType
         };
 
-        try
-        {
-            await _kafkaProducer.PublishAsync(@event);
-            _logger.LogInformation(
-                "[Comment] SendNotificationEvent published. RecipientUserId={UserId}, Type={Type}",
-                recipientUserId, notificationType);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "[Comment] Failed to publish SendNotificationEvent. RecipientUserId={UserId}",
-                recipientUserId);
-        }
+        dbContext.OutboxMessages.Add(
+            OutboxMessage.Create(@event, timeProvider.GetUtcNow().UtcDateTime));
+        logger.LogInformation(
+            "[Comment] Notification queued in Outbox. EventId={EventId}, RecipientUserId={UserId}, Type={Type}",
+            @event.EventId,
+            recipientUserId,
+            notificationType);
+
+        return Task.CompletedTask;
     }
 }

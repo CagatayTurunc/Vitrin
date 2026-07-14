@@ -6,6 +6,7 @@ using Vitrin.Comment.Infrastructure.Data;
 using Vitrin.Comment.Infrastructure.Kafka;
 using Vitrin.Comment.Infrastructure.Repositories;
 using Vitrin.Shared.Infrastructure.Kafka;
+using Vitrin.Shared.Infrastructure.Outbox;
 
 namespace Vitrin.Comment.Infrastructure;
 
@@ -33,6 +34,7 @@ public static class DependencyInjection
 
         // Notification publisher — HTTP yerine Kafka
         services.AddScoped<ICommentNotificationPublisher, CommentNotificationPublisher>();
+        services.AddVitrinOutbox<CommentDbContext>(configuration);
 
         return services;
     }

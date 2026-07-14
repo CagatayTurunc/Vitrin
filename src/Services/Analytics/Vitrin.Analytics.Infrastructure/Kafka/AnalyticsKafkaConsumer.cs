@@ -1,9 +1,12 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Vitrin.Analytics.Application.Commands;
+using Vitrin.Analytics.Infrastructure.Data;
 using Vitrin.Shared.Contracts.Events;
+using Vitrin.Shared.Infrastructure.Inbox;
 using Vitrin.Shared.Infrastructure.Kafka;
 using System.Text.Json;
 
@@ -18,18 +21,27 @@ public class AnalyticsKafkaConsumer : KafkaConsumerBase
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AnalyticsKafkaConsumer> _consumerLogger;
+    private readonly TimeProvider _timeProvider;
 
-    private static readonly string Topic = "analytics-events";
+    private static readonly string[] Topics =
+    [
+        EventTopics.Analytics,
+        EventTopics.Voting,
+        EventTopics.Social,
+        EventTopics.User
+    ];
     private static readonly string GroupId = "analytics-consumer-group";
 
     public AnalyticsKafkaConsumer(
         IConfiguration configuration,
         IServiceScopeFactory scopeFactory,
+        TimeProvider timeProvider,
         ILogger<AnalyticsKafkaConsumer> logger)
-        : base(configuration, logger, Topic, GroupId)
+        : base(configuration, logger, Topics, GroupId)
     {
         _scopeFactory = scopeFactory;
         _consumerLogger = logger;
+        _timeProvider = timeProvider;
     }
 
     protected override async Task ProcessMessageAsync(
@@ -44,13 +56,22 @@ public class AnalyticsKafkaConsumer : KafkaConsumerBase
             "[Analytics] Processing event: EventType={EventType}, Key={Key}",
             eventType, key);
 
+        if (eventType is "comment.added" or "comment.replied" or "user.role_changed")
+        {
+            _consumerLogger.LogDebug(
+                "[Analytics] Known event is outside the analytics projection and was ignored. EventType={EventType}",
+                eventType);
+            return;
+        }
+
         var command = eventType switch
         {
             "analytics.product_viewed"    => BuildFromProductViewed(value),
             "analytics.product_upvoted"   => BuildFromProductUpvoted(value),
             "analytics.search_performed"  => BuildFromSearchPerformed(value),
             "analytics.comment_created"   => BuildFromCommentCreated(value),
-            // Shared social/user event'leri de izlenebilir
+            "voting.vote_added"           => BuildFromVoteAdded(value),
+            "voting.vote_removed"         => BuildFromVoteRemoved(value),
             "product.published"           => BuildFromProductPublished(value),
             "user.registered"             => BuildFromUserRegistered(value),
             _ => null
@@ -58,29 +79,51 @@ public class AnalyticsKafkaConsumer : KafkaConsumerBase
 
         if (command is null)
         {
-            _consumerLogger.LogWarning(
-                "[Analytics] Unknown or unsupported event type '{EventType}', skipping.",
-                eventType);
-            return;
+            throw new InvalidDataException(
+                $"Unknown or malformed event type '{eventType}' in the analytics consumer.");
         }
 
         // Scoped servisler için (DbContext) yeni scope aç
-        using var scope = _scopeFactory.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        var result = await mediator.Send(command, cancellationToken);
+        var integrationEventId = ExtractEventId(key, value);
+        if (integrationEventId == Guid.Empty)
+        {
+            throw new InvalidDataException(
+                $"Event '{eventType}' does not contain a valid integration event id.");
+        }
 
+        using var scope = _scopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AnalyticsDbContext>();
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        if (await dbContext.InboxMessages.AnyAsync(
+                message => message.Id == integrationEventId,
+                cancellationToken))
+        {
+            await transaction.CommitAsync(cancellationToken);
+            _consumerLogger.LogInformation(
+                "[Analytics] Duplicate event skipped. IntegrationEventId={IntegrationEventId}",
+                integrationEventId);
+            return;
+        }
+
+        var result = await mediator.Send(command, cancellationToken);
         if (result.IsFailure)
         {
-            _consumerLogger.LogWarning(
-                "[Analytics] TrackEvent failed for EventType={EventType}: {Error}",
-                eventType, result.Error);
+            throw new InvalidOperationException(
+                $"Analytics event '{eventType}' could not be persisted: {result.Error}");
         }
-        else
-        {
-            _consumerLogger.LogInformation(
-                "[Analytics] Event tracked. EventId={EventId}, Type={EventType}",
-                result.Value, eventType);
-        }
+
+        dbContext.InboxMessages.Add(InboxMessage.CreateProcessed(
+            integrationEventId,
+            eventType,
+            _timeProvider.GetUtcNow().UtcDateTime));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        _consumerLogger.LogInformation(
+            "[Analytics] Event tracked. IntegrationEventId={IntegrationEventId}, AnalyticsEventId={AnalyticsEventId}, Type={EventType}",
+            integrationEventId, result.Value, eventType);
     }
 
     // ─── Event Builder Metotları ───────────────────────────────────────────
@@ -164,6 +207,30 @@ public class AnalyticsKafkaConsumer : KafkaConsumerBase
             UserId: e.UserId);
     }
 
+    private static TrackEventCommand? BuildFromVoteAdded(string json)
+    {
+        var e = DeserializeMessage<VoteAddedEvent>(json);
+        if (e is null) return null;
+
+        return new TrackEventCommand(
+            EventType: "ProductUpvote",
+            EventData: JsonSerializer.Serialize(new { e.VoteId, e.Timestamp }),
+            ProductId: e.ProductId,
+            UserId: e.UserId);
+    }
+
+    private static TrackEventCommand? BuildFromVoteRemoved(string json)
+    {
+        var e = DeserializeMessage<VoteRemovedEvent>(json);
+        if (e is null) return null;
+
+        return new TrackEventCommand(
+            EventType: "ProductDownvote",
+            EventData: JsonSerializer.Serialize(new { e.Timestamp }),
+            ProductId: e.ProductId,
+            UserId: e.UserId);
+    }
+
     private static TrackEventCommand? BuildFromProductPublished(string json)
     {
         var e = DeserializeMessage<ProductPublishedEvent>(json);
@@ -222,5 +289,31 @@ public class AnalyticsKafkaConsumer : KafkaConsumerBase
             // JSON parse hatası → bilinmeyen event
         }
         return string.Empty;
+    }
+
+    private static Guid ExtractEventId(string key, string json)
+    {
+        if (Guid.TryParse(key, out var keyEventId))
+        {
+            return keyEventId;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("EventId", out var eventId)
+                || doc.RootElement.TryGetProperty("eventId", out eventId))
+            {
+                return Guid.TryParse(eventId.GetString(), out var parsedEventId)
+                    ? parsedEventId
+                    : Guid.Empty;
+            }
+        }
+        catch (JsonException)
+        {
+            return Guid.Empty;
+        }
+
+        return Guid.Empty;
     }
 }

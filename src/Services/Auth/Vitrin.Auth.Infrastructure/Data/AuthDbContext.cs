@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Vitrin.Auth.Domain.Entities;
+using Vitrin.Shared.Infrastructure.Outbox;
 
 namespace Vitrin.Auth.Infrastructure.Data;
 
@@ -11,6 +12,7 @@ public class AuthDbContext : DbContext
     public DbSet<UserFollow> UserFollows => Set<UserFollow>();
     public DbSet<MakerApplication> MakerApplications => Set<MakerApplication>();
     public DbSet<UserBadge> UserBadges => Set<UserBadge>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -54,5 +56,7 @@ public class AuthDbContext : DbContext
                 .HasForeignKey(ub => ub.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        modelBuilder.ConfigureVitrinOutbox();
     }
 }

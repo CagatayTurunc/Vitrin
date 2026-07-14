@@ -23,6 +23,9 @@ public class AddCommentCommandHandlerTests
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        _repositoryMock
+            .Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         _handler = new AddCommentCommandHandler(
             _repositoryMock.Object,
@@ -48,6 +51,9 @@ public class AddCommentCommandHandlerTests
         result.Value.Should().NotBeEmpty();
         _repositoryMock.Verify(
             r => r.AddAsync(It.IsAny<CommentItem>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        _repositoryMock.Verify(
+            r => r.SaveChangesAsync(It.IsAny<CancellationToken>()),
             Times.Once);
     }
 

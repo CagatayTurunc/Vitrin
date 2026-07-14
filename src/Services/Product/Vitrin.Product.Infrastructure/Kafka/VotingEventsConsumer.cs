@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -5,33 +6,33 @@ using Microsoft.Extensions.Logging;
 using Vitrin.Product.Domain.Entities;
 using Vitrin.Product.Infrastructure.Data;
 using Vitrin.Shared.Contracts.Events;
+using Vitrin.Shared.Infrastructure.Inbox;
 using Vitrin.Shared.Infrastructure.Kafka;
 
 namespace Vitrin.Product.Infrastructure.Kafka;
 
 /// <summary>
-/// Voting servisinin "voting-events" topic'ini dinler.
-/// VoteAddedEvent   → ProductUpvote kaydı ekler
-/// VoteRemovedEvent → ProductUpvote kaydı siler
-/// Bu sayede Product DB'deki upvote sayısı Voting servisindeki
-/// gerçek oy kaydıyla her zaman senkronize kalır.
+/// Builds the Product voting read model from Voting service events. The read-model
+/// mutation and Inbox marker are committed together, making redelivery idempotent.
 /// </summary>
-public class VotingEventsConsumer : KafkaConsumerBase
+public sealed class VotingEventsConsumer : KafkaConsumerBase
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<VotingEventsConsumer> _consumerLogger;
-
-    private const string Topic   = "voting-events";
     private const string GroupId = "product-voting-consumer-group";
+
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly TimeProvider _timeProvider;
+    private readonly ILogger<VotingEventsConsumer> _logger;
 
     public VotingEventsConsumer(
         IConfiguration configuration,
         IServiceScopeFactory scopeFactory,
+        TimeProvider timeProvider,
         ILogger<VotingEventsConsumer> logger)
-        : base(configuration, logger, Topic, GroupId)
+        : base(configuration, logger, EventTopics.Voting, GroupId)
     {
-        _scopeFactory    = scopeFactory;
-        _consumerLogger  = logger;
+        _scopeFactory = scopeFactory;
+        _timeProvider = timeProvider;
+        _logger = logger;
     }
 
     protected override async Task ProcessMessageAsync(
@@ -39,121 +40,126 @@ public class VotingEventsConsumer : KafkaConsumerBase
         string value,
         CancellationToken cancellationToken)
     {
-        var eventType = ExtractEventType(value);
-
-        _consumerLogger.LogInformation(
-            "[Product/VotingConsumer] Processing event: EventType={EventType}", eventType);
+        var metadata = ExtractMetadata(value);
+        if (metadata.EventId == Guid.Empty || string.IsNullOrWhiteSpace(metadata.EventType))
+        {
+            throw new InvalidDataException("Voting event metadata is missing or malformed.");
+        }
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ProductDbContext>();
 
-        switch (eventType)
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+        if (await db.InboxMessages.AnyAsync(message => message.Id == metadata.EventId, cancellationToken))
         {
-            case "voting.vote_added":
-                await HandleVoteAdded(value, db, cancellationToken);
-                break;
-
-            case "voting.vote_removed":
-                await HandleVoteRemoved(value, db, cancellationToken);
-                break;
-
-            default:
-                _consumerLogger.LogDebug(
-                    "[Product/VotingConsumer] Unknown event type '{EventType}', skipping.", eventType);
-                break;
+            _logger.LogDebug("Duplicate voting event ignored. EventId={EventId}", metadata.EventId);
+            await transaction.CommitAsync(cancellationToken);
+            return;
         }
+
+        var productId = metadata.EventType switch
+        {
+            "voting.vote_added" => await HandleVoteAdded(value, db, cancellationToken),
+            "voting.vote_removed" => await HandleVoteRemoved(value, db, cancellationToken),
+            _ => throw new InvalidDataException(
+                $"Unsupported event type '{metadata.EventType}' on {EventTopics.Voting}.")
+        };
+
+        db.InboxMessages.Add(InboxMessage.CreateProcessed(
+            metadata.EventId,
+            metadata.EventType,
+            _timeProvider.GetUtcNow().UtcDateTime));
+
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        var count = await db.ProductUpvotes.CountAsync(
+            upvote => upvote.ProductItemId == productId,
+            cancellationToken);
+        _logger.LogInformation(
+            "Voting read model updated. EventId={EventId}, EventType={EventType}, ProductId={ProductId}, Count={Count}",
+            metadata.EventId,
+            metadata.EventType,
+            productId,
+            count);
     }
 
-    // ─── Handlers ──────────────────────────────────────────────────────────
-
-    private async Task HandleVoteAdded(
+    private static async Task<Guid> HandleVoteAdded(
         string json,
         ProductDbContext db,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
-        var e = DeserializeMessage<VoteAddedEvent>(json);
-        if (e is null)
+        var @event = DeserializeMessage<VoteAddedEvent>(json)
+            ?? throw new InvalidDataException("VoteAddedEvent could not be deserialized.");
+
+        if (!await db.Products.AnyAsync(product => product.Id == @event.ProductId, cancellationToken))
         {
-            _consumerLogger.LogWarning("[Product/VotingConsumer] Failed to deserialize VoteAddedEvent.");
-            return;
+            throw new InvalidOperationException($"Product '{@event.ProductId}' was not found.");
         }
 
-        // Ürün var mı kontrol et
-        var productExists = await db.Products.AnyAsync(p => p.Id == e.ProductId, ct);
-        if (!productExists)
-        {
-            _consumerLogger.LogWarning(
-                "[Product/VotingConsumer] ProductId={ProductId} not found, skipping VoteAdded.",
-                e.ProductId);
-            return;
-        }
-
-        // Idempotency: zaten kayıt varsa tekrar ekleme
         var alreadyExists = await db.ProductUpvotes.AnyAsync(
-            u => u.ProductItemId == e.ProductId && u.UserId == e.UserId, ct);
+            upvote => upvote.ProductItemId == @event.ProductId && upvote.UserId == @event.UserId,
+            cancellationToken);
 
-        if (alreadyExists)
+        if (!alreadyExists)
         {
-            _consumerLogger.LogDebug(
-                "[Product/VotingConsumer] Upvote already exists for UserId={UserId}, ProductId={ProductId}. Skipping.",
-                e.UserId, e.ProductId);
-            return;
+            db.ProductUpvotes.Add(new ProductUpvote(@event.ProductId, @event.UserId));
         }
 
-        db.ProductUpvotes.Add(new ProductUpvote(e.ProductId, e.UserId));
-        await db.SaveChangesAsync(ct);
-
-        var count = await db.ProductUpvotes.CountAsync(u => u.ProductItemId == e.ProductId, ct);
-        _consumerLogger.LogInformation(
-            "[Product/VotingConsumer] Upvote added. ProductId={ProductId}, UserId={UserId}, TotalUpvotes={Count}",
-            e.ProductId, e.UserId, count);
+        return @event.ProductId;
     }
 
-    private async Task HandleVoteRemoved(
+    private static async Task<Guid> HandleVoteRemoved(
         string json,
         ProductDbContext db,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
-        var e = DeserializeMessage<VoteRemovedEvent>(json);
-        if (e is null)
-        {
-            _consumerLogger.LogWarning("[Product/VotingConsumer] Failed to deserialize VoteRemovedEvent.");
-            return;
-        }
+        var @event = DeserializeMessage<VoteRemovedEvent>(json)
+            ?? throw new InvalidDataException("VoteRemovedEvent could not be deserialized.");
 
         var existing = await db.ProductUpvotes.FirstOrDefaultAsync(
-            u => u.ProductItemId == e.ProductId && u.UserId == e.UserId, ct);
+            upvote => upvote.ProductItemId == @event.ProductId && upvote.UserId == @event.UserId,
+            cancellationToken);
 
-        if (existing is null)
+        if (existing is not null)
         {
-            _consumerLogger.LogDebug(
-                "[Product/VotingConsumer] No upvote found to remove for UserId={UserId}, ProductId={ProductId}.",
-                e.UserId, e.ProductId);
-            return;
+            db.ProductUpvotes.Remove(existing);
         }
 
-        db.ProductUpvotes.Remove(existing);
-        await db.SaveChangesAsync(ct);
-
-        var count = await db.ProductUpvotes.CountAsync(u => u.ProductItemId == e.ProductId, ct);
-        _consumerLogger.LogInformation(
-            "[Product/VotingConsumer] Upvote removed. ProductId={ProductId}, UserId={UserId}, TotalUpvotes={Count}",
-            e.ProductId, e.UserId, count);
+        return @event.ProductId;
     }
 
-    // ─── Yardımcı ──────────────────────────────────────────────────────────
-
-    private static string ExtractEventType(string json)
+    private static EventMetadata ExtractMetadata(string json)
     {
         try
         {
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("EventType", out var et))
-                return et.GetString() ?? string.Empty;
-            if (doc.RootElement.TryGetProperty("eventType", out var et2))
-                return et2.GetString() ?? string.Empty;
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            return new EventMetadata(
+                ReadGuid(root, "EventId", "eventId"),
+                ReadString(root, "EventType", "eventType"));
         }
-        catch { /* parse hatası → boş döner, bilinmeyen event olarak işlenir */ }
-        return string.Empty;
+        catch (JsonException)
+        {
+            return new EventMetadata(Guid.Empty, string.Empty);
+        }
     }
+
+    private static Guid ReadGuid(JsonElement root, string pascalName, string camelName)
+    {
+        var value = root.TryGetProperty(pascalName, out var pascal)
+            ? pascal.GetString()
+            : root.TryGetProperty(camelName, out var camel) ? camel.GetString() : null;
+        return Guid.TryParse(value, out var parsed) ? parsed : Guid.Empty;
+    }
+
+    private static string ReadString(JsonElement root, string pascalName, string camelName) =>
+        root.TryGetProperty(pascalName, out var pascal)
+            ? pascal.GetString() ?? string.Empty
+            : root.TryGetProperty(camelName, out var camel)
+                ? camel.GetString() ?? string.Empty
+                : string.Empty;
+
+    private sealed record EventMetadata(Guid EventId, string EventType);
 }

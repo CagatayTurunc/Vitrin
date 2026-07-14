@@ -30,6 +30,7 @@ interface ProductCommentNode extends ProductComment {
 }
 
 const MarkdownPreview = dynamic(() => import("@uiw/react-markdown-preview").then((mod) => mod.default), { ssr: false });
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
 export default function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const unwrappedParams = use(params);
@@ -49,6 +50,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
   const [editContent, setEditContent] = useState("");
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [hasVoted, setHasVoted] = useState(false);
+  const [isVoting, setIsVoting] = useState(false);
   const galleryRef = useRef<HTMLDivElement>(null);
 
   const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -158,6 +161,24 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
     if (slug) void fetchProductData();
   }, [fetchProductData, slug]);
 
+  useEffect(() => {
+    if (!session?.accessToken || !product?.id) return;
+
+    let isCurrent = true;
+    void fetch(`${API_URL}/api/votes/me`, {
+      headers: { Authorization: `Bearer ${session.accessToken}` }
+    })
+      .then(async (response) => response.ok ? await response.json() as string[] : [])
+      .then((productIds) => {
+        if (isCurrent) setHasVoted(productIds.includes(product.id));
+      })
+      .catch((error) => console.error("Oy durumu alınamadı", error));
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [product?.id, session?.accessToken]);
+
   const handleFollowMaker = async () => {
     if (!session?.accessToken) {
       setIsLoginModalOpen(true);
@@ -191,25 +212,42 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
       setIsLoginModalOpen(true);
       return;
     }
-    if (!product) return;
+    if (!product || isVoting) return;
+
+    const previousVoteState = hasVoted;
+    setIsVoting(true);
+    setHasVoted(!previousVoteState);
+    setProduct({
+      ...product,
+      upvotes: Math.max(0, product.upvotes + (previousVoteState ? -1 : 1))
+    });
 
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/${product.id}/vote`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.accessToken}` }
+      const res = await fetch(`${API_URL}/api/votes`, {
+        method: previousVoteState ? "DELETE" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.accessToken}`
+        },
+        body: JSON.stringify({ productId: product.id })
       });
-      if (res.ok) {
-        const data = await res.json() as { upvotes: number };
-        setProduct({ ...product, upvotes: data.upvotes });
-        
-        // Gamification: Record vote activity for streaks and badges
-        await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/users/me/record-vote`, {
+
+      if (!res.ok) {
+        throw new Error(`Vote request failed with status ${res.status}`);
+      }
+
+      if (!previousVoteState) {
+        await fetch(`${API_URL}/api/auth/users/me/record-vote`, {
           method: "POST",
           headers: { Authorization: `Bearer ${session.accessToken}` }
         }).catch(e => console.error("Streak could not be updated", e));
       }
     } catch (err) {
       console.error(err);
+      setHasVoted(previousVoteState);
+      setProduct(product);
+    } finally {
+      setIsVoting(false);
     }
   };
 
@@ -365,8 +403,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
             size="lg" 
             className="gap-2 h-14 px-8 rounded-xl font-bold w-full md:w-auto bg-[#00A170] hover:bg-[#008f63] text-white shadow-md transition-all hover:scale-105 active:scale-95"
             onClick={handleUpvote}
+            disabled={isVoting}
           >
-            <ArrowUp className="h-5 w-5" /> UPVOTE {product.upvotes > 0 && <span className="opacity-90 ml-1">({product.upvotes})</span>}
+            <ArrowUp className="h-5 w-5" /> {hasVoted ? "UPVOTED" : "UPVOTE"} {product.upvotes > 0 && <span className="opacity-90 ml-1">({product.upvotes})</span>}
           </Button>
         </div>
       </div>

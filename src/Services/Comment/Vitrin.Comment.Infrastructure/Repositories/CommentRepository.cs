@@ -16,7 +16,6 @@ public class CommentRepository : ICommentRepository
     public async Task AddAsync(CommentItem comment, CancellationToken cancellationToken)
     {
         await _context.Comments.AddAsync(comment, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<CommentItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
@@ -29,4 +28,7 @@ public class CommentRepository : ICommentRepository
         _context.Comments.Update(comment);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken) =>
+        _context.SaveChangesAsync(cancellationToken);
 }

@@ -41,6 +41,30 @@ namespace Vitrin.Notification.Infrastructure.Data.Migrations
 
                     b.ToTable("Notifications");
                 });
+
+            modelBuilder.Entity("Vitrin.Shared.Infrastructure.Inbox.InboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ReceivedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProcessedAtUtc");
+
+                    b.ToTable("InboxMessages");
+                });
 #pragma warning restore 612, 618
         }
     }

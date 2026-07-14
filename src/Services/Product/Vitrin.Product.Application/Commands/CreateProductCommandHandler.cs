@@ -9,10 +9,7 @@ public interface IProductRepository
     Task AddAsync(ProductItem product, CancellationToken cancellationToken);
     Task<bool> IsSlugUniqueAsync(string slug, CancellationToken cancellationToken);
     Task<Topic?> GetTopicBySlugAsync(string slug, CancellationToken cancellationToken);
-    Task<ProductItem?> GetByIdWithUpvotesAsync(Guid id, CancellationToken cancellationToken);
     Task UpdateAsync(ProductItem product, CancellationToken cancellationToken);
-    Task ToggleUpvoteAsync(Guid productId, Guid userId, CancellationToken cancellationToken);
-    Task<int> GetUpvoteCountAsync(Guid productId, CancellationToken cancellationToken);
 }
 
 public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand, Result<Guid>>

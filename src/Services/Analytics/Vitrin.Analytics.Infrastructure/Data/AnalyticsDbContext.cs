@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Vitrin.Analytics.Domain.Entities;
+using Vitrin.Shared.Infrastructure.Inbox;
 
 namespace Vitrin.Analytics.Infrastructure.Data;
 
@@ -10,6 +11,7 @@ public class AnalyticsDbContext : DbContext
     }
 
     public DbSet<AnalyticsEvent> AnalyticsEvents { get; set; }
+    public DbSet<InboxMessage> InboxMessages { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -21,5 +23,7 @@ public class AnalyticsDbContext : DbContext
             builder.Property(a => a.EventType).IsRequired().HasMaxLength(100);
             builder.Property(a => a.CreatedAt).IsRequired();
         });
+
+        modelBuilder.ConfigureVitrinInbox();
     }
 }

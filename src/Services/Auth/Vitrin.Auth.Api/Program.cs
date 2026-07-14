@@ -281,10 +281,11 @@ app.MapPost("/api/auth/admin/maker-applications/{id}/approve", async (Guid id, H
         await notificationPublisher.NotifyAsync(
             user.Id,
             "Tebrikler, artık Maker oldunuz!",
-            "maker_approved");
+            "maker_approved",
+            context.RequestAborted);
     }
     
-    await db.SaveChangesAsync();
+    await db.SaveChangesAsync(context.RequestAborted);
     await auditLogger.WriteAsync(
         new AuditEvent("admin.maker_application_approved", context.User.GetUserId(), "MakerApplication", id.ToString(), "Succeeded", context.TraceIdentifier),
         context.RequestAborted);
@@ -318,13 +319,14 @@ app.MapPost("/api/auth/users/{username}/follow", async (string username, HttpCon
     if (existingFollow != null) return Results.Ok(new { Message = "Already following." });
 
     db.UserFollows.Add(new Vitrin.Auth.Domain.Entities.UserFollow(followerId.Value, userToFollow.Id));
-    await db.SaveChangesAsync();
 
     var followerUser = await db.Users.FindAsync(followerId.Value);
     await notificationPublisher.NotifyAsync(
         userToFollow.Id,
         $"@{followerUser?.Username} sizi takip etmeye başladı.",
-        "new_follower");
+        "new_follower",
+        context.RequestAborted);
+    await db.SaveChangesAsync(context.RequestAborted);
 
     return Results.Ok(new { Message = "Followed successfully." });
 }).RequireAuthorization();

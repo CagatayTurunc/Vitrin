@@ -1,56 +1,26 @@
 using Microsoft.Extensions.Logging;
-using Vitrin.Product.Application.Commands;
+using Vitrin.Product.Infrastructure.Data;
 using Vitrin.Shared.Contracts.Events;
-using Vitrin.Shared.Infrastructure.Kafka;
+using Vitrin.Shared.Infrastructure.Outbox;
 
 namespace Vitrin.Product.Infrastructure.Kafka;
 
-/// <summary>
-/// IProductEventPublisher'ın Kafka implementasyonu.
-/// analytics-events ve shared topic'lerine publish eder.
-/// </summary>
-public class ProductEventPublisher : IProductEventPublisher
+public sealed class ProductEventPublisher(
+    ProductDbContext dbContext,
+    TimeProvider timeProvider,
+    ILogger<ProductEventPublisher> logger)
 {
-    private readonly IEventPublisher _kafkaProducer;
-    private readonly ILogger<ProductEventPublisher> _logger;
-
-    public ProductEventPublisher(IEventPublisher kafkaProducer, ILogger<ProductEventPublisher> logger)
+    public async Task PublishProductPublished(
+        ProductPublishedEvent @event,
+        CancellationToken cancellationToken = default)
     {
-        _kafkaProducer = kafkaProducer;
-        _logger        = logger;
-    }
+        dbContext.OutboxMessages.Add(
+            OutboxMessage.Create(@event, timeProvider.GetUtcNow().UtcDateTime));
+        await dbContext.SaveChangesAsync(cancellationToken);
 
-    public async Task PublishUpvoteToggled(ProductUpvotedEvent @event, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            await _kafkaProducer.PublishAsync(@event);
-            _logger.LogInformation(
-                "[ProductEventPublisher] ProductUpvotedEvent published. ProductId={ProductId}, IsUpvote={IsUpvote}",
-                @event.ProductId, @event.IsUpvote);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "[ProductEventPublisher] Failed to publish ProductUpvotedEvent. ProductId={ProductId}",
-                @event.ProductId);
-        }
-    }
-
-    public async Task PublishProductPublished(ProductPublishedEvent @event, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            await _kafkaProducer.PublishAsync(@event);
-            _logger.LogInformation(
-                "[ProductEventPublisher] ProductPublishedEvent published. ProductId={ProductId}",
-                @event.ProductId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "[ProductEventPublisher] Failed to publish ProductPublishedEvent. ProductId={ProductId}",
-                @event.ProductId);
-        }
+        logger.LogInformation(
+            "Product mutation and outbox event committed atomically. EventId={EventId}, ProductId={ProductId}",
+            @event.EventId,
+            @event.ProductId);
     }
 }

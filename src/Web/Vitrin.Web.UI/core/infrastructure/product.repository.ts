@@ -8,15 +8,19 @@ export const ProductRepository = {
     return response.data;
   },
   
-  async upvoteProduct(productId: string, token: string) {
-    const response = await apiClient.post(`/products/${productId}/vote`, {}, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+  async toggleVote(productId: string, hasVoted: boolean, token: string) {
+    const config = {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { productId },
+    };
+    const response = hasVoted
+      ? await apiClient.delete('/votes', config)
+      : await apiClient.post('/votes', { productId }, config);
     return response.data;
   },
 
   async getMyVotes(token: string): Promise<string[]> {
-    const response = await apiClient.get(`/products/my-votes`, {
+    const response = await apiClient.get('/votes/me', {
       headers: { Authorization: `Bearer ${token}` }
     });
     return response.data;

@@ -1,58 +1,42 @@
 using Microsoft.Extensions.Logging;
 using Vitrin.Shared.Contracts.Events;
-using Vitrin.Shared.Infrastructure.Kafka;
+using Vitrin.Shared.Infrastructure.Outbox;
 using Vitrin.Voting.Application.Commands;
+using Vitrin.Voting.Infrastructure.Data;
 
 namespace Vitrin.Voting.Infrastructure.Kafka;
 
 /// <summary>
-/// IVoteEventPublisher'ın Kafka implementasyonu.
-/// Voting servisi oy kaydettikten sonra buraya gelir,
-/// "voting-events" topic'ine publish eder.
+/// Adds the integration event to the same DbContext that tracks the vote mutation.
+/// SaveChanges therefore commits the vote and its outbox record atomically.
 /// </summary>
-public class VoteEventPublisher : IVoteEventPublisher
+public sealed class VoteEventPublisher(
+    VoteDbContext dbContext,
+    TimeProvider timeProvider,
+    ILogger<VoteEventPublisher> logger) : IVoteEventPublisher
 {
-    private readonly IEventPublisher _kafkaProducer;
-    private readonly ILogger<VoteEventPublisher> _logger;
+    public Task PublishVoteAddedAsync(
+        VoteAddedEvent @event,
+        CancellationToken cancellationToken = default) =>
+        EnqueueAsync(@event, cancellationToken);
 
-    public VoteEventPublisher(IEventPublisher kafkaProducer, ILogger<VoteEventPublisher> logger)
-    {
-        _kafkaProducer = kafkaProducer;
-        _logger = logger;
-    }
+    public Task PublishVoteRemovedAsync(
+        VoteRemovedEvent @event,
+        CancellationToken cancellationToken = default) =>
+        EnqueueAsync(@event, cancellationToken);
 
-    public async Task PublishVoteAddedAsync(VoteAddedEvent @event, CancellationToken cancellationToken = default)
+    private async Task EnqueueAsync(
+        IEvent @event,
+        CancellationToken cancellationToken)
     {
-        try
-        {
-            await _kafkaProducer.PublishAsync(@event);
-            _logger.LogInformation(
-                "[VoteEventPublisher] VoteAddedEvent published. UserId={UserId}, ProductId={ProductId}",
-                @event.UserId, @event.ProductId);
-        }
-        catch (Exception ex)
-        {
-            // Kafka geçici olarak düşse bile oy kaydedildi — event kaybı production'da Outbox pattern ile çözülür
-            _logger.LogError(ex,
-                "[VoteEventPublisher] Failed to publish VoteAddedEvent. UserId={UserId}, ProductId={ProductId}",
-                @event.UserId, @event.ProductId);
-        }
-    }
+        dbContext.OutboxMessages.Add(
+            OutboxMessage.Create(@event, timeProvider.GetUtcNow().UtcDateTime));
 
-    public async Task PublishVoteRemovedAsync(VoteRemovedEvent @event, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            await _kafkaProducer.PublishAsync(@event);
-            _logger.LogInformation(
-                "[VoteEventPublisher] VoteRemovedEvent published. UserId={UserId}, ProductId={ProductId}",
-                @event.UserId, @event.ProductId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "[VoteEventPublisher] Failed to publish VoteRemovedEvent. UserId={UserId}, ProductId={ProductId}",
-                @event.UserId, @event.ProductId);
-        }
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Vote mutation and outbox event committed atomically. EventId={EventId}, EventType={EventType}",
+            @event.EventId,
+            @event.EventType);
     }
 }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Vitrin.Analytics.Domain.Repositories;
 using Vitrin.Analytics.Infrastructure.Data;
 using Vitrin.Analytics.Infrastructure.Kafka;
@@ -22,6 +23,7 @@ public static class DependencyInjection
 
         // Repository — domain interface'e bağlı
         services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
+        services.TryAddSingleton(TimeProvider.System);
 
         // Kafka Consumer — BackgroundService olarak kayıt
         services.AddHostedService<AnalyticsKafkaConsumer>();

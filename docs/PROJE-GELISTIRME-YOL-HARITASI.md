@@ -4,6 +4,8 @@
 > Durum: Mevcut çalışma ağacı üzerinden hazırlanmıştır.
 > Amaç: Projeyi güvenli, test edilebilir, gözlemlenebilir, deploy edilebilir ve CV'de savunulabilir bir ürün hâline getirmek.
 
+> Uygulama durumu: Aşama 2'nin event-driven tutarlılık dilimi tamamlandı. Kararlar [ADR-0004](adr/0004-event-teslimati-outbox-inbox.md), sözleşmeler [Event Catalog](event-catalog.md) içinde kayıtlıdır.
+
 ## 1. Genel değerlendirme
 
 Vitrin sıradan bir CRUD projesinden daha güçlü bir temele sahiptir. Projede Next.js frontend, .NET 8 servisleri, YARP API Gateway, PostgreSQL/SQLite, Kafka, Redis, EF Core migrations, Docker Compose, DDD ve CQRS yaklaşımı bulunmaktadır.
@@ -601,11 +603,11 @@ Coverage, throughput ve latency değerleri ölçülmeden yazılmamalıdır.
 
 - [x] Voting için tek authoritative source seç: Voting servisi
 - [x] Mikroservis mimarisini koruma kararını ADR ile kaydet
-- [ ] Kafka topic mapping'i düzelt
-- [ ] Transactional Outbox ekle
-- [ ] Inbox/idempotency ekle
-- [ ] Retry/backoff ve DLQ ekle
-- [ ] Event schema versioning ekle
+- [x] Kafka topic mapping'i düzelt
+- [x] Transactional Outbox ekle
+- [x] Inbox/idempotency ekle
+- [x] Retry/backoff ve DLQ ekle
+- [x] Event schema versioning ekle
 - [ ] Gerekli DB indekslerini ekle
 - [ ] Cursor pagination ekle
 - [ ] Read sorgularına projection ve `AsNoTracking` ekle
@@ -621,7 +623,7 @@ Coverage, throughput ve latency değerleri ölçülmeden yazılmamalıdır.
 - [ ] Testcontainers Redis testleri ekle
 - [ ] WebApplicationFactory API testleri ekle
 - [ ] Authorization ve IDOR testleri ekle
-- [ ] Event-topic contract testleri ekle
+- [x] Event-topic contract testleri ekle
 - [ ] OpenAPI compatibility kontrolü ekle
 - [ ] Vitest ve React Testing Library ekle
 - [ ] Playwright kritik akışlarını ekle
@@ -632,7 +634,7 @@ Coverage, throughput ve latency değerleri ölçülmeden yazılmamalıdır.
 ### Aşama 4 — Observability ve production deployment
 
 - [ ] OpenTelemetry ekle
-- [ ] Correlation/causation ID standardı oluştur
+- [x] Correlation/causation ID standardı oluştur
 - [ ] Prometheus/Grafana kur
 - [ ] Trace backend'i kur
 - [ ] Merkezi log backend'i kur

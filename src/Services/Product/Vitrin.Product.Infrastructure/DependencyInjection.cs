@@ -6,6 +6,7 @@ using Vitrin.Product.Infrastructure.Data;
 using Vitrin.Product.Infrastructure.Kafka;
 using Vitrin.Product.Infrastructure.Repositories;
 using Vitrin.Shared.Infrastructure.Kafka;
+using Vitrin.Shared.Infrastructure.Outbox;
 
 namespace Vitrin.Product.Infrastructure;
 
@@ -31,8 +32,8 @@ public static class DependencyInjection
         // Kafka Producer (Shared)
         services.AddSingleton<IEventPublisher, KafkaProducer>();
 
-        // Product event publisher (analytics + shared events)
-        services.AddScoped<IProductEventPublisher, ProductEventPublisher>();
+        services.AddScoped<ProductEventPublisher>();
+        services.AddVitrinOutbox<ProductDbContext>(configuration);
 
         // Kafka Consumer — Voting servisinden gelen VoteAdded/VoteRemoved event'lerini dinler
         services.AddHostedService<VotingEventsConsumer>();

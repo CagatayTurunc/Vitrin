@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Vitrin.Notification.Application.Commands;
 using Vitrin.Notification.Infrastructure.Data;
 using Vitrin.Notification.Infrastructure.Kafka;
@@ -23,6 +24,7 @@ public static class DependencyInjection
 
         // Repository
         services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.TryAddSingleton(TimeProvider.System);
 
         // Kafka Consumer — BackgroundService
         services.AddHostedService<NotificationKafkaConsumer>();

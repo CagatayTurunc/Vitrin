@@ -149,22 +149,6 @@ app.MapGet("/api/products/batch", async (string ids, ProductDbContext db) =>
 .WithName("GetProductsBatch")
 .WithOpenApi();
 
-app.MapPost("/api/products/{id}/vote", async (Guid id, HttpContext context, IMediator mediator) =>
-{
-    var userId = context.User.GetUserId();
-    if (userId == null) return Results.Unauthorized();
-
-    var result = await mediator.Send(new ToggleUpvoteCommand(id, userId.Value));
-    if (result.IsSuccess)
-    {
-        return Results.Ok(new { Upvotes = result.Value });
-    }
-    return ApiProblemResults.BadRequest(result.Error, "product.vote_failed");
-})
-.WithName("ToggleUpvote")
-.WithOpenApi()
-.RequireAuthorization();
-
 app.MapGet("/api/products/my-votes", async (HttpContext context, ProductDbContext db) =>
 {
     var userId = context.User.GetUserId();
@@ -247,16 +231,14 @@ app.MapPost("/api/products/admin/{id}/approve", async (Guid id, HttpContext cont
     var result = product.Approve();
     if (result.IsFailure) return ApiProblemResults.BadRequest(result.Error, "product.approve_failed");
     
-    await db.SaveChangesAsync();
-
-    // Kafka'ya ProductPublishedEvent publish et — Notification consumer karşılar
+    // Product state and its integration event are committed in one transaction.
     await eventPublisher.PublishProductPublished(new Vitrin.Shared.Contracts.Events.ProductPublishedEvent
     {
         ProductId   = product.Id,
         MakerId     = product.MakerId,
         ProductName = product.Name,
         ProductSlug = product.Slug
-    });
+    }, context.RequestAborted);
 
     await auditLogger.WriteAsync(
         new AuditEvent("admin.product_approved", context.User.GetUserId(), "Product", id.ToString(), "Succeeded", context.TraceIdentifier),

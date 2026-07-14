@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Vitrin.Product.Domain.Entities;
+using Vitrin.Shared.Infrastructure.Inbox;
+using Vitrin.Shared.Infrastructure.Outbox;
 
 namespace Vitrin.Product.Infrastructure.Data;
 
@@ -14,6 +16,8 @@ public class ProductDbContext : DbContext
     public DbSet<Topic> Topics { get; set; }
     public DbSet<ProductUpvote> ProductUpvotes { get; set; }
     public DbSet<Collection> Collections { get; set; }
+    public DbSet<InboxMessage> InboxMessages { get; set; }
+    public DbSet<OutboxMessage> OutboxMessages { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -67,5 +71,8 @@ public class ProductDbContext : DbContext
             builder.HasMany(c => c.Products)
                    .WithMany();
         });
+
+        modelBuilder.ConfigureVitrinInbox();
+        modelBuilder.ConfigureVitrinOutbox();
     }
 }

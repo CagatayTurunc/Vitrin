@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Vitrin.Shared.Infrastructure.Kafka;
+using Vitrin.Shared.Infrastructure.Outbox;
 using Vitrin.Voting.Application.Commands;
 using Vitrin.Voting.Infrastructure.Data;
 using Vitrin.Voting.Infrastructure.Kafka;
@@ -29,6 +30,8 @@ public static class DependencyInjection
 
         // Vote event publisher (wraps KafkaProducer)
         services.AddScoped<IVoteEventPublisher, VoteEventPublisher>();
+
+        services.AddVitrinOutbox<VoteDbContext>(configuration);
 
         return services;
     }

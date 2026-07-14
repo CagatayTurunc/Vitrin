@@ -18,6 +18,7 @@ public interface ICommentRepository
     Task<CommentItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
     Task AddAsync(CommentItem comment, CancellationToken cancellationToken);
     Task UpdateAsync(CommentItem comment, CancellationToken cancellationToken);
+    Task SaveChangesAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -79,6 +80,7 @@ public class AddCommentCommandHandler : IRequestHandler<AddCommentCommand, Resul
                 cancellationToken);
         }
 
+        await _repository.SaveChangesAsync(cancellationToken);
         return Result<Guid>.Success(commentResult.Value.Id);
     }
 }

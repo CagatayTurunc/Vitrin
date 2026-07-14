@@ -122,46 +122,69 @@ export const useProductStore = create<ProductStore>((set, get) => ({
   },
 
   upvote: async (productId: string, token: string) => {
+    const hadVoted = get().votedProductIds.includes(productId);
+
     try {
       // Optimistic UI Update
       set((state) => {
-        const hasVoted = state.votedProductIds.includes(productId);
-        const newVotedIds = hasVoted
+        const newVotedIds = hadVoted
           ? state.votedProductIds.filter(id => id !== productId)
           : [...state.votedProductIds, productId];
 
         return {
           votedProductIds: newVotedIds,
           products: state.products.map(p => 
-            p.id === productId ? { ...p, votes: hasVoted ? p.votes - 1 : p.votes + 1 } : p
+            p.id === productId ? { ...p, votes: hadVoted ? p.votes - 1 : p.votes + 1 } : p
           ),
           makerProducts: state.makerProducts.map(p => 
-            p.id === productId ? { ...p, votes: hasVoted ? p.votes - 1 : p.votes + 1 } : p
+            p.id === productId ? { ...p, votes: hadVoted ? p.votes - 1 : p.votes + 1 } : p
           ),
           upvotedProducts: state.upvotedProducts.map(p => 
-            p.id === productId ? { ...p, votes: hasVoted ? p.votes - 1 : p.votes + 1 } : p
+            p.id === productId ? { ...p, votes: hadVoted ? p.votes - 1 : p.votes + 1 } : p
           )
         };
       });
 
       // API Call
-      await ProductRepository.upvoteProduct(productId, token);
+      await ProductRepository.toggleVote(productId, hadVoted, token);
       
-      // Gamification: Record vote activity for streaks and badges
-      try {
-        await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/users/me/record-vote`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } catch (err) {
-        console.error("Streak could not be updated", err);
+      // Gamification is recorded only when a new vote is added.
+      if (!hadVoted) {
+        try {
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000';
+          await fetch(`${apiUrl}/api/auth/users/me/record-vote`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } catch (err) {
+          console.error("Streak could not be updated", err);
+        }
       }
       
       // Sync upvoted products list in the background
       get().fetchUpvotedProducts(token);
     } catch (error) {
       console.error("Oy verme işlemi başarısız oldu", error);
-      // Revert optimistic update here if needed
+      set((state) => ({
+        votedProductIds: hadVoted
+          ? [...new Set([...state.votedProductIds, productId])]
+          : state.votedProductIds.filter(id => id !== productId),
+        products: state.products.map(product =>
+          product.id === productId
+            ? { ...product, votes: Math.max(0, product.votes + (hadVoted ? 1 : -1)) }
+            : product
+        ),
+        makerProducts: state.makerProducts.map(product =>
+          product.id === productId
+            ? { ...product, votes: Math.max(0, product.votes + (hadVoted ? 1 : -1)) }
+            : product
+        ),
+        upvotedProducts: state.upvotedProducts.map(product =>
+          product.id === productId
+            ? { ...product, votes: Math.max(0, product.votes + (hadVoted ? 1 : -1)) }
+            : product
+        ),
+      }));
     }
   }
 }));
