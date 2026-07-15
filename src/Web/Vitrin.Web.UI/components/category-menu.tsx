@@ -20,8 +20,8 @@ export function CategoryMenu() {
         className={cn(
           "whitespace-nowrap px-4 py-2 rounded-full text-sm font-semibold transition-all border",
           selectedTopicSlug === null
-            ? "bg-[#00A170] text-white border-[#00A170] shadow-md"
-            : "bg-card text-foreground border-border hover:border-[#00A170]/50 hover:bg-[#00A170]/10"
+            ? "bg-[#007A52] text-white border-[#007A52] shadow-md"
+            : "bg-card text-foreground border-border hover:border-[#007A52]/50 hover:bg-[#007A52]/10"
         )}
       >
         Tümü
@@ -34,8 +34,8 @@ export function CategoryMenu() {
           className={cn(
             "whitespace-nowrap px-4 py-2 rounded-full text-sm font-semibold transition-all border",
             selectedTopicSlug === topic.slug
-              ? "bg-[#00A170] text-white border-[#00A170] shadow-md"
-              : "bg-card text-foreground border-border hover:border-[#00A170]/50 hover:bg-[#00A170]/10"
+              ? "bg-[#007A52] text-white border-[#007A52] shadow-md"
+              : "bg-card text-foreground border-border hover:border-[#007A52]/50 hover:bg-[#007A52]/10"
           )}
         >
           {topic.name}

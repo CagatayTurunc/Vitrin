@@ -25,6 +25,7 @@ appsettings.Production.json
 # Node.js / pnpm / Next.js
 node_modules/
 .pnpm-store/
+artifacts/
 .pnp
 .pnp.js
 npm-debug.log*

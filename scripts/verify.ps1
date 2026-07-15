@@ -2,6 +2,9 @@ param(
     [switch]$SkipRestore,
     [switch]$SkipInstall,
     [switch]$SkipBuild,
+    [switch]$SkipIntegration,
+    [switch]$Coverage,
+    [switch]$E2E,
     [switch]$CheckCompose
 )
 
@@ -32,8 +35,20 @@ try {
         }
     }
 
-    Invoke-CheckedCommand "Backend testleri" {
-        dotnet test Vitrin.sln --configuration Release --no-restore --verbosity minimal
+    Invoke-CheckedCommand "Backend unit testleri" {
+        dotnet test Vitrin.sln --configuration Release --no-restore --verbosity minimal --filter "Category!=Integration&Category!=Contract"
+    }
+
+    if (-not $SkipIntegration) {
+        Invoke-CheckedCommand "Backend integration ve contract testleri" {
+            dotnet test tests\Vitrin.IntegrationTests\Vitrin.IntegrationTests.csproj --configuration Release --no-restore --verbosity minimal --filter "Category=Integration|Category=Contract"
+        }
+    }
+
+    if ($Coverage) {
+        Invoke-CheckedCommand "Backend coverage eşiği" {
+            & (Join-Path $PSScriptRoot "check-coverage.ps1") -NoBuild
+        }
     }
 
     Push-Location $web
@@ -50,6 +65,22 @@ try {
 
         Invoke-CheckedCommand "Frontend typecheck" {
             corepack pnpm typecheck
+        }
+
+        Invoke-CheckedCommand "Frontend unit testleri" {
+            corepack pnpm test
+        }
+
+        if ($Coverage) {
+            Invoke-CheckedCommand "Frontend coverage eşiği" {
+                corepack pnpm test:coverage
+            }
+        }
+
+        if ($E2E) {
+            Invoke-CheckedCommand "Frontend Playwright smoke ve accessibility testleri" {
+                corepack pnpm test:e2e
+            }
         }
 
         if (-not $SkipBuild) {

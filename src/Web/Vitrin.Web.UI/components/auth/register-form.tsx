@@ -84,7 +84,7 @@ export function RegisterForm() {
     <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[400px]">
       <div className="flex flex-col space-y-2 text-left">
         <div className="inline-flex items-center rounded-full border border-border/40 bg-muted/50 px-2.5 py-0.5 text-xs font-medium w-fit mb-2">
-          <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-[#00A170]"></span>
+          <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-[#007A52]"></span>
           Vitrin&apos;e Katıl
         </div>
         <h1 className="text-3xl font-bold tracking-tight">Hesap Oluştur</h1>
@@ -197,7 +197,7 @@ export function RegisterForm() {
               <div className="text-sm font-medium text-destructive">{error}</div>
             )}
             
-            <Button type="submit" disabled={isLoading} className="w-full bg-[#00A170] hover:bg-[#008f63] text-white rounded-xl h-10 mt-2">
+            <Button type="submit" disabled={isLoading} className="w-full bg-[#007A52] hover:bg-[#006B48] text-white rounded-xl h-10 mt-2">
               {isLoading ? "Bekleniyor..." : (
                 <>
                   Kayıt Ol <ArrowRight className="ml-2 h-4 w-4" />
@@ -239,7 +239,7 @@ export function RegisterForm() {
       
       <p className="px-8 text-center text-sm text-muted-foreground mt-4">
         Zaten hesabın var mı?{" "}
-        <Link href="/login" className="font-semibold text-[#00A170] hover:underline underline-offset-4">
+        <Link href="/login" className="font-semibold text-[#007A52] hover:underline underline-offset-4">
           Giriş Yap
         </Link>
       </p>

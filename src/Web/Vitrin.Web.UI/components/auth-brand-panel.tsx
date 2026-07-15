@@ -5,7 +5,7 @@ import React from "react";
 
 export function AuthBrandPanel() {
   return (
-    <div className="relative hidden h-full flex-col bg-[#00A170] p-10 text-white lg:flex overflow-hidden">
+    <div className="relative hidden h-full flex-col bg-[#007A52] p-10 text-white lg:flex overflow-hidden">
       {/* Animated dots background */}
       <div className="absolute inset-0 z-0 opacity-20 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
 
@@ -102,7 +102,7 @@ export function AuthBrandPanel() {
             &ldquo;Vitrin sayesinde harika ürünler keşfettim ve kendi projelerimi doğru kitleye ulaştırma şansı buldum.&rdquo;
           </p>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#008f63] font-bold text-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#006B48] font-bold text-sm">
               N
             </div>
             <div>

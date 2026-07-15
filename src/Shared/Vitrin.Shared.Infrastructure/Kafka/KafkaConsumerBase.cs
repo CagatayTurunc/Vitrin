@@ -81,6 +81,11 @@ public abstract class KafkaConsumerBase : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // BackgroundService.StartAsync invokes ExecuteAsync synchronously until its first
+        // incomplete await. Yield before the blocking Consume loop so an empty topic cannot
+        // stall the host startup sequence.
+        await Task.Yield();
+
         _logger.LogInformation(
             "[{GroupId}] Starting Kafka consumer for topics {Topics}",
             _groupId,

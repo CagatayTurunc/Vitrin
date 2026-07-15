@@ -109,6 +109,7 @@ docker-compose.yml         Yerel mikroservis orkestrasyonu
 - [ADR-0005 — Migration deployment job](docs/adr/0005-migration-deployment-job.md)
 - [Event Catalog — topic, producer ve consumer matrisi](docs/event-catalog.md)
 - [Veri erişimi, indeks ve EXPLAIN ANALYZE rehberi](docs/data-access-performance.md)
+- [Test stratejisi ve kalite kapıları](docs/testing-strategy.md)
 
 ## Güvenlik notları
 
@@ -128,4 +129,4 @@ docker-compose.yml         Yerel mikroservis orkestrasyonu
 
 ## Proje durumu
 
-Aşama 0 stabilizasyonu, Aşama 1 güvenlik/doğruluk çalışmaları ve Aşama 2 tamamlanmıştır. OAuth sağlayıcı doğrulaması, merkezi JWT/policy katmanı, güvenilir caller identity sınırı, sahiplik kontrolleri, Gateway rate limiting, merkezi ProblemDetails, kalıcı AI kotası ve yapılandırılmış audit log temeline ek olarak semantik event catalog, Transactional Outbox, Inbox idempotency, bounded retry/backoff, Kafka DLQ ve event schema versioning uygulanmıştır. Voting oyların tek yazma otoritesidir; Product oy verisini event-driven read model olarak tutar. Veri katmanında keyset cursor pagination, DTO projection, `AsNoTracking`, sorguya göre bileşik indeksler, PostgreSQL `pg_trgm` araması, yarışa dayanıklı slug üretimi ve ayrı migration deployment job'ı bulunur. Sıradaki çalışma Aşama 3 test mimarisidir.
+Aşama 0 stabilizasyonu, Aşama 1 güvenlik/doğruluk çalışmaları ve Aşama 2 veri/event mimarisi tamamlanmıştır; Aşama 3 test mimarisinin backend, contract, frontend unit/coverage ve k6 katmanları hazırdır. OAuth sağlayıcı doğrulaması, merkezi JWT/policy katmanı, güvenilir caller identity sınırı, sahiplik kontrolleri, Gateway rate limiting, merkezi ProblemDetails, Transactional Outbox/Inbox, Kafka DLQ ve event schema versioning uygulanmıştır. Test katmanı; unit, Testcontainers, WebApplicationFactory güvenlik/IDOR, OpenAPI compatibility, Vitest/RTL, Playwright/axe senaryoları, k6 ve ölçülen coverage eşiklerini kapsar. Aşama 3'ün kapanışı için Playwright/axe gerçek tarayıcı kapısının temiz bir ortamda yeşil doğrulanması beklenmektedir; ardından Aşama 4 observability ve production deployment'a geçilecektir.

@@ -22,7 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside className="fixed inset-y-0 left-0 z-50 w-64 border-r bg-background hidden md:block">
         <div className="flex h-16 items-center border-b px-6">
           <Link href="/admin" className="flex items-center gap-2 font-bold text-xl tracking-tight">
-            <span className="h-6 w-6 rounded-md bg-[#00A170] text-white flex items-center justify-center text-xs">V</span>
+            <span className="h-6 w-6 rounded-md bg-[#007A52] text-white flex items-center justify-center text-xs">V</span>
             Vitrin Admin
           </Link>
         </div>
@@ -36,7 +36,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 href={item.href}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? "bg-[#00A170]/10 text-[#00A170]"
+                    ? "bg-[#007A52]/10 text-[#007A52]"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >

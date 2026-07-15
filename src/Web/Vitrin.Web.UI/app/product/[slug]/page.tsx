@@ -401,7 +401,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
           </Button>
           <Button 
             size="lg" 
-            className="gap-2 h-14 px-8 rounded-xl font-bold w-full md:w-auto bg-[#00A170] hover:bg-[#008f63] text-white shadow-md transition-all hover:scale-105 active:scale-95"
+            className="gap-2 h-14 px-8 rounded-xl font-bold w-full md:w-auto bg-[#007A52] hover:bg-[#006B48] text-white shadow-md transition-all hover:scale-105 active:scale-95"
             onClick={handleUpvote}
             disabled={isVoting}
           >

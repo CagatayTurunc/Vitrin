@@ -274,16 +274,16 @@ Hedef:
 
 ## 8. Test durumu
 
-Denetim sırasında alınan sonuçlar:
+15 Temmuz 2026 Aşama 3 doğrulama sonucu:
 
-- Auth: 26 test geçti.
-- Product: 24 test geçti.
-- Voting: 7 test geçti.
-- Toplam 57 test geçti.
-- Comment test projesi eski constructor imzası nedeniyle derlenemedi.
-- Bu nedenle `dotnet test Vitrin.sln` genel sonucu başarısızdır.
-- Frontend `npm run lint`, ESLint bulunmadığı için başarısızdır.
-- Frontend test altyapısı bulunmamaktadır.
+- Backend: 113 unit test geçti.
+- Backend: 19 integration/contract test geçti.
+- PostgreSQL, Kafka ve Redis testleri gerçek Testcontainers bağımlılıklarıyla çalıştı.
+- Backend satır coverage sonucu %38,03; kalite kapısı en az %35'tir.
+- Frontend: 11 Vitest/React Testing Library testi geçti.
+- Seçili kritik frontend modüllerinde satır coverage sonucu %89,06; kalite kapısı en az %70'tir.
+- Playwright public smoke akışları ve axe WCAG taramaları eklendi; Windows dosya sistemi/tarayıcı başlangıç darboğazı nedeniyle nihai yeşil E2E doğrulaması beklemededir.
+- `scripts/verify.ps1` unit, integration, lint, typecheck ve build zincirini tek komutta çalıştırır.
 
 Hedef test piramidi:
 
@@ -618,18 +618,18 @@ Coverage, throughput ve latency değerleri ölçülmeden yazılmamalıdır.
 ### Aşama 3 — Test mimarisi
 
 - [x] Bütün unit testleri yeşile getir
-- [ ] Testcontainers PostgreSQL testleri ekle
-- [ ] Testcontainers Kafka testleri ekle
-- [ ] Testcontainers Redis testleri ekle
-- [ ] WebApplicationFactory API testleri ekle
-- [ ] Authorization ve IDOR testleri ekle
+- [x] Testcontainers PostgreSQL testleri ekle
+- [x] Testcontainers Kafka testleri ekle
+- [x] Testcontainers Redis testleri ekle
+- [x] WebApplicationFactory API testleri ekle
+- [x] Authorization ve IDOR testleri ekle
 - [x] Event-topic contract testleri ekle
-- [ ] OpenAPI compatibility kontrolü ekle
-- [ ] Vitest ve React Testing Library ekle
+- [x] OpenAPI compatibility kontrolü ekle
+- [x] Vitest ve React Testing Library ekle
 - [ ] Playwright kritik akışlarını ekle
 - [ ] axe accessibility testleri ekle
-- [ ] k6 load test senaryoları ekle
-- [ ] Coverage threshold belirle
+- [x] k6 load test senaryoları ekle
+- [x] Coverage threshold belirle
 
 ### Aşama 4 — Observability ve production deployment
 

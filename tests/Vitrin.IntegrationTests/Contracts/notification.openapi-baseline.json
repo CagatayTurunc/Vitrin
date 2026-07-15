@@ -1,0 +1,9 @@
+{
+  "operations": [
+    { "path": "/api/notifications", "method": "post", "operationId": "SendNotification" },
+    { "path": "/api/notifications/me", "method": "get", "operationId": "GetMyNotifications" },
+    { "path": "/api/notifications/me/unread-count", "method": "get", "operationId": "GetUnreadCount" },
+    { "path": "/api/notifications/{id}/read", "method": "post", "operationId": "MarkNotificationAsRead" },
+    { "path": "/api/notifications/read-all", "method": "post", "operationId": "MarkAllAsRead" }
+  ]
+}
