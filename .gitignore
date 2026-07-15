@@ -12,6 +12,8 @@ coverage/
 
 # Local databases and transient SQLite files
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal
 *.db
 *.db-shm
 *.db-wal
@@ -22,6 +24,7 @@ appsettings.Production.json
 
 # Node.js / pnpm / Next.js
 node_modules/
+.pnpm-store/
 .pnp
 .pnp.js
 npm-debug.log*

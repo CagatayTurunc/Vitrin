@@ -6,6 +6,9 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 COPY ["src/Gateways/Vitrin.Gateway/Vitrin.Gateway.csproj", "src/Gateways/Vitrin.Gateway/"]
+COPY ["src/Shared/Vitrin.Shared.Kernel/Vitrin.Shared.Kernel.csproj", "src/Shared/Vitrin.Shared.Kernel/"]
+COPY ["src/Shared/Vitrin.Shared.Contracts/Vitrin.Shared.Contracts.csproj", "src/Shared/Vitrin.Shared.Contracts/"]
+COPY ["src/Shared/Vitrin.Shared.Infrastructure/Vitrin.Shared.Infrastructure.csproj", "src/Shared/Vitrin.Shared.Infrastructure/"]
 
 RUN dotnet restore "src/Gateways/Vitrin.Gateway/Vitrin.Gateway.csproj"
 

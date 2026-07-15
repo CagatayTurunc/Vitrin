@@ -20,6 +20,9 @@ importers:
       '@radix-ui/react-toast':
         specifier: ^1.2.19
         version: 1.2.19(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@uiw/react-markdown-preview':
+        specifier: 5.2.1
+        version: 5.2.1(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@uiw/react-md-editor':
         specifier: ^4.1.1
         version: 4.1.1(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
