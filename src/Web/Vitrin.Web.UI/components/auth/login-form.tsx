@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
+import { getErrorMessage } from "@/lib/errors";
 import Link from "next/link";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 
@@ -42,9 +43,9 @@ export function LoginForm() {
         router.push("/");
         router.refresh();
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Login Error:", err);
-      setError(err.message || "Giriş yapılırken bir hata oluştu.");
+      setError(getErrorMessage(err, "Giriş yapılırken bir hata oluştu."));
     } finally {
       setIsLoading(false);
     }
@@ -64,7 +65,7 @@ export function LoginForm() {
     <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[400px]">
       <div className="flex flex-col space-y-2 text-left">
         <div className="inline-flex items-center rounded-full border border-border/40 bg-muted/50 px-2.5 py-0.5 text-xs font-medium w-fit mb-2">
-          <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-[#00A170]"></span>
+          <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-[#007A52]"></span>
           Tekrar aramızda
         </div>
         <h1 className="text-3xl font-bold tracking-tight">Tekrar Hoş Geldin</h1>
@@ -99,7 +100,7 @@ export function LoginForm() {
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Şifre</Label>
-                <Link href="#" className="text-xs text-[#00A170] hover:underline">
+                <Link href="#" className="text-xs text-[#007A52] hover:underline">
                   Şifreni mi unuttun?
                 </Link>
               </div>
@@ -119,6 +120,7 @@ export function LoginForm() {
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}
                   className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
                   onClick={() => setShowPassword(!showPassword)}
                 >
@@ -135,7 +137,7 @@ export function LoginForm() {
               <input
                 type="checkbox"
                 id="remember"
-                className="h-4 w-4 rounded border-gray-300 text-[#00A170] focus:ring-[#00A170]"
+                className="h-4 w-4 rounded border-gray-300 text-[#007A52] focus:ring-[#007A52]"
               />
               <label
                 htmlFor="remember"
@@ -149,7 +151,7 @@ export function LoginForm() {
               <div className="text-sm font-medium text-destructive">{error}</div>
             )}
             
-            <Button type="submit" disabled={isLoading} className="w-full bg-[#00A170] hover:bg-[#008f63] text-white rounded-xl h-10 mt-2">
+            <Button type="submit" disabled={isLoading} className="w-full bg-[#007A52] hover:bg-[#006B48] text-white rounded-xl h-10 mt-2">
               {isLoading ? "Bekleniyor..." : (
                 <>
                   Giriş Yap <ArrowRight className="ml-2 h-4 w-4" />
@@ -172,7 +174,7 @@ export function LoginForm() {
 
         <div className="grid grid-cols-2 gap-4">
           <Button variant="outline" className="rounded-xl h-10" type="button" disabled={isLoading} onClick={loginWithGoogle}>
-            <svg role="img" viewBox="0 0 24 24" className="mr-2 h-4 w-4">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="mr-2 h-4 w-4">
               <path
                 fill="currentColor"
                 d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"
@@ -181,7 +183,7 @@ export function LoginForm() {
             Google
           </Button>
           <Button variant="outline" className="rounded-xl h-10" type="button" disabled={isLoading} onClick={loginWithGithub}>
-            <svg role="img" viewBox="0 0 24 24" className="mr-2 h-4 w-4" fill="currentColor">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="mr-2 h-4 w-4" fill="currentColor">
               <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
             </svg>
             GitHub
@@ -191,7 +193,7 @@ export function LoginForm() {
       
       <p className="px-8 text-center text-sm text-muted-foreground mt-4">
         Henüz hesabın yok mu?{" "}
-        <Link href="/register" className="font-semibold text-[#00A170] hover:underline underline-offset-4">
+        <Link href="/register" className="font-semibold text-[#007A52] hover:underline underline-offset-4">
           Kayıt Ol
         </Link>
       </p>

@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, Bookmark, Check } from "lucide-react";
+import { Loader2, Plus, Bookmark } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast";
+import type { CollectionSummary } from "@/core/domain/collection.types";
+import { getErrorMessage } from "@/lib/errors";
 
 interface AddToCollectionModalProps {
   isOpen: boolean;
@@ -18,37 +20,42 @@ export function AddToCollectionModal({ isOpen, onClose, productId }: AddToCollec
   const { data: session } = useSession();
   const { toast } = useToast();
   
-  const [collections, setCollections] = useState<any[]>([]);
+  const [collections, setCollections] = useState<CollectionSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
   const [newCollectionName, setNewCollectionName] = useState("");
   const [newCollectionDesc, setNewCollectionDesc] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && session?.user) {
-      fetchCollections();
-    }
-  }, [isOpen, session]);
+  const accessToken = session?.accessToken;
 
-  const fetchCollections = async () => {
+  const fetchCollections = useCallback(async () => {
+    if (!accessToken) return;
+
     setIsLoading(true);
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/collections/user/${(session?.user as any)?.id}`);
+      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/collections/me", {
+        headers: { "Authorization": `Bearer ${accessToken}` },
+      });
       if (res.ok) {
-        const data = await res.json();
-        setCollections(data);
+        setCollections(await res.json() as CollectionSummary[]);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [accessToken]);
+
+  useEffect(() => {
+    // Opening the controlled dialog intentionally triggers an async collection refresh.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (isOpen && accessToken) void fetchCollections();
+  }, [accessToken, fetchCollections, isOpen]);
 
   const handleCreateCollection = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e) e.preventDefault();
-    if (!newCollectionName.trim()) return;
+    if (!newCollectionName.trim() || !accessToken) return;
     
     setIsCreating(true);
     try {
@@ -56,9 +63,9 @@ export function AddToCollectionModal({ isOpen, onClose, productId }: AddToCollec
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          userId: (session?.user as any)?.id,
           name: newCollectionName,
           description: newCollectionDesc
         }),
@@ -81,11 +88,11 @@ export function AddToCollectionModal({ isOpen, onClose, productId }: AddToCollec
           variant: "destructive"
         });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       toast({
         title: "Bağlantı Hatası",
-        description: e.message || "Koleksiyon oluşturulurken bir hata oluştu.",
+        description: getErrorMessage(e, "Koleksiyon oluşturulurken bir hata oluştu."),
         variant: "destructive"
       });
     } finally {
@@ -94,9 +101,12 @@ export function AddToCollectionModal({ isOpen, onClose, productId }: AddToCollec
   };
 
   const handleAddToCollection = async (collectionId: string) => {
+    if (!accessToken) return;
+
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/collections/${collectionId}/products/${productId}`, {
         method: "POST",
+        headers: { "Authorization": `Bearer ${accessToken}` },
       });
       
       if (res.ok) {

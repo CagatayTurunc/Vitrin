@@ -3,27 +3,32 @@ using Microsoft.EntityFrameworkCore;
 using Vitrin.Auth.Application;
 using Vitrin.Auth.Application.Commands;
 using Vitrin.Auth.Infrastructure;
+using Vitrin.Auth.Api;
+using Vitrin.Shared.Infrastructure.Api;
+using Vitrin.Shared.Infrastructure.Audit;
+using Vitrin.Shared.Infrastructure.Auth;
+using Vitrin.Shared.Infrastructure.Migrations;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
+builder.Services.AddVitrinApiErrors();
+builder.Services.AddVitrinAuditLogging();
+
+builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<Vitrin.Auth.Infrastructure.Data.AuthDbContext>();
-    try {
-        db.Database.Migrate();
-    } catch {
-        // Log error or ignore if DB is not ready, though depends_on should handle it
-    }
-}
+app.UseVitrinApiErrors();
+
+if (await app.MigrateDatabaseAndExitAsync<Vitrin.Auth.Infrastructure.Data.AuthDbContext>(
+    args,
+    static (db, cancellationToken) => db.Database.MigrateAsync(cancellationToken))) return;
 
 if (app.Environment.IsDevelopment())
 {
@@ -31,70 +36,65 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapHealthChecks("/health");
 
-app.MapPost("/api/auth/register", async (RegisterCommand command, IMediator mediator) =>
+app.MapPost("/api/auth/register", async (RegisterCommand command, HttpContext context, IMediator mediator, IAuditLogger auditLogger) =>
 {
     var result = await mediator.Send(command);
-    return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-});
+    await auditLogger.WriteAsync(
+        new AuditEvent("auth.register", null, "Session", null, result.IsSuccess ? "Succeeded" : "Failed", context.TraceIdentifier),
+        context.RequestAborted);
+    return result.IsSuccess ? Results.Ok(result.Value) : ApiProblemResults.BadRequest(result.Error, "auth.registration_failed");
+})
+.AddEndpointFilter<ValidationEndpointFilter<RegisterCommand>>();
 
-app.MapPost("/api/auth/login", async (LoginCommand command, IMediator mediator) =>
+app.MapPost("/api/auth/login", async (LoginCommand command, HttpContext context, IMediator mediator, IAuditLogger auditLogger) =>
 {
     var result = await mediator.Send(command);
-    return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-});
+    await auditLogger.WriteAsync(
+        new AuditEvent("auth.login", null, "Session", null, result.IsSuccess ? "Succeeded" : "Failed", context.TraceIdentifier),
+        context.RequestAborted);
+    return result.IsSuccess ? Results.Ok(result.Value) : ApiProblemResults.BadRequest(result.Error, "auth.login_failed");
+})
+.AddEndpointFilter<ValidationEndpointFilter<LoginCommand>>();
 
-app.MapPost("/api/auth/external-login", async (ExternalLoginCommand command, IMediator mediator) =>
+app.MapPost("/api/auth/external-login", async (ExternalLoginCommand command, HttpContext context, IMediator mediator, IAuditLogger auditLogger) =>
 {
     var result = await mediator.Send(command);
-    return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-});
+    await auditLogger.WriteAsync(
+        new AuditEvent("auth.external_login", null, "Session", null, result.IsSuccess ? "Succeeded" : "Failed", context.TraceIdentifier),
+        context.RequestAborted);
+    return result.IsSuccess ? Results.Ok(result.Value) : ApiProblemResults.BadRequest(result.Error, "auth.external_login_failed");
+})
+.AddEndpointFilter<ValidationEndpointFilter<ExternalLoginCommand>>();
 
-string? GetUserRoleFromRequest(HttpContext context)
+app.MapGet("/api/auth/admin/users", async (Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (authHeader != null && authHeader.StartsWith("Bearer "))
-    {
-        var token = authHeader.Substring("Bearer ".Length).Trim();
-        try {
-            var parts = token.Split('.');
-            if (parts.Length >= 2) {
-                var payload = parts[1];
-                payload = payload.Replace('-', '+').Replace('_', '/');
-                while (payload.Length % 4 != 0) payload += "=";
-                var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-                using var doc = System.Text.Json.JsonDocument.Parse(json);
-                if (doc.RootElement.TryGetProperty("Role", out var roleEl) || doc.RootElement.TryGetProperty("role", out roleEl)) {
-                    return roleEl.GetString();
-                }
-            }
-        } catch { }
-    }
-    return null;
-}
-
-app.MapGet("/api/auth/admin/users", async (HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
-{
-    var role = GetUserRoleFromRequest(context);
-    if (role != "Admin") return Results.Unauthorized();
-
-    var users = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(db.Users);
-    return Results.Ok(users.Select(u => new { 
-        u.Id, 
-        u.Email, 
-        u.Username, 
-        u.FullName, 
-        u.Headline,
-        u.Role, 
-        u.CreatedAt 
-    }));
-});
+    var users = await db.Users
+        .AsNoTracking()
+        .OrderByDescending(user => user.CreatedAt)
+        .Take(500)
+        .Select(user => new {
+            user.Id,
+            user.Email,
+            user.Username,
+            user.FullName,
+            user.Headline,
+            user.Role,
+            user.CreatedAt
+        })
+        .ToListAsync();
+    return Results.Ok(users);
+}).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
 app.MapGet("/api/auth/users/by-username/{username}", async (string username, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
+    var normalizedUsername = username.Trim();
     var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
-        db.Users.Include(u => u.Badges), u => u.Username.ToLower() == username.ToLower());
+        db.Users.AsNoTracking().Include(u => u.Badges), u => u.Username == normalizedUsername);
         
     if (user == null) return Results.NotFound();
     
@@ -102,16 +102,10 @@ app.MapGet("/api/auth/users/by-username/{username}", async (string username, Htt
     var followingCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(db.UserFollows, uf => uf.FollowerId == user.Id);
     
     bool isFollowing = false;
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (authHeader != null && authHeader.StartsWith("Bearer ")) {
-        try {
-            var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-            var jwt = handler.ReadJwtToken(authHeader.Substring("Bearer ".Length));
-            var sub = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
-            if (Guid.TryParse(sub, out var currentUserId)) {
-                isFollowing = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(db.UserFollows, uf => uf.FollowerId == currentUserId && uf.FollowingId == user.Id);
-            }
-        } catch {}
+    var currentUserId = context.User.GetUserId();
+    if (currentUserId.HasValue)
+    {
+        isFollowing = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(db.UserFollows, uf => uf.FollowerId == currentUserId.Value && uf.FollowingId == user.Id);
     }
 
     return Results.Ok(new {
@@ -136,23 +130,17 @@ app.MapGet("/api/auth/users/by-username/{username}", async (string username, Htt
 
 app.MapGet("/api/auth/users/{userId:guid}", async (Guid userId, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users.Include(u => u.Badges), u => u.Id == userId);
+    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users.AsNoTracking().Include(u => u.Badges), u => u.Id == userId);
     if (user == null) return Results.NotFound();
     
     var followerCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(db.UserFollows, uf => uf.FollowingId == user.Id);
     var followingCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(db.UserFollows, uf => uf.FollowerId == user.Id);
     
     bool isFollowing = false;
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (authHeader != null && authHeader.StartsWith("Bearer ")) {
-        try {
-            var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-            var jwt = handler.ReadJwtToken(authHeader.Substring("Bearer ".Length));
-            var sub = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
-            if (Guid.TryParse(sub, out var currentUserId)) {
-                isFollowing = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(db.UserFollows, uf => uf.FollowerId == currentUserId && uf.FollowingId == user.Id);
-            }
-        } catch {}
+    var currentUserId = context.User.GetUserId();
+    if (currentUserId.HasValue)
+    {
+        isFollowing = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(db.UserFollows, uf => uf.FollowerId == currentUserId.Value && uf.FollowingId == user.Id);
     }
 
     return Results.Ok(new {
@@ -177,20 +165,12 @@ app.MapGet("/api/auth/users/{userId:guid}", async (Guid userId, HttpContext cont
 
 app.MapGet("/api/auth/users/me", async (HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (authHeader == null || !authHeader.StartsWith("Bearer ")) return Results.Unauthorized();
-    var token = authHeader.Substring("Bearer ".Length);
-    Guid userId;
-    try {
-        var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-        var jwt = handler.ReadJwtToken(token);
-        var sub = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
-        if (!Guid.TryParse(sub, out userId)) return Results.Unauthorized();
-    } catch { return Results.Unauthorized(); }
+    var userId = context.User.GetUserId();
+    if (userId == null) return Results.Unauthorized();
     
-    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users.Include(u => u.Badges), u => u.Id == userId);
+    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users.AsNoTracking().Include(u => u.Badges), u => u.Id == userId.Value);
     if (user == null) return Results.NotFound();
-    
+
     var followerCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(db.UserFollows, uf => uf.FollowingId == user.Id);
     var followingCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(db.UserFollows, uf => uf.FollowerId == user.Id);
 
@@ -211,193 +191,178 @@ app.MapGet("/api/auth/users/me", async (HttpContext context, Vitrin.Auth.Infrast
         FollowerCount = followerCount,
         FollowingCount = followingCount
     });
-});
+}).RequireAuthorization();
 
-app.MapPut("/api/auth/users/me", async (HttpContext context, [Microsoft.AspNetCore.Mvc.FromBody] UpdateProfileRequest request, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+app.MapPut("/api/auth/users/me", async (HttpContext context, [Microsoft.AspNetCore.Mvc.FromBody] UpdateProfileRequest request, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, IAuditLogger auditLogger) =>
 {
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (authHeader == null || !authHeader.StartsWith("Bearer ")) return Results.Unauthorized();
-    var token = authHeader.Substring("Bearer ".Length);
-    Guid userId;
-    try {
-        var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-        var jwt = handler.ReadJwtToken(token);
-        var sub = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
-        if (!Guid.TryParse(sub, out userId)) return Results.Unauthorized();
-    } catch { return Results.Unauthorized(); }
-    
-    var user = await db.Users.FindAsync(userId);
+    var userId = context.User.GetUserId();
+    if (userId == null) return Results.Unauthorized();
+
+    var user = await db.Users.FindAsync(userId.Value);
     if (user == null) return Results.NotFound();
-    
+
     // Check if new username is taken by someone else
-    if (request.Username != user.Username && await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(db.Users, u => u.Username == request.Username && u.Id != userId))
+    if (request.Username != user.Username && await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(db.Users, u => u.Username == request.Username && u.Id != userId.Value))
     {
-        return Results.BadRequest("This username is already taken.");
+        return ApiProblemResults.BadRequest("This username is already taken.", "profile.username_taken");
     }
-    
+
     user.UpdateProfile(request.FullName, request.Username, request.Headline, request.About, request.AvatarUrl, request.WebsiteUrl, request.GithubUrl, request.LinkedInUrl);
     await db.SaveChangesAsync();
-    
-    return Results.Ok(new { Message = "Profile updated successfully." });
-});
 
-app.MapPost("/api/auth/admin/users/{id}/role", async (Guid id, HttpContext context, [Microsoft.AspNetCore.Mvc.FromBody] int role, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+    await auditLogger.WriteAsync(
+        new AuditEvent("user.profile_updated", userId, "User", userId.ToString(), "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
+
+    return Results.Ok(new { Message = "Profile updated successfully." });
+}).RequireAuthorization();
+
+app.MapPost("/api/auth/admin/users/{id}/role", async (Guid id, [Microsoft.AspNetCore.Mvc.FromBody] int role, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, IAuditLogger auditLogger) =>
 {
-    var currentUserRole = GetUserRoleFromRequest(context);
-    if (currentUserRole != "Admin") return Results.Unauthorized();
+    if (!Enum.IsDefined(typeof(Vitrin.Auth.Domain.Entities.UserRole), role))
+        return ApiProblemResults.BadRequest("The requested role is invalid.", "admin.invalid_role");
 
     var user = await db.Users.FindAsync(id);
-    if (user == null) return Results.NotFound("User not found");
+    if (user == null) return ApiProblemResults.NotFound("User not found.", "user.not_found");
     
     user.UpdateRole((Vitrin.Auth.Domain.Entities.UserRole)role);
     await db.SaveChangesAsync();
+
+    await auditLogger.WriteAsync(
+        new AuditEvent("admin.user_role_updated", context.User.GetUserId(), "User", id.ToString(), "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
     
     return Results.Ok(new { Message = "User role updated successfully" });
-});
+}).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
 // MAKER APPLICATIONS
-app.MapPost("/api/auth/maker-applications", async ([Microsoft.AspNetCore.Mvc.FromBody] MakerApplicationRequest request, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+app.MapPost("/api/auth/maker-applications", async (HttpContext context, [Microsoft.AspNetCore.Mvc.FromBody] MakerApplicationRequest request, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var application = Vitrin.Auth.Domain.Entities.MakerApplication.Create(request.UserId, request.PortfolioUrl, request.Reason);
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
+    var application = Vitrin.Auth.Domain.Entities.MakerApplication.Create(userId.Value, request.PortfolioUrl, request.Reason);
     db.MakerApplications.Add(application);
     await db.SaveChangesAsync();
     return Results.Ok(new { Message = "Application submitted successfully." });
-});
+}).RequireAuthorization();
 
-app.MapGet("/api/auth/admin/maker-applications", async (HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+app.MapGet("/api/auth/admin/maker-applications", async (Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var role = GetUserRoleFromRequest(context);
-    if (role != "Admin") return Results.Unauthorized();
-
-    var apps = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
-        db.MakerApplications.Where(m => m.Status == Vitrin.Auth.Domain.Entities.ApplicationStatus.Pending)
-    );
-    
-    // We want to return user details as well
-    var users = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(db.Users);
-    
-    var result = apps.Select(a => new {
-        a.Id,
-        a.PortfolioUrl,
-        a.Reason,
-        a.CreatedAt,
-        User = users.FirstOrDefault(u => u.Id == a.UserId)?.Email,
-        FullName = users.FirstOrDefault(u => u.Id == a.UserId)?.FullName
-    });
+    var result = await (
+        from application in db.MakerApplications.AsNoTracking()
+        join user in db.Users.AsNoTracking() on application.UserId equals user.Id
+        where application.Status == Vitrin.Auth.Domain.Entities.ApplicationStatus.Pending
+        orderby application.CreatedAt
+        select new {
+            application.Id,
+            application.PortfolioUrl,
+            application.Reason,
+            application.CreatedAt,
+            User = user.Email,
+            user.FullName
+        })
+        .Take(100)
+        .ToListAsync();
     
     return Results.Ok(result);
-});
+}).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
-app.MapPost("/api/auth/admin/maker-applications/{id}/approve", async (Guid id, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+app.MapPost("/api/auth/admin/maker-applications/{id}/approve", async (Guid id, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, Vitrin.Auth.Infrastructure.Kafka.IAuthNotificationPublisher notificationPublisher, IAuditLogger auditLogger) =>
 {
-    var role = GetUserRoleFromRequest(context);
-    if (role != "Admin") return Results.Unauthorized();
-
     var appToApprove = await db.MakerApplications.FindAsync(id);
     if (appToApprove == null) return Results.NotFound();
     
     appToApprove.Approve();
     
-    // Also change user role to Maker (1)
     var user = await db.Users.FindAsync(appToApprove.UserId);
-    if (user != null) {
+    if (user != null)
+    {
         user.UpdateRole(Vitrin.Auth.Domain.Entities.UserRole.Maker);
-        
-        try {
-            using var client = new HttpClient();
-            var notifPayload = new { userId = user.Id, message = "Tebrikler, artık Maker oldunuz!" };
-            var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(notifPayload), System.Text.Encoding.UTF8, "application/json");
-            await client.PostAsync("http://vitrin-notification:8080/api/notifications", content);
-        } catch { }
+        await notificationPublisher.NotifyAsync(
+            user.Id,
+            "Tebrikler, artık Maker oldunuz!",
+            "maker_approved",
+            context.RequestAborted);
     }
     
-    await db.SaveChangesAsync();
+    await db.SaveChangesAsync(context.RequestAborted);
+    await auditLogger.WriteAsync(
+        new AuditEvent("admin.maker_application_approved", context.User.GetUserId(), "MakerApplication", id.ToString(), "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
     return Results.Ok(new { Message = "Approved successfully." });
-});
+}).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
-app.MapPost("/api/auth/admin/maker-applications/{id}/reject", async (Guid id, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+app.MapPost("/api/auth/admin/maker-applications/{id}/reject", async (Guid id, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, IAuditLogger auditLogger) =>
 {
-    var role = GetUserRoleFromRequest(context);
-    if (role != "Admin") return Results.Unauthorized();
-
     var appToReject = await db.MakerApplications.FindAsync(id);
     if (appToReject == null) return Results.NotFound();
     
     appToReject.Reject();
     await db.SaveChangesAsync();
+    await auditLogger.WriteAsync(
+        new AuditEvent("admin.maker_application_rejected", context.User.GetUserId(), "MakerApplication", id.ToString(), "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
     return Results.Ok(new { Message = "Rejected successfully." });
-});
+}).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
 // FOLLOW SYSTEM
-app.MapPost("/api/auth/users/{username}/follow", async (string username, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, Microsoft.Extensions.Configuration.IConfiguration configuration) =>
+app.MapPost("/api/auth/users/{username}/follow", async (string username, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, Vitrin.Auth.Infrastructure.Kafka.IAuthNotificationPublisher notificationPublisher) =>
 {
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (authHeader == null || !authHeader.StartsWith("Bearer ")) return Results.Unauthorized();
-    var token = authHeader.Substring("Bearer ".Length);
-    Guid followerId;
-    try {
-        var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-        var jwt = handler.ReadJwtToken(token);
-        var sub = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
-        if (!Guid.TryParse(sub, out followerId)) return Results.Unauthorized();
-    } catch { return Results.Unauthorized(); }
+    var followerId = context.User.GetUserId();
+    if (followerId == null) return Results.Unauthorized();
 
-    var userToFollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Username.ToLower() == username.ToLower());
+    var normalizedUsername = username.Trim();
+    var userToFollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Username == normalizedUsername);
     if (userToFollow == null) return Results.NotFound();
-    if (userToFollow.Id == followerId) return Results.BadRequest("You cannot follow yourself.");
+    if (userToFollow.Id == followerId.Value) return ApiProblemResults.BadRequest("You cannot follow yourself.", "follow.self_not_allowed");
 
-    var existingFollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.UserFollows, uf => uf.FollowerId == followerId && uf.FollowingId == userToFollow.Id);
+    var existingFollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.UserFollows, uf => uf.FollowerId == followerId.Value && uf.FollowingId == userToFollow.Id);
     if (existingFollow != null) return Results.Ok(new { Message = "Already following." });
 
-    db.UserFollows.Add(new Vitrin.Auth.Domain.Entities.UserFollow(followerId, userToFollow.Id));
-    await db.SaveChangesAsync();
+    db.UserFollows.Add(new Vitrin.Auth.Domain.Entities.UserFollow(followerId.Value, userToFollow.Id));
 
-    // Send notification
-    try {
-        var notificationUrl = configuration["ServiceUrls:Notification"] ?? "http://vitrin-notification:8080";
-        var followerUser = await db.Users.FindAsync(followerId);
-        var notifPayload = new { userId = userToFollow.Id, message = $"@{followerUser?.Username} sizi takip etmeye başladı." };
-        var content = new System.Net.Http.StringContent(System.Text.Json.JsonSerializer.Serialize(notifPayload), System.Text.Encoding.UTF8, "application/json");
-        using var client = new System.Net.Http.HttpClient();
-        await client.PostAsync($"{notificationUrl}/api/notifications", content);
-    } catch { }
+    var followerUser = await db.Users.FindAsync(followerId.Value);
+    await notificationPublisher.NotifyAsync(
+        userToFollow.Id,
+        $"@{followerUser?.Username} sizi takip etmeye başladı.",
+        "new_follower",
+        context.RequestAborted);
+    await db.SaveChangesAsync(context.RequestAborted);
 
     return Results.Ok(new { Message = "Followed successfully." });
-});
+}).RequireAuthorization();
 
 app.MapDelete("/api/auth/users/{username}/follow", async (string username, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (authHeader == null || !authHeader.StartsWith("Bearer ")) return Results.Unauthorized();
-    var token = authHeader.Substring("Bearer ".Length);
-    Guid followerId;
-    try {
-        var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-        var jwt = handler.ReadJwtToken(token);
-        var sub = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
-        if (!Guid.TryParse(sub, out followerId)) return Results.Unauthorized();
-    } catch { return Results.Unauthorized(); }
+    var followerId = context.User.GetUserId();
+    if (followerId == null) return Results.Unauthorized();
 
-    var userToUnfollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Username.ToLower() == username.ToLower());
+    var normalizedUsername = username.Trim();
+    var userToUnfollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Username == normalizedUsername);
     if (userToUnfollow == null) return Results.NotFound();
 
-    var existingFollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.UserFollows, uf => uf.FollowerId == followerId && uf.FollowingId == userToUnfollow.Id);
+    var existingFollow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.UserFollows, uf => uf.FollowerId == followerId.Value && uf.FollowingId == userToUnfollow.Id);
     if (existingFollow == null) return Results.Ok(new { Message = "Not following." });
 
     db.UserFollows.Remove(existingFollow);
     await db.SaveChangesAsync();
 
     return Results.Ok(new { Message = "Unfollowed successfully." });
-});
+}).RequireAuthorization();
 
 app.MapGet("/api/auth/users/{username}/followers", async (string username, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Username.ToLower() == username.ToLower());
+    var normalizedUsername = username.Trim();
+    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users.AsNoTracking(), u => u.Username == normalizedUsername);
     if (user == null) return Results.NotFound();
 
     var followers = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
         db.UserFollows
+          .AsNoTracking()
           .Where(uf => uf.FollowingId == user.Id)
+          .OrderByDescending(uf => uf.CreatedAt)
+          .Take(500)
           .Select(uf => new { 
               uf.Follower.Id, 
               uf.Follower.Username, 
@@ -412,12 +377,16 @@ app.MapGet("/api/auth/users/{username}/followers", async (string username, Vitri
 
 app.MapGet("/api/auth/users/{username}/following", async (string username, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users, u => u.Username.ToLower() == username.ToLower());
+    var normalizedUsername = username.Trim();
+    var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(db.Users.AsNoTracking(), u => u.Username == normalizedUsername);
     if (user == null) return Results.NotFound();
 
     var following = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
         db.UserFollows
+          .AsNoTracking()
           .Where(uf => uf.FollowerId == user.Id)
+          .OrderByDescending(uf => uf.CreatedAt)
+          .Take(500)
           .Select(uf => new { 
               uf.Following.Id, 
               uf.Following.Username, 
@@ -434,7 +403,9 @@ app.MapGet("/api/auth/users/{userId}/followers-ids", async (Guid userId, Vitrin.
 {
     var followerIds = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
         db.UserFollows
+          .AsNoTracking()
           .Where(uf => uf.FollowingId == userId)
+          .Take(5_000)
           .Select(uf => uf.FollowerId)
     );
 
@@ -444,18 +415,10 @@ app.MapGet("/api/auth/users/{userId}/followers-ids", async (Guid userId, Vitrin.
 // Gamification
 app.MapPost("/api/auth/users/me/record-vote", async (HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
-    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-    if (authHeader == null || !authHeader.StartsWith("Bearer ")) return Results.Unauthorized();
-    var token = authHeader.Substring("Bearer ".Length);
-    Guid userId;
-    try {
-        var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-        var jwt = handler.ReadJwtToken(token);
-        var sub = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
-        if (!Guid.TryParse(sub, out userId)) return Results.Unauthorized();
-    } catch { return Results.Unauthorized(); }
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
 
-    var user = await db.Users.FindAsync(userId);
+    var user = await db.Users.FindAsync(userId.Value);
     if (user == null) return Results.NotFound();
 
     user.RecordVoteActivity();
@@ -476,13 +439,14 @@ app.MapPost("/api/auth/users/me/record-vote", async (HttpContext context, Vitrin
         CurrentStreak = user.CurrentStreak, 
         LongestStreak = user.LongestStreak 
     });
-});
+}).RequireAuthorization();
 
 // Gamification - Leaderboard
 app.MapGet("/api/auth/leaderboard", async (Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
     var topStreaks = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
         db.Users
+          .AsNoTracking()
           .OrderByDescending(u => u.CurrentStreak)
           .Take(10)
           .Select(u => new { u.Id, u.Username, u.FullName, u.AvatarUrl, u.Headline, u.CurrentStreak })
@@ -491,6 +455,7 @@ app.MapGet("/api/auth/leaderboard", async (Vitrin.Auth.Infrastructure.Data.AuthD
     // SQL'de Follower sayısını hesaplayarak sıralamak için Follower sistemini kullanıyoruz.
     var topMakers = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
         db.Users
+          .AsNoTracking()
           .OrderByDescending(u => db.UserFollows.Count(f => f.FollowingId == u.Id))
           .Take(10)
           .Select(u => new { 
@@ -511,5 +476,5 @@ app.MapGet("/api/auth/leaderboard", async (Vitrin.Auth.Infrastructure.Data.AuthD
 
 app.Run();
 
-public record MakerApplicationRequest(Guid UserId, string PortfolioUrl, string Reason);
+public record MakerApplicationRequest(string PortfolioUrl, string Reason);
 public record UpdateProfileRequest(string FullName, string Username, string? Headline, string? About, string? AvatarUrl, string? WebsiteUrl, string? GithubUrl, string? LinkedInUrl);

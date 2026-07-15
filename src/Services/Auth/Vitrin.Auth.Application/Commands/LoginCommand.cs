@@ -9,6 +9,9 @@ public record LoginCommand(
 
 public record LoginCommandHandler : IRequestHandler<LoginCommand, Result<string>>
 {
+    private static readonly string DummyPasswordHash =
+        BCrypt.Net.BCrypt.HashPassword("vitrin-timing-protection-value");
+
     private readonly Interfaces.IUserRepository _userRepository;
     private readonly Interfaces.IJwtProvider _jwtProvider;
 
@@ -21,12 +24,18 @@ public record LoginCommandHandler : IRequestHandler<LoginCommand, Result<string>
     public async Task<Result<string>> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
         var user = await _userRepository.GetByEmailAsync(request.Email, cancellationToken);
-        
-        if (user is null || user.Provider != Domain.Entities.AuthProvider.Local)
-            return Result<string>.Failure("Kullanıcı bulunamadı veya farklı bir yöntemle giriş yapılmış.");
 
-        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-            return Result<string>.Failure("Hatalı şifre.");
+        var passwordHash = user is
+            {
+                Provider: Domain.Entities.AuthProvider.Local,
+                PasswordHash: not null
+            }
+            ? user.PasswordHash
+            : DummyPasswordHash;
+        var passwordMatches = BCrypt.Net.BCrypt.Verify(request.Password, passwordHash);
+
+        if (!passwordMatches || user is null || user.Provider != Domain.Entities.AuthProvider.Local)
+            return Result<string>.Failure("E-posta veya şifre hatalı.");
 
         var token = _jwtProvider.Generate(user);
         return Result<string>.Success(token);

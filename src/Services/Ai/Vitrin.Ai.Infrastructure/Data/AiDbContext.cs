@@ -10,6 +10,7 @@ public class AiDbContext : DbContext
     }
 
     public DbSet<AiAnalysisResult> AiAnalysisResults { get; set; }
+    public DbSet<AiUsageQuota> AiUsageQuotas { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -22,6 +23,18 @@ public class AiDbContext : DbContext
             builder.Property(a => a.Summary).IsRequired().HasMaxLength(1000);
             builder.Property(a => a.Tags).IsRequired().HasMaxLength(500);
             builder.Property(a => a.AnalyzedAt).IsRequired();
+            builder.HasIndex(a => new { a.ProductId, a.AnalyzedAt })
+                .HasDatabaseName("IX_AiAnalysisResults_ProductId_AnalyzedAt");
+        });
+
+        modelBuilder.Entity<AiUsageQuota>(builder =>
+        {
+            builder.HasKey(quota => quota.Id);
+            builder.Property(quota => quota.UserId).IsRequired();
+            builder.Property(quota => quota.PeriodStartUtc).IsRequired();
+            builder.Property(quota => quota.RequestCount).IsRequired();
+            builder.Property(quota => quota.LastRequestedAtUtc).IsRequired();
+            builder.HasIndex(quota => new { quota.UserId, quota.PeriodStartUtc }).IsUnique();
         });
     }
 }

@@ -1,4 +1,4 @@
-import { Briefcase, MapPin, ArrowRight, Sparkles } from "lucide-react";
+import { MapPin, ArrowRight, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 export const metadata = {
@@ -54,10 +54,10 @@ export default function CareersPage() {
             {openings.length} Açık Pozisyon
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-foreground mb-4">
-            Vitrin'de Kariyer
+            Vitrin&apos;de Kariyer
           </h1>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-            Türkiye'nin ürün ekosistemini inşa eden küçük, tutkulu ekibe katıl.
+            Türkiye&apos;nin ürün ekosistemini inşa eden küçük, tutkulu ekibe katıl.
           </p>
         </div>
       </div>

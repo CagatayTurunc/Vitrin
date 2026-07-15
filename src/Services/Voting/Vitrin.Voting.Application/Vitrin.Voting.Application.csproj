@@ -2,10 +2,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Vitrin.Voting.Domain\Vitrin.Voting.Domain.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Vitrin.Shared.Kernel\Vitrin.Shared.Kernel.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Vitrin.Shared.Contracts\Vitrin.Shared.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="MediatR" Version="14.2.0" />
+    <PackageReference Include="MediatR" Version="12.4.1" />
   </ItemGroup>
 
   <PropertyGroup>

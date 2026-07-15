@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, CheckCircle2, UserCircle2, ShieldCheck, Globe, User, Search, Bell } from "lucide-react";
+import { Loader2, CheckCircle2, UserCircle2, ShieldCheck, Globe, Search, Bell } from "lucide-react";
 import Image from "next/image";
+import type { UserSummary } from "@/core/domain/user.types";
+import { getErrorMessage } from "@/lib/errors";
 
 interface ProfileSettingsFormProps {
   initialData: {
@@ -36,23 +38,21 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
 
   const [activeTab, setActiveTab] = useState<TabType>("followedProducts");
   const [isLoading, setIsLoading] = useState(false);
-  const [followers, setFollowers] = useState<any[]>([]);
-  const [following, setFollowing] = useState<any[]>([]);
+  const [followers, setFollowers] = useState<UserSummary[]>([]);
+  const [following, setFollowing] = useState<UserSummary[]>([]);
   const [isFollowDataLoading, setIsFollowDataLoading] = useState(false);
 
   useEffect(() => {
     if (activeTab === "followers") {
-      setIsFollowDataLoading(true);
       fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/users/${initialData.username}/followers`)
         .then(res => res.json())
-        .then(data => setFollowers(data || []))
+        .then((data: UserSummary[]) => setFollowers(data || []))
         .catch(err => console.error(err))
         .finally(() => setIsFollowDataLoading(false));
     } else if (activeTab === "following") {
-      setIsFollowDataLoading(true);
       fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/users/${initialData.username}/following`)
         .then(res => res.json())
-        .then(data => setFollowing(data || []))
+        .then((data: UserSummary[]) => setFollowing(data || []))
         .catch(err => console.error(err))
         .finally(() => setIsFollowDataLoading(false));
     }
@@ -82,7 +82,7 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${(session as any)?.accessToken}`,
+          Authorization: `Bearer ${session?.accessToken}`,
         },
         body: JSON.stringify(formData),
       });
@@ -113,10 +113,10 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
           variant: "destructive",
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Bağlantı Hatası",
-        description: error.message,
+        description: getErrorMessage(error, "Profil güncellenemedi."),
         variant: "destructive",
       });
     } finally {
@@ -168,7 +168,10 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
           )}
         </button>
         <button
-          onClick={() => setActiveTab("followers")}
+          onClick={() => {
+            setIsFollowDataLoading(true);
+            setActiveTab("followers");
+          }}
           className={`pb-3 text-sm font-semibold transition-colors whitespace-nowrap relative ${
             activeTab === "followers"
               ? "text-foreground"
@@ -181,7 +184,10 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
           )}
         </button>
         <button
-          onClick={() => setActiveTab("following")}
+          onClick={() => {
+            setIsFollowDataLoading(true);
+            setActiveTab("following");
+          }}
           className={`pb-3 text-sm font-semibold transition-colors whitespace-nowrap relative ${
             activeTab === "following"
               ? "text-foreground"
@@ -305,7 +311,7 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
                   onChange={handleChange}
                   placeholder="https://example.com/avatar.jpg"
                 />
-                <p className="text-xs text-muted-foreground">Profil fotoğrafınızın URL'sini girin (Şimdilik lokal yükleme aktif değil).</p>
+                <p className="text-xs text-muted-foreground">Profil fotoğrafınızın URL&apos;sini girin (Şimdilik lokal yükleme aktif değil).</p>
               </div>
             </div>
 
@@ -450,7 +456,7 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
                 {followers.map(f => (
                   <div key={f.id} className="flex items-center gap-4 p-4 border border-border/40 rounded-2xl bg-card hover:bg-muted/10 transition-colors cursor-pointer" onClick={() => router.push(`/profile/${f.username}`)}>
                     <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                      {f.avatarUrl ? <img src={f.avatarUrl} alt={f.username} className="h-full w-full object-cover" /> : <UserCircle2 className="w-6 h-6 text-muted-foreground" />}
+                      {f.avatarUrl ? <Image src={f.avatarUrl} alt={f.username} width={48} height={48} className="h-full w-full object-cover" /> : <UserCircle2 className="w-6 h-6 text-muted-foreground" />}
                     </div>
                     <div className="flex-1 overflow-hidden">
                       <h4 className="font-semibold text-[15px] truncate">{f.fullName || f.username}</h4>
@@ -480,7 +486,7 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
                 {following.map(f => (
                   <div key={f.id} className="flex items-center gap-4 p-4 border border-border/40 rounded-2xl bg-card hover:bg-muted/10 transition-colors cursor-pointer" onClick={() => router.push(`/profile/${f.username}`)}>
                     <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                      {f.avatarUrl ? <img src={f.avatarUrl} alt={f.username} className="h-full w-full object-cover" /> : <UserCircle2 className="w-6 h-6 text-muted-foreground" />}
+                      {f.avatarUrl ? <Image src={f.avatarUrl} alt={f.username} width={48} height={48} className="h-full w-full object-cover" /> : <UserCircle2 className="w-6 h-6 text-muted-foreground" />}
                     </div>
                     <div className="flex-1 overflow-hidden">
                       <h4 className="font-semibold text-[15px] truncate">{f.fullName || f.username}</h4>
@@ -580,7 +586,7 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
                   </div>
                   <div className="space-y-1 w-full">
                     <h4 className="font-semibold">LinkedIn Profili</h4>
-                    <p className="text-sm text-muted-foreground mb-4">LinkedIn profilinizin URL'sini gönderin. (Önerilen)</p>
+                    <p className="text-sm text-muted-foreground mb-4">LinkedIn profilinizin URL&apos;sini gönderin. (Önerilen)</p>
                     <Label htmlFor="linkedInUrl" className="sr-only">LinkedIn Kullanıcı Adı/URL</Label>
                     <div className="flex gap-2 max-w-sm">
                       <Input id="linkedInUrl" name="linkedInUrl" value={formData.linkedInUrl} onChange={handleChange} placeholder="örn. in/cagatayturunc" className="bg-background" />
@@ -602,4 +608,3 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
     </div>
   );
 }
-

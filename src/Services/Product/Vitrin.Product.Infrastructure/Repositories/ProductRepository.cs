@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Vitrin.Product.Application.Commands;
 using Vitrin.Product.Domain.Entities;
 using Vitrin.Product.Infrastructure.Data;
@@ -17,7 +18,15 @@ public class ProductRepository : IProductRepository
     public async Task AddAsync(ProductItem product, CancellationToken cancellationToken)
     {
         await _context.Products.AddAsync(product, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (ProductDatabaseErrors.TryGetUniqueConstraint(exception, out var constraint))
+        {
+            var resource = constraint == ProductDatabaseConstraints.TopicSlug ? "topic" : "product";
+            throw new DuplicateSlugException(resource, exception);
+        }
     }
 
     public async Task<bool> IsSlugUniqueAsync(string slug, CancellationToken cancellationToken)
@@ -31,38 +40,39 @@ public class ProductRepository : IProductRepository
         return await _context.Topics.FirstOrDefaultAsync(t => t.Slug == slug, cancellationToken);
     }
 
-    public async Task<ProductItem?> GetByIdWithUpvotesAsync(Guid id, CancellationToken cancellationToken)
-    {
-        return await _context.Products
-            .Include(p => p.Upvotes)
-            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
-    }
-
     public async Task UpdateAsync(ProductItem product, CancellationToken cancellationToken)
     {
         // Entity is already tracked, just save changes to detect additions/removals in collections
         await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task ToggleUpvoteAsync(Guid productId, Guid userId, CancellationToken cancellationToken)
-    {
-        var existing = await _context.ProductUpvotes
-            .FirstOrDefaultAsync(u => u.ProductItemId == productId && u.UserId == userId, cancellationToken);
-            
-        if (existing != null)
-        {
-            _context.ProductUpvotes.Remove(existing);
-        }
-        else
-        {
-            _context.ProductUpvotes.Add(new ProductUpvote(productId, userId));
-        }
-        
-        await _context.SaveChangesAsync(cancellationToken);
-    }
+}
 
-    public async Task<int> GetUpvoteCountAsync(Guid productId, CancellationToken cancellationToken)
+public static class ProductDatabaseConstraints
+{
+    public const string ProductSlug = "UX_Products_Slug";
+    public const string TopicSlug = "UX_Topics_Slug";
+    public const string CollectionSlug = "UX_Collections_Slug";
+}
+
+public static class ProductDatabaseErrors
+{
+    public static bool TryGetUniqueConstraint(DbUpdateException exception, out string? constraint)
     {
-        return await _context.ProductUpvotes.CountAsync(u => u.ProductItemId == productId, cancellationToken);
+        if (exception.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation
+            } postgresException &&
+            postgresException.ConstraintName is
+                ProductDatabaseConstraints.ProductSlug or
+                ProductDatabaseConstraints.TopicSlug or
+                ProductDatabaseConstraints.CollectionSlug)
+        {
+            constraint = postgresException.ConstraintName;
+            return true;
+        }
+
+        constraint = null;
+        return false;
     }
 }

@@ -1,33 +1,23 @@
-# ==============================================================
-# Vitrin Frontend (Next.js) - Multi-Stage Dockerfile
-# Standalone output modu ile ~150-200MB imaj boyutu
-# ==============================================================
+# syntax=docker/dockerfile:1
 
-# Aşama 1: Bağımlılıkları kur
-FROM node:20-alpine AS deps
+# pnpm 11 requires Node.js 22+; keep this version aligned with package.json.
+FROM node:22-alpine AS base
+RUN npm install --global pnpm@11.13.0
+
+FROM base AS deps
 WORKDIR /app
 
-# pnpm kurulumu
-RUN npm install -g pnpm
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --no-frozen-lockfile
-
-# ==============================================================
-# Aşama 2: Build
-# ==============================================================
-FROM node:20-alpine AS builder
+FROM base AS builder
 WORKDIR /app
 
-# Önce kaynak kodu kopyala (node_modules hariç)
 COPY . .
-
-# Sonra deps aşamasındaki node_modules'i üzerine kopyala
 COPY --from=deps /app/node_modules ./node_modules
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# NEXT_PUBLIC_* değişkenleri build zamanında gömülür
 ARG NEXT_PUBLIC_API_URL=http://localhost:5000
 ARG NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
 ARG NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
@@ -36,18 +26,14 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=$NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
 ENV NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=$NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
 
-RUN npm install -g pnpm && pnpm run build
+RUN pnpm run build
 
-# ==============================================================
-# Aşama 3: Runtime (sadece standalone çıktısı)
-# ==============================================================
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Non-root kullanıcı
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 

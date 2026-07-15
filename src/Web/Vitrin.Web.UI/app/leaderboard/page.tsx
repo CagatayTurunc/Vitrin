@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Trophy, Flame, Star, Medal, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import type { LeaderboardData } from '@/core/domain/user.types';
 
 export default function LeaderboardPage() {
-  const [data, setData] = useState<{ topStreaks: any[], topMakers: any[] } | null>(null);
+  const [data, setData] = useState<LeaderboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -16,8 +16,7 @@ export default function LeaderboardPage() {
       try {
         const res = await fetch(process.env.NEXT_PUBLIC_API_URL + '/api/auth/leaderboard');
         if (res.ok) {
-          const json = await res.json();
-          setData(json);
+          setData(await res.json() as LeaderboardData);
         }
       } catch (err) {
         console.error("Failed to fetch leaderboard", err);
@@ -25,7 +24,7 @@ export default function LeaderboardPage() {
         setIsLoading(false);
       }
     };
-    fetchLeaderboard();
+    void fetchLeaderboard();
   }, []);
 
   const getRankBadge = (index: number) => {
@@ -87,7 +86,7 @@ export default function LeaderboardPage() {
                     <div className="shrink-0 relative">
                       <div className="h-12 w-12 rounded-full border-2 border-background bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-white font-bold overflow-hidden shadow-sm">
                         {user.avatarUrl ? (
-                          <img src={user.avatarUrl} alt={user.fullName || user.username} className="h-full w-full object-cover" />
+                          <Image src={user.avatarUrl} alt={user.fullName || user.username} fill sizes="48px" className="object-cover" />
                         ) : (
                           getInitials(user.fullName || user.username, "")
                         )}
@@ -138,7 +137,7 @@ export default function LeaderboardPage() {
                     <div className="shrink-0 relative">
                       <div className="h-12 w-12 rounded-full border-2 border-background bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold overflow-hidden shadow-sm">
                         {user.avatarUrl ? (
-                          <img src={user.avatarUrl} alt={user.fullName || user.username} className="h-full w-full object-cover" />
+                          <Image src={user.avatarUrl} alt={user.fullName || user.username} fill sizes="48px" className="object-cover" />
                         ) : (
                           getInitials(user.fullName || user.username, "")
                         )}

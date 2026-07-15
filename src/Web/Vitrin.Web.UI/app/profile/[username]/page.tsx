@@ -3,30 +3,25 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ProductRow } from "@/components/product-row";
-import { Product } from "@/core/domain/product.types";
+import { Product, ProductApiModel } from "@/core/domain/product.types";
 import { User, Calendar, Loader2, Package, Shield, ShieldAlert, Edit, Link as LinkIcon, Globe } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { FollowersModal } from "@/components/followers-modal";
+import type { UserProfile } from "@/core/domain/user.types";
 
 export default function ProfilePage() {
   const params = useParams();
   const username = params.username as string;
 
   const { data: session } = useSession();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
   const [isFollowingModalOpen, setIsFollowingModalOpen] = useState(false);
-
-  useEffect(() => {
-    if (!username) return;
-
-    fetchUserProfile(username);
-  }, [username]);
 
   const fetchUserProfile = async (uname: string) => {
     setIsLoading(true);
@@ -43,15 +38,15 @@ export default function ProfilePage() {
         return;
       }
 
-      const userData = await userRes.json();
+      const userData = await userRes.json() as UserProfile;
       setUser(userData);
 
       // 2. Kullanıcının paylaştığı ürünleri çek
       if (userData && userData.id) {
         const prodRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/maker/${userData.id}`);
         if (prodRes.ok) {
-          const prodData = await prodRes.json();
-          const mappedProducts: Product[] = prodData.map((p: any, index: number) => ({
+          const prodData = await prodRes.json() as ProductApiModel[];
+          const mappedProducts: Product[] = prodData.map((p: ProductApiModel, index: number) => ({
             id: p.id,
             rank: index + 1,
             name: p.name,
@@ -73,6 +68,12 @@ export default function ProfilePage() {
     }
   };
 
+  useEffect(() => {
+    // Client-side profile data is synchronized after the network request resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (username) void fetchUserProfile(username);
+  }, [username]);
+
   if (isLoading) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center text-muted-foreground">
@@ -92,14 +93,20 @@ export default function ProfilePage() {
     );
   }
 
-  const getRoleBadge = (role: number) => {
-    switch (role) {
+  const getRoleBadge = (role: number | string) => {
+    const normalizedRole = typeof role === "string"
+      ? role.toLowerCase()
+      : role;
+
+    switch (normalizedRole) {
+      case "maker":
       case 1:
         return (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-sm font-semibold text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
             <Shield className="h-4 w-4" /> Maker
           </span>
         );
+      case "admin":
       case 2:
         return (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
@@ -116,22 +123,24 @@ export default function ProfilePage() {
   };
 
   const handleFollowToggle = async () => {
-    if (!session) return;
+    if (!session?.accessToken) return;
     try {
       const method = user.isFollowing ? "DELETE" : "POST";
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/users/${user.username}/follow`, {
         method,
         headers: {
-          "Authorization": `Bearer ${(session as any).accessToken}`
+          "Authorization": `Bearer ${session.accessToken}`
         }
       });
       
       if (res.ok) {
-        setUser({
-          ...user,
-          isFollowing: !user.isFollowing,
-          followerCount: user.isFollowing ? Math.max(0, (user.followerCount || 1) - 1) : (user.followerCount || 0) + 1
-        });
+        setUser((current) => current ? {
+          ...current,
+          isFollowing: !current.isFollowing,
+          followerCount: current.isFollowing
+            ? Math.max(0, current.followerCount - 1)
+            : current.followerCount + 1,
+        } : current);
       }
     } catch (err) {
       console.error(err);
@@ -166,7 +175,7 @@ export default function ProfilePage() {
               </p>
             </div>
             
-            {(session?.user as any)?.username === user.username ? (
+            {session?.user?.username === user.username ? (
               <Link href="/settings" className="inline-flex items-center gap-2 rounded-full border bg-background px-4 py-2 text-sm font-medium hover:bg-muted transition-colors whitespace-nowrap">
                 <Edit className="w-4 h-4" /> Profili Düzenle
               </Link>
@@ -230,14 +239,14 @@ export default function ProfilePage() {
             )}
             
             {/* Gamification: Streak & Badges */}
-            {(user.currentStreak > 0 || (user.badges && user.badges.length > 0)) && (
+            {((user.currentStreak ?? 0) > 0 || (user.badges && user.badges.length > 0)) && (
               <div className="flex items-center gap-3 w-full sm:w-auto mt-4 sm:mt-0 sm:border-l sm:pl-4">
-                {user.currentStreak > 0 && (
+                {(user.currentStreak ?? 0) > 0 && (
                   <div className="flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" title="Her gün oy verme serisi">
                     <span className="text-base">🔥</span> {user.currentStreak} Gün
                   </div>
                 )}
-                {user.badges && user.badges.map((badge: any, idx: number) => (
+                {user.badges && user.badges.map((badge, idx) => (
                   <div key={idx} className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 shadow-sm border border-amber-200/50 dark:border-amber-700/50 cursor-default transition-transform hover:scale-110" title={badge.name}>
                     {badge.icon === 'Flame' ? '🔥' : badge.icon === 'Award' ? '🏆' : badge.icon === 'Star' ? '🌟' : '🎖️'}
                   </div>

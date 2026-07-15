@@ -2,6 +2,12 @@ using Vitrin.Auth.Domain.Entities;
 
 namespace Vitrin.Auth.Application.Interfaces;
 
+public sealed class DuplicateIdentityException(string field, Exception innerException)
+    : Exception($"A user with the same {field} already exists.", innerException)
+{
+    public string Field { get; } = field;
+}
+
 public interface IUserRepository
 {
     Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);

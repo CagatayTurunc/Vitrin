@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth-options";
 import { ProfileSettingsForm } from "@/components/profile-settings-form";
 
 export const metadata = {
@@ -18,7 +18,7 @@ export default async function SettingsPage() {
   // Fetch current user details
   const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/auth/users/me", {
     headers: {
-      Authorization: `Bearer ${(session as any).accessToken}`,
+      Authorization: `Bearer ${session.accessToken}`,
     },
     cache: "no-store",
   });

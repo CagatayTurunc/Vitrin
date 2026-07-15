@@ -1,6 +1,7 @@
 using MediatR;
 using Vitrin.Product.Domain.Entities;
 using Vitrin.Shared.Kernel.Results;
+using Vitrin.Shared.Kernel.Text;
 
 namespace Vitrin.Product.Application.Commands;
 
@@ -9,10 +10,13 @@ public interface IProductRepository
     Task AddAsync(ProductItem product, CancellationToken cancellationToken);
     Task<bool> IsSlugUniqueAsync(string slug, CancellationToken cancellationToken);
     Task<Topic?> GetTopicBySlugAsync(string slug, CancellationToken cancellationToken);
-    Task<ProductItem?> GetByIdWithUpvotesAsync(Guid id, CancellationToken cancellationToken);
     Task UpdateAsync(ProductItem product, CancellationToken cancellationToken);
-    Task ToggleUpvoteAsync(Guid productId, Guid userId, CancellationToken cancellationToken);
-    Task<int> GetUpvoteCountAsync(Guid productId, CancellationToken cancellationToken);
+}
+
+public sealed class DuplicateSlugException(string resource, Exception innerException)
+    : Exception($"A {resource} with the same slug already exists.", innerException)
+{
+    public string Resource { get; } = resource;
 }
 
 public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand, Result<Guid>>
@@ -55,7 +59,7 @@ public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand,
                 var topicName = t.Trim();
                 if (!string.IsNullOrEmpty(topicName))
                 {
-                    var slug = topicName.ToLower().Replace(" ", "-");
+                    var slug = SlugGenerator.Generate(topicName);
                     var existingTopic = await _repository.GetTopicBySlugAsync(slug, cancellationToken);
                     if (existingTopic != null)
                     {
@@ -69,7 +73,14 @@ public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand,
             }
         }
 
-        await _repository.AddAsync(product, cancellationToken);
+        try
+        {
+            await _repository.AddAsync(product, cancellationToken);
+        }
+        catch (DuplicateSlugException exception)
+        {
+            return Result<Guid>.Failure($"The {exception.Resource} slug is already in use. Please retry.");
+        }
         
         // We can publish ProductCreatedEvent here or via an Outbox pattern in Infrastructure layer
         

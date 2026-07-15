@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import axios from 'axios';
+import { getErrorMessage } from '@/lib/errors';
 
 export interface Notification {
   id: string;
@@ -14,30 +15,30 @@ interface NotificationStore {
   unreadCount: number;
   isLoading: boolean;
   error: string | null;
-  fetchNotifications: (token: string, userId: string) => Promise<void>;
+  fetchNotifications: (token: string) => Promise<void>;
   markAsRead: (notificationId: string, token: string) => Promise<void>;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5177';
 
-export const useNotificationStore = create<NotificationStore>((set, get) => ({
+export const useNotificationStore = create<NotificationStore>((set) => ({
   notifications: [],
   unreadCount: 0,
   isLoading: false,
   error: null,
 
-  fetchNotifications: async (token: string, userId: string) => {
+  fetchNotifications: async (token: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.get(`${API_URL}/api/notifications/${userId}`, {
+      const response = await axios.get(`${API_URL}/api/notifications/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const notifications = response.data;
+      const notifications = response.data as Notification[];
       const unreadCount = notifications.filter((n: Notification) => !n.isRead).length;
       
       set({ notifications, unreadCount, isLoading: false });
-    } catch (error: any) {
-      set({ error: error.message || 'Bildirimler alınamadı', isLoading: false });
+    } catch (error: unknown) {
+      set({ error: getErrorMessage(error, 'Bildirimler alınamadı.'), isLoading: false });
     }
   },
 

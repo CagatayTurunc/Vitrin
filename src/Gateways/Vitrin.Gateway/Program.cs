@@ -1,31 +1,12 @@
-using System.Text;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
+using Vitrin.Shared.Infrastructure.Auth;
+using Vitrin.Shared.Infrastructure.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// JWT Authentication configuration
-var secret = builder.Configuration["Jwt:Secret"] ?? "SuperSecretKeyForVitrinAppThatIsLongEnoughToWorkProperly";
-var issuer = builder.Configuration["Jwt:Issuer"] ?? "Vitrin";
-var audience = builder.Configuration["Jwt:Audience"] ?? "Vitrin";
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = issuer,
-            ValidAudience = audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret))
-        };
-    });
-
-builder.Services.AddAuthorization();
+builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 builder.Services.AddHealthChecks();
+builder.Services.AddVitrinApiErrors();
+builder.Services.AddVitrinRateLimiting();
 
 // YARP konfigürasyonunu appsettings.json dosyasındaki "ReverseProxy" bölümünden alıyoruz.
 builder.Services.AddReverseProxy()
@@ -47,9 +28,11 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+app.UseVitrinApiErrors();
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");

@@ -1,30 +1,39 @@
-using Microsoft.EntityFrameworkCore;
-using Vitrin.Analytics.Application.Commands;
-using Vitrin.Analytics.Infrastructure.Data;
-using Vitrin.Analytics.Infrastructure.Repositories;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Vitrin.Analytics.Application.Commands;
+using Vitrin.Analytics.Application.Queries;
+using Vitrin.Analytics.Infrastructure;
+using Vitrin.Analytics.Infrastructure.Data;
+using Vitrin.Shared.Infrastructure.Auth;
+using Vitrin.Shared.Infrastructure.Api;
+using Vitrin.Shared.Infrastructure.Migrations;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
+builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
+builder.Services.AddVitrinApiErrors();
 
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(TrackEventCommand).Assembly));
+// MediatR — Application assembly (Commands + Queries)
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssembly(typeof(TrackEventCommand).Assembly);
+    cfg.RegisterServicesFromAssembly(typeof(GetProductSummaryQuery).Assembly);
+});
 
-builder.Services.AddDbContext<AnalyticsDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=analytics_db.sqlite"));
-
-builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
+// Infrastructure: DbContext + Repository + Kafka Consumer (BackgroundService)
+builder.Services.AddAnalyticsInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AnalyticsDbContext>();
-    db.Database.Migrate();
-}
+app.UseVitrinApiErrors();
+
+if (await app.MigrateDatabaseAndExitAsync<AnalyticsDbContext>(
+    args,
+    static (db, cancellationToken) => db.Database.MigrateAsync(cancellationToken))) return;
 
 if (app.Environment.IsDevelopment())
 {
@@ -32,27 +41,102 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapHealthChecks("/health");
 
-app.MapPost("/api/analytics", async ([FromBody] TrackEventCommand command, IMediator mediator) =>
+// ─── Commands ──────────────────────────────────────────────────────────────
+
+// Manuel event kayıt (test / internal kullanım)
+app.MapPost("/api/analytics/events", async (HttpContext context, [FromBody] TrackEventRequest request, IMediator mediator) =>
 {
+    var command = new TrackEventCommand(
+        request.EventType,
+        request.EventData,
+        request.ProductId,
+        context.User.GetUserId());
     var result = await mediator.Send(command);
-    if (result.IsSuccess)
-    {
-        return Results.Ok(new { EventId = result.Value, Message = "Event tracked successfully!" });
-    }
-    return Results.BadRequest(new { Error = result.Error });
+    return result.IsSuccess
+        ? Results.Ok(new { EventId = result.Value })
+        : ApiProblemResults.BadRequest(result.Error, "analytics.event_rejected");
 })
 .WithName("TrackEvent")
+.WithOpenApi()
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+// ─── Product Queries ────────────────────────────────────────────────────────
+
+// Ürün analytics özeti (views + upvotes + comments)
+app.MapGet("/api/analytics/product/{productId:guid}/summary", async (Guid productId, IMediator mediator) =>
+{
+    var result = await mediator.Send(new GetProductSummaryQuery(productId));
+    return result.IsSuccess
+        ? Results.Ok(result.Value)
+        : ApiProblemResults.BadRequest(result.Error, "analytics.query_failed");
+})
+.WithName("GetProductSummary")
 .WithOpenApi();
 
-app.MapGet("/api/analytics/product/{productId}", async (Guid productId, AnalyticsDbContext db) =>
+// Ürün görüntülenme sayısı
+app.MapGet("/api/analytics/product/{productId:guid}/views", async (Guid productId, IMediator mediator) =>
 {
-    var views = await db.AnalyticsEvents
-        .CountAsync(a => a.ProductId == productId && a.EventType == "ProductView");
-    return Results.Ok(new { ProductId = productId, Views = views });
+    var result = await mediator.Send(new GetProductSummaryQuery(productId));
+    return result.IsSuccess
+        ? Results.Ok(new { ProductId = productId, Views = result.Value.Views })
+        : ApiProblemResults.BadRequest(result.Error, "analytics.query_failed");
 })
 .WithName("GetProductViews")
 .WithOpenApi();
 
+// Ürün upvote sayısı
+app.MapGet("/api/analytics/product/{productId:guid}/upvotes", async (Guid productId, IMediator mediator) =>
+{
+    var result = await mediator.Send(new GetProductSummaryQuery(productId));
+    return result.IsSuccess
+        ? Results.Ok(new
+        {
+            ProductId  = productId,
+            Upvotes    = result.Value.Upvotes,
+            Downvotes  = result.Value.Downvotes,
+            NetUpvotes = result.Value.NetUpvotes
+        })
+        : ApiProblemResults.BadRequest(result.Error, "analytics.query_failed");
+})
+.WithName("GetProductUpvotes")
+.WithOpenApi();
+
+// ─── Search Queries ─────────────────────────────────────────────────────────
+
+// En çok aranan terimler
+app.MapGet("/api/analytics/search/top", async (
+    IMediator mediator,
+    [FromQuery] int limit = 10,
+    [FromQuery] DateTime? from = null) =>
+{
+    var result = await mediator.Send(new GetTopSearchesQuery(limit, from));
+    return result.IsSuccess
+        ? Results.Ok(result.Value)
+        : ApiProblemResults.BadRequest(result.Error, "analytics.query_failed");
+})
+.WithName("GetTopSearches")
+.WithOpenApi()
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+// ─── Platform Queries ───────────────────────────────────────────────────────
+
+// Platform geneli özet istatistikler (admin paneli için)
+app.MapGet("/api/analytics/platform/summary", async (IMediator mediator) =>
+{
+    var result = await mediator.Send(new GetPlatformSummaryQuery());
+    return result.IsSuccess
+        ? Results.Ok(result.Value)
+        : ApiProblemResults.BadRequest(result.Error, "analytics.query_failed");
+})
+.WithName("GetPlatformSummary")
+.WithOpenApi()
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
 app.Run();
+
+public record TrackEventRequest(string EventType, string EventData, Guid? ProductId = null);

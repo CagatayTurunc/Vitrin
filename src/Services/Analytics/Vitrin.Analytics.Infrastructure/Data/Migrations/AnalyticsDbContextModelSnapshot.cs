@@ -43,7 +43,34 @@ namespace Vitrin.Analytics.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("EventType", "ProductId", "CreatedAt")
+                        .HasDatabaseName("IX_AnalyticsEvents_EventType_ProductId_CreatedAt");
+
                     b.ToTable("AnalyticsEvents");
+                });
+
+            modelBuilder.Entity("Vitrin.Shared.Infrastructure.Inbox.InboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ReceivedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProcessedAtUtc");
+
+                    b.ToTable("InboxMessages");
                 });
 #pragma warning restore 612, 618
         }

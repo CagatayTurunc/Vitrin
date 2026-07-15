@@ -20,7 +20,7 @@ export default function KvkkPage() {
             </div>
           </div>
           <p className="text-muted-foreground text-sm leading-relaxed">
-            6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, kişisel verileriniz
+            6698 sayılı Kişisel Verilerin Korunması Kanunu (&quot;KVKK&quot;) uyarınca, kişisel verileriniz
             aşağıda açıklanan kapsamda işlenmektedir.
           </p>
         </div>
@@ -31,7 +31,7 @@ export default function KvkkPage() {
         <section className="border-b border-border pb-8">
           <h2 className="text-base font-bold text-foreground mb-3">1. Veri Sorumlusu</h2>
           <p>
-            KVKK uyarınca veri sorumlusu sıfatıyla <strong className="text-foreground">Vitrin Teknoloji</strong> ("Vitrin"),
+            KVKK uyarınca veri sorumlusu sıfatıyla <strong className="text-foreground">Vitrin Teknoloji</strong> (&quot;Vitrin&quot;),
             kişisel verilerinizi aşağıda belirtilen amaçlar çerçevesinde işlemektedir.
           </p>
           <div className="mt-4 bg-card border border-border rounded-xl p-4 space-y-1">
@@ -96,7 +96,7 @@ export default function KvkkPage() {
           <h2 className="text-base font-bold text-foreground mb-3">4. Verilerin Aktarılması</h2>
           <p>
             Kişisel verileriniz; yalnızca hizmet sunumu için zorunlu olan teknik altyapı sağlayıcılarıyla
-            (hosting, e-posta servisi, görsel depolama) KVKK'nın 8. ve 9. maddeleri çerçevesinde
+            (hosting, e-posta servisi, görsel depolama) KVKK&apos;nın 8. ve 9. maddeleri çerçevesinde
             paylaşılmaktadır. Ticari amaçlı üçüncü taraf aktarımı yapılmamaktadır.
           </p>
         </section>

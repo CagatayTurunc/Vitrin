@@ -20,6 +20,7 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                 .HasAnnotation("ProductVersion", "8.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "citext");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Vitrin.Auth.Domain.Entities.MakerApplication", b =>
@@ -50,6 +51,9 @@ namespace Vitrin.Auth.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("IX_MakerApplications_Status_CreatedAt");
+
                     b.ToTable("MakerApplications");
                 });
 
@@ -76,7 +80,7 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                        .HasColumnType("citext");
 
                     b.Property<string>("FullName")
                         .IsRequired()
@@ -116,7 +120,7 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("citext");
 
                     b.Property<string>("WebsiteUrl")
                         .HasColumnType("text");
@@ -124,10 +128,20 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_Users_Email");
+
+                    b.HasIndex("GithubId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Users_GithubId");
+
+                    b.HasIndex("GoogleId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Users_GoogleId");
 
                     b.HasIndex("Username")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_Users_Username");
 
                     b.ToTable("Users");
                 });
@@ -174,9 +188,70 @@ namespace Vitrin.Auth.Infrastructure.Migrations
 
                     b.HasKey("FollowerId", "FollowingId");
 
-                    b.HasIndex("FollowingId");
+                    b.HasIndex("FollowingId", "CreatedAt")
+                        .HasDatabaseName("IX_UserFollows_FollowingId_CreatedAt");
 
                     b.ToTable("UserFollows");
+                });
+
+            modelBuilder.Entity("Vitrin.Shared.Infrastructure.Outbox.OutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CausationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeadLetteredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("EventVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ProcessedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProcessedAtUtc", "DeadLetteredAtUtc", "NextAttemptAtUtc");
+
+                    b.ToTable("OutboxMessages");
                 });
 
             modelBuilder.Entity("Vitrin.Auth.Domain.Entities.UserBadge", b =>

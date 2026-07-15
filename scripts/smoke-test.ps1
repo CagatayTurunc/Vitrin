@@ -1,19 +1,13 @@
 # ==============================================================
 # Vitrin - Smoke Test Script
-# docker-compose up sonrası tüm servislerin sağlıklı olduğunu doğrular.
+# Docker Compose'un dışarı açtığı giriş noktalarını doğrular.
+# İç servisler Compose healthcheck'leriyle Gateway arkasında denetlenir.
 # Kullanım: .\scripts\smoke-test.ps1
 # ==============================================================
 
 $services = @(
     @{ Name = "Gateway";      Port = 5000;  Path = "/health" },
-    @{ Name = "Frontend";     Port = 3000;  Path = "/" },
-    @{ Name = "Auth API";     Port = 5104;  Path = "/health" },
-    @{ Name = "Product API";  Port = 5177;  Path = "/health" },
-    @{ Name = "Voting API";   Port = 5143;  Path = "/health" },
-    @{ Name = "Comment API";  Port = 5100;  Path = "/health" },
-    @{ Name = "Notif. API";   Port = 5101;  Path = "/health" },
-    @{ Name = "Analytics API";Port = 5102;  Path = "/health" },
-    @{ Name = "AI API";       Port = 5103;  Path = "/health" }
+    @{ Name = "Frontend";     Port = 3000;  Path = "/" }
 )
 
 $passed = 0

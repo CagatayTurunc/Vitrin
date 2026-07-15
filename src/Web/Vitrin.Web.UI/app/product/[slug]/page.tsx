@@ -1,29 +1,45 @@
 "use client";
 
-import { useState, useEffect, use, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useCallback, useState, useEffect, use, useRef } from "react";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowUp, ExternalLink, MessageSquare, Share2, AlertCircle, Bookmark, X, ChevronLeft, ChevronRight, Maximize2, Star } from "lucide-react";
 import { LoginModal } from "@/components/login-modal";
 import { AddToCollectionModal } from "@/components/add-to-collection-modal";
-import { useToast } from "@/components/ui/use-toast";
 import dynamic from "next/dynamic";
 import "@uiw/react-markdown-preview/markdown.css";
+import type { ProductDetailApiModel } from "@/core/domain/product.types";
+import type { UserProfile } from "@/core/domain/user.types";
+
+interface ProductComment {
+  id: string;
+  userId: string;
+  userName: string;
+  content: string;
+  createdAt: string;
+  parentCommentId?: string | null;
+  isDeleted: boolean;
+  updatedAt?: string | null;
+}
+
+interface ProductCommentNode extends ProductComment {
+  replies: ProductCommentNode[];
+}
 
 const MarkdownPreview = dynamic(() => import("@uiw/react-markdown-preview").then((mod) => mod.default), { ssr: false });
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
 export default function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const unwrappedParams = use(params);
   const slug = unwrappedParams.slug as string;
   const { data: session } = useSession();
 
-  const [product, setProduct] = useState<any>(null);
-  const [maker, setMaker] = useState<any>(null);
-  const [comments, setComments] = useState<any[]>([]);
+  const [product, setProduct] = useState<ProductDetailApiModel | null>(null);
+  const [maker, setMaker] = useState<UserProfile | null>(null);
+  const [comments, setComments] = useState<ProductComment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [newComment, setNewComment] = useState("");
@@ -34,12 +50,14 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
   const [editContent, setEditContent] = useState("");
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [hasVoted, setHasVoted] = useState(false);
+  const [isVoting, setIsVoting] = useState(false);
   const galleryRef = useRef<HTMLDivElement>(null);
 
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiTags, setAiTags] = useState<string[]>([]);
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
-  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<ProductDetailApiModel[]>([]);
 
   const scrollGallery = (direction: 'left' | 'right') => {
     if (galleryRef.current) {
@@ -48,13 +66,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
     }
   };
 
-  useEffect(() => {
-    if (slug) {
-      fetchProductData();
-    }
-  }, [slug]);
-
-  const fetchAiData = async (productId: string) => {
+  const fetchAiData = useCallback(async (productId: string) => {
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/ai/product/${productId}`);
       if (res.ok) {
@@ -70,7 +82,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
           if (recIds && recIds.length > 0) {
             const batchRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/batch?ids=${recIds.join(',')}`);
             if (batchRes.ok) {
-              setRecommendations(await batchRes.json());
+              setRecommendations(await batchRes.json() as ProductDetailApiModel[]);
             }
           }
         }
@@ -78,15 +90,18 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
     } catch (error) {
       console.error("AI veri çekme hatası:", error);
     }
-  };
+  }, []);
 
   const handleGenerateAi = async () => {
-    if (!product) return;
+    if (!product || !session?.accessToken) return;
     setIsGeneratingAi(true);
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/ai/analyze`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.accessToken}`,
+        },
         body: JSON.stringify({
           productId: product.id,
           productName: product.name,
@@ -103,21 +118,21 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
     }
   };
 
-  const fetchProductData = async () => {
+  const fetchProductData = useCallback(async () => {
     try {
       // 1. Fetch Product Details
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/${slug}`);
       if (res.ok) {
-        const productData = await res.json();
+        const productData = await res.json() as ProductDetailApiModel;
         setProduct(productData);
 
         // Fetch AI Data
-        fetchAiData(productData.id);
+        void fetchAiData(productData.id);
 
         // 2. Fetch Comments
         const commentsRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/comments/${productData.id}`);
         if (commentsRes.ok) {
-          const commentsData = await commentsRes.json();
+          const commentsData = await commentsRes.json() as ProductComment[];
           setComments(commentsData);
         }
 
@@ -125,7 +140,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         if (productData.makerId) {
           const makerRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/users/${productData.makerId}`);
           if (makerRes.ok) {
-            const makerData = await makerRes.json();
+            const makerData = await makerRes.json() as UserProfile;
             setMaker(makerData);
           }
         }
@@ -138,7 +153,31 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [fetchAiData, slug]);
+
+  useEffect(() => {
+    // Client-side route data is synchronized after the network request resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (slug) void fetchProductData();
+  }, [fetchProductData, slug]);
+
+  useEffect(() => {
+    if (!session?.accessToken || !product?.id) return;
+
+    let isCurrent = true;
+    void fetch(`${API_URL}/api/votes/me`, {
+      headers: { Authorization: `Bearer ${session.accessToken}` }
+    })
+      .then(async (response) => response.ok ? await response.json() as string[] : [])
+      .then((productIds) => {
+        if (isCurrent) setHasVoted(productIds.includes(product.id));
+      })
+      .catch((error) => console.error("Oy durumu alınamadı", error));
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [product?.id, session?.accessToken]);
 
   const handleFollowMaker = async () => {
     if (!session?.accessToken) {
@@ -155,11 +194,13 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
       });
       if (res.ok) {
         // Optimistic update
-        setMaker({
-          ...maker,
-          isFollowing: !maker.isFollowing,
-          followerCount: maker.isFollowing ? maker.followerCount - 1 : maker.followerCount + 1
-        });
+        setMaker((current) => current ? {
+          ...current,
+          isFollowing: !current.isFollowing,
+          followerCount: current.isFollowing
+            ? current.followerCount - 1
+            : current.followerCount + 1,
+        } : current);
       }
     } catch (err) {
       console.error(err);
@@ -171,24 +212,42 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
       setIsLoginModalOpen(true);
       return;
     }
+    if (!product || isVoting) return;
+
+    const previousVoteState = hasVoted;
+    setIsVoting(true);
+    setHasVoted(!previousVoteState);
+    setProduct({
+      ...product,
+      upvotes: Math.max(0, product.upvotes + (previousVoteState ? -1 : 1))
+    });
 
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/${product.id}/vote`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.accessToken}` }
+      const res = await fetch(`${API_URL}/api/votes`, {
+        method: previousVoteState ? "DELETE" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.accessToken}`
+        },
+        body: JSON.stringify({ productId: product.id })
       });
-      if (res.ok) {
-        const data = await res.json();
-        setProduct({ ...product, upvotes: data.upvotes });
-        
-        // Gamification: Record vote activity for streaks and badges
-        await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/users/me/record-vote`, {
+
+      if (!res.ok) {
+        throw new Error(`Vote request failed with status ${res.status}`);
+      }
+
+      if (!previousVoteState) {
+        await fetch(`${API_URL}/api/auth/users/me/record-vote`, {
           method: "POST",
           headers: { Authorization: `Bearer ${session.accessToken}` }
         }).catch(e => console.error("Streak could not be updated", e));
       }
     } catch (err) {
       console.error(err);
+      setHasVoted(previousVoteState);
+      setProduct(product);
+    } finally {
+      setIsVoting(false);
     }
   };
 
@@ -197,6 +256,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
       setIsLoginModalOpen(true);
       return;
     }
+    if (!product) return;
     const contentToSend = parentId ? replyContent : newComment;
     if (!contentToSend.trim()) return;
 
@@ -210,8 +270,6 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         },
         body: JSON.stringify({
           productId: product.id,
-          userId: (session as any).user.id,
-          userName: (session as any).user.username || (session as any).user.fullName || session.user.name || "Kullanıcı",
           content: contentToSend,
           parentCommentId: parentId || null
         })
@@ -228,7 +286,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         // Refresh comments
         const commentsRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/comments/${product.id}`);
         if (commentsRes.ok) {
-          setComments(await commentsRes.json());
+          setComments(await commentsRes.json() as ProductComment[]);
         }
       }
     } catch (err) {
@@ -239,7 +297,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
   };
 
   const handleCommentEdit = async (commentId: string) => {
-    if (!editContent.trim()) return;
+    if (!editContent.trim() || !product) return;
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/comments/${commentId}`, {
         method: "PUT",
@@ -253,13 +311,13 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         setEditCommentId(null);
         // Refresh comments
         const commentsRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/comments/${product.id}`);
-        if (commentsRes.ok) setComments(await commentsRes.json());
+        if (commentsRes.ok) setComments(await commentsRes.json() as ProductComment[]);
       }
     } catch (err) { console.error(err); }
   };
 
   const handleCommentDelete = async (commentId: string) => {
-    if (!confirm("Bu yorumu silmek istediğinize emin misiniz?")) return;
+    if (!product || !confirm("Bu yorumu silmek istediğinize emin misiniz?")) return;
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/comments/${commentId}`, {
         method: "DELETE",
@@ -267,28 +325,31 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
       });
       if (res.ok) {
         const commentsRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/comments/${product.id}`);
-        if (commentsRes.ok) setComments(await commentsRes.json());
+        if (commentsRes.ok) setComments(await commentsRes.json() as ProductComment[]);
       }
     } catch (err) { console.error(err); }
   };
 
   // Build hierarchical comments
   const buildCommentTree = () => {
-    const map = new Map();
-    comments.forEach(c => map.set(c.id, { ...c, replies: [] }));
-    const roots: any[] = [];
+    const map = new Map<string, ProductCommentNode>();
+    comments.forEach((comment) => map.set(comment.id, { ...comment, replies: [] }));
+    const roots: ProductCommentNode[] = [];
     
     comments.forEach(c => {
       if (c.parentCommentId && map.has(c.parentCommentId)) {
-        map.get(c.parentCommentId).replies.push(map.get(c.id));
+        const parent = map.get(c.parentCommentId);
+        const child = map.get(c.id);
+        if (parent && child) parent.replies.push(child);
       } else {
-        roots.push(map.get(c.id));
+        const root = map.get(c.id);
+        if (root) roots.push(root);
       }
     });
 
     // Sort replies oldest first (chronological order)
     map.forEach(c => {
-      c.replies.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      c.replies.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     });
 
     return roots;
@@ -304,7 +365,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         <AlertCircle className="h-12 w-12 text-muted-foreground" />
         <h2 className="text-2xl font-bold">Ürün Bulunamadı</h2>
         <p className="text-muted-foreground">Aradığınız ürün yayından kaldırılmış veya hiç var olmamış olabilir.</p>
-        <Button asChild><Link href="/">Anasayfaya Dön</Link></Button>
+        <Link href="/" className={buttonVariants()}>Anasayfaya Dön</Link>
       </div>
     );
   }
@@ -325,7 +386,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
             <h1 className="text-4xl font-extrabold tracking-tight mb-2">{product.name}</h1>
             <h2 className="text-xl text-muted-foreground font-medium">{product.tagline}</h2>
             <div className="flex flex-wrap gap-2 mt-4">
-              {product.topics?.map((topic: any) => (
+              {product.topics?.map((topic) => (
                 <span key={topic.id} className="text-xs font-medium bg-secondary text-secondary-foreground px-2.5 py-1 rounded-full">
                   {topic.name}
                 </span>
@@ -340,10 +401,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
           </Button>
           <Button 
             size="lg" 
-            className="gap-2 h-14 px-8 rounded-xl font-bold w-full md:w-auto bg-[#00A170] hover:bg-[#008f63] text-white shadow-md transition-all hover:scale-105 active:scale-95"
+            className="gap-2 h-14 px-8 rounded-xl font-bold w-full md:w-auto bg-[#007A52] hover:bg-[#006B48] text-white shadow-md transition-all hover:scale-105 active:scale-95"
             onClick={handleUpvote}
+            disabled={isVoting}
           >
-            <ArrowUp className="h-5 w-5" /> UPVOTE {product.upvotes > 0 && <span className="opacity-90 ml-1">({product.upvotes})</span>}
+            <ArrowUp className="h-5 w-5" /> {hasVoted ? "UPVOTED" : "UPVOTE"} {product.upvotes > 0 && <span className="opacity-90 ml-1">({product.upvotes})</span>}
           </Button>
         </div>
       </div>
@@ -368,7 +430,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
               {aiSummary ? (
                 <div className="space-y-4">
                   <p className="text-lg font-medium leading-relaxed text-foreground/90">
-                    "{aiSummary}"
+                    &ldquo;{aiSummary}&rdquo;
                   </p>
                   {aiTags.length > 0 && (
                     <div className="flex gap-2">
@@ -414,7 +476,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                     className="relative aspect-video w-[85%] sm:w-[65%] md:w-[50%] flex-shrink-0 rounded-2xl overflow-hidden border shadow-sm snap-center cursor-pointer group/item"
                     onClick={() => setSelectedImage(url)}
                   >
-                    <img src={url} alt={`Gallery Image ${i + 1}`} className="w-full h-full object-cover transition-transform duration-500 group-hover/item:scale-105" />
+                    <Image src={url} alt={`Gallery Image ${i + 1}`} fill sizes="(max-width: 640px) 85vw, (max-width: 768px) 65vw, 50vw" className="object-cover transition-transform duration-500 group-hover/item:scale-105" />
                     <div className="absolute inset-0 bg-black/0 group-hover/item:bg-black/20 transition-colors flex items-center justify-center">
                       <Maximize2 className="text-white opacity-0 group-hover/item:opacity-100 transition-opacity w-8 h-8 drop-shadow-md" />
                     </div>
@@ -483,7 +545,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                 <div className="flex justify-end">
                   <Button 
                     onClick={session ? () => handleCommentSubmit() : () => setIsLoginModalOpen(true)}
-                    disabled={session && (!newComment.trim() || isSubmittingComment)}
+                    disabled={Boolean(session) && (!newComment.trim() || isSubmittingComment)}
                     className="rounded-xl px-6 font-medium"
                   >
                     {isSubmittingComment ? "Gönderiliyor..." : "Yorumu Gönder"}
@@ -519,7 +581,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                             <span className="text-xs text-muted-foreground">
                               {new Date(comment.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
                             </span>
-                            {!comment.isDeleted && session?.user && (session as any).user.id === comment.userId && (
+                            {!comment.isDeleted && session?.user?.id === comment.userId && (
                               <div className="flex gap-2">
                                 <button onClick={() => { setEditCommentId(comment.id); setEditContent(comment.content); }} className="text-xs text-muted-foreground hover:text-primary">Düzenle</button>
                                 <button onClick={() => handleCommentDelete(comment.id)} className="text-xs text-muted-foreground hover:text-red-500">Sil</button>
@@ -578,7 +640,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                     {/* Nested Replies */}
                     {comment.replies?.length > 0 && (
                       <div className="pl-6 md:pl-12 space-y-4 border-l-2 ml-4 md:ml-6 mt-4">
-                        {comment.replies.map((reply: any) => (
+                        {comment.replies.map((reply) => (
                           <div key={reply.id} className={`flex gap-4 p-4 rounded-xl transition-colors ${reply.userId === product.makerId ? 'bg-primary/5 border border-primary/20' : 'bg-muted/30'} ${reply.isDeleted ? 'opacity-60' : ''}`}>
                             <div className={`h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-xs text-white ${reply.userId === product.makerId ? 'bg-primary' : 'bg-secondary text-secondary-foreground'}`}>
                               {reply.isDeleted ? "-" : (reply.userName?.[0]?.toUpperCase() || "U")}
@@ -597,7 +659,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                                   <span className="text-[10px] text-muted-foreground">
                                     {new Date(reply.createdAt).toLocaleDateString('tr-TR')}
                                   </span>
-                                  {!reply.isDeleted && session?.user && (session as any).user.id === reply.userId && (
+                                  {!reply.isDeleted && session?.user?.id === reply.userId && (
                                     <div className="flex gap-2">
                                       <button onClick={() => { setEditCommentId(reply.id); setEditContent(reply.content); }} className="text-[10px] text-muted-foreground hover:text-primary">Düzenle</button>
                                       <button onClick={() => handleCommentDelete(reply.id)} className="text-[10px] text-muted-foreground hover:text-red-500">Sil</button>
@@ -660,7 +722,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
               variant={maker?.isFollowing ? "secondary" : "outline"} 
               className="w-full mt-4 rounded-xl"
               onClick={handleFollowMaker}
-              disabled={!maker || ((session as any)?.user?.id === product.makerId)}
+              disabled={!maker || session?.user?.id === product.makerId}
             >
               {maker?.isFollowing ? "Takipten Çık" : "Takip Et"} {maker?.followerCount !== undefined && `(${maker.followerCount})`}
             </Button>
@@ -706,9 +768,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {recommendations.map((rec) => (
               <Link href={`/product/${rec.slug}`} key={rec.id} className="group flex items-start gap-4 p-4 rounded-2xl border bg-card hover:border-purple-500/30 hover:shadow-md transition-all">
-                <div className="h-16 w-16 rounded-xl bg-muted overflow-hidden flex-shrink-0 flex items-center justify-center border shadow-sm">
+                <div className="relative h-16 w-16 rounded-xl bg-muted overflow-hidden flex-shrink-0 flex items-center justify-center border shadow-sm">
                   {rec.thumbnailUrl ? (
-                    <img src={rec.thumbnailUrl} alt={rec.name} className="object-cover w-full h-full group-hover:scale-105 transition-transform" />
+                    <Image src={rec.thumbnailUrl} alt={rec.name} fill sizes="64px" className="object-cover group-hover:scale-105 transition-transform" />
                   ) : (
                     <span className="font-bold text-muted-foreground">{rec.name.substring(0, 2).toUpperCase()}</span>
                   )}
@@ -746,9 +808,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
           >
             <X className="w-6 h-6" />
           </button>
-          <img 
-            src={selectedImage} 
-            alt="Enlarged" 
+          <Image
+            src={selectedImage}
+            alt="Enlarged"
+            width={1600}
+            height={900}
             className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl animate-in zoom-in-95 duration-200" 
             onClick={(e) => e.stopPropagation()}
           />

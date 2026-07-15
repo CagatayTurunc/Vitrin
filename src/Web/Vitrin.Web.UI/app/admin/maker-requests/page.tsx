@@ -13,41 +13,51 @@ import {
 
 import { useSession } from "next-auth/react";
 
+interface MakerRequest {
+  id: string;
+  fullName?: string | null;
+  user: string;
+  portfolioUrl: string;
+  reason: string;
+  createdAt: string;
+}
+
 export default function AdminMakerRequests() {
   const { data: session } = useSession();
-  const [requests, setRequests] = useState<any[]>([]);
+  const [requests, setRequests] = useState<MakerRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (session?.accessToken) {
-      fetchRequests(session.accessToken as string);
-    }
+    const token = session?.accessToken;
+    if (!token) return;
+
+    const fetchRequests = async () => {
+      try {
+        const response = await fetch(
+          process.env.NEXT_PUBLIC_API_URL + "/api/auth/admin/maker-applications",
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (response.ok) setRequests(await response.json() as MakerRequest[]);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void fetchRequests();
   }, [session?.accessToken]);
 
-  const fetchRequests = async (token: string) => {
-    try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/auth/admin/maker-applications", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setRequests(data);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleAction = async (id: string, action: "approve" | "reject") => {
+    if (!session?.accessToken) return;
+
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/admin/maker-applications/${id}/${action}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${session?.accessToken}` }
       });
       if (res.ok) {
-        setRequests(requests.filter(r => r.id !== id));
+        setRequests((current) => current.filter((request) => request.id !== id));
       }
     } catch (err) {
       console.error(err);

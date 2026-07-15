@@ -2,10 +2,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Vitrin.Comment.Application\Vitrin.Comment.Application.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Vitrin.Shared.Infrastructure\Vitrin.Shared.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Vitrin.Shared.Contracts\Vitrin.Shared.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.8" />
+    <PackageReference Include="Confluent.Kafka" Version="2.15.0" />
   </ItemGroup>
 
   <PropertyGroup>

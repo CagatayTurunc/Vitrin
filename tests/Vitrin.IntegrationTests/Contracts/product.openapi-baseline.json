@@ -1,0 +1,11 @@
+{
+  "operations": [
+    { "path": "/api/products", "method": "get", "operationId": "GetProducts" },
+    { "path": "/api/products", "method": "post", "operationId": "CreateProduct" },
+    { "path": "/api/products/{slug}", "method": "get", "operationId": "GetProductBySlug" },
+    { "path": "/api/products/search", "method": "get", "operationId": "SearchProducts" },
+    { "path": "/api/products/admin/pending", "method": "get", "operationId": "GetPendingProducts" },
+    { "path": "/api/products/admin/{id}/approve", "method": "post", "operationId": "ApproveProduct" },
+    { "path": "/api/products/admin/{id}/reject", "method": "post", "operationId": "RejectProduct" }
+  ]
+}

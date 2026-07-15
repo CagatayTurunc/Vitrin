@@ -41,7 +41,36 @@ namespace Vitrin.Ai.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ProductId", "AnalyzedAt")
+                        .HasDatabaseName("IX_AiAnalysisResults_ProductId_AnalyzedAt");
+
                     b.ToTable("AiAnalysisResults");
+                });
+
+            modelBuilder.Entity("Vitrin.Ai.Domain.Entities.AiUsageQuota", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("LastRequestedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("PeriodStartUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RequestCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "PeriodStartUtc")
+                        .IsUnique();
+
+                    b.ToTable("AiUsageQuotas");
                 });
 #pragma warning restore 612, 618
         }

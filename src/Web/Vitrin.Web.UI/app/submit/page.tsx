@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,7 +13,15 @@ import "@uiw/react-md-editor/markdown-editor.css";
 import "@uiw/react-markdown-preview/markdown.css";
 const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
 
-import { ProductRow } from "@/components/product-row";
+import type { UserProfile } from "@/core/domain/user.types";
+import { getApiProblemMessage } from "@/lib/errors";
+
+function getRoleString(role: unknown): string {
+  if (role === 0) return 'Member';
+  if (role === 1) return 'Maker';
+  if (role === 2) return 'Admin';
+  return typeof role === 'string' && role ? role : 'Kullanıcı';
+}
 
 const AVAILABLE_CATEGORIES = [
   "SaaS", "Yapay Zeka", "Ücretsiz", "Geliştirici Araçları", "Tasarım", "Verimlilik", "Mobil", "Web", "Açık Kaynak"
@@ -22,38 +31,33 @@ export default function SubmitPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   
-  const [profileData, setProfileData] = useState<any>(null);
+  const [profileData, setProfileData] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    if ((session as any)?.accessToken) {
+    if (status === "unauthenticated") router.replace("/login");
+  }, [router, status]);
+
+  useEffect(() => {
+    if (session?.accessToken) {
       fetch(process.env.NEXT_PUBLIC_API_URL + '/api/auth/users/me', {
         headers: {
-          'Authorization': `Bearer ${(session as any).accessToken}`
+          'Authorization': `Bearer ${session.accessToken}`
         }
       }).then(async res => {
         if (!res.ok) return null;
         const text = await res.text();
-        return text ? JSON.parse(text) : null;
+        return text ? JSON.parse(text) as UserProfile : null;
       }).then(data => {
         if (data) setProfileData(data);
       }).catch(err => console.error('Profile fetch error:', err));
     }
   }, [session]);
   
-  if (status === "loading") return <div className="p-8 text-center min-h-screen">Yükleniyor...</div>;
-  if (status === "unauthenticated") {
-    router.push("/login");
-    return null;
+  if (status !== "authenticated" || !session?.user) {
+    return <div className="p-8 text-center min-h-screen">Yükleniyor...</div>;
   }
 
-  const getRoleString = (roleVal: any) => {
-    if (roleVal === 0) return 'Member';
-    if (roleVal === 1) return 'Maker';
-    if (roleVal === 2) return 'Admin';
-    return roleVal || 'Kullanıcı';
-  };
-
-  const currentRole = profileData?.role !== undefined ? getRoleString(profileData.role) : getRoleString((session?.user as any)?.role);
+  const currentRole = profileData?.role !== undefined ? getRoleString(profileData.role) : getRoleString(session.user.role);
   const isMakerOrAdmin = currentRole === "Maker" || currentRole === "Admin";
 
   return (
@@ -79,16 +83,20 @@ export default function SubmitPage() {
 
       <div className="max-w-3xl mx-auto px-4 pb-24">
         {!isMakerOrAdmin ? (
-          <MakerApplicationForm userId={(session?.user as any)?.id} />
+          session.accessToken
+            ? <MakerApplicationForm accessToken={session.accessToken} />
+            : <p className="text-center text-destructive">Oturum anahtarı bulunamadı. Lütfen yeniden giriş yapın.</p>
         ) : (
-          <ProductSubmitForm makerId={(session?.user as any)?.id} accessToken={(session as any)?.accessToken} />
+          session.accessToken
+            ? <ProductSubmitForm accessToken={session.accessToken} />
+            : <p className="text-center text-destructive">Oturum anahtarı bulunamadı. Lütfen yeniden giriş yapın.</p>
         )}
       </div>
     </div>
   );
 }
 
-function MakerApplicationForm({ userId }: { userId: string }) {
+function MakerApplicationForm({ accessToken }: { accessToken: string }) {
   const [portfolio, setPortfolio] = useState("");
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -100,8 +108,11 @@ function MakerApplicationForm({ userId }: { userId: string }) {
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/auth/maker-applications", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, portfolioUrl: portfolio, reason })
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ portfolioUrl: portfolio, reason })
       });
       if (res.ok) setSuccess(true);
     } catch (err) {
@@ -145,7 +156,7 @@ function MakerApplicationForm({ userId }: { userId: string }) {
   );
 }
 
-function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessToken: string }) {
+function ProductSubmitForm({ accessToken }: { accessToken: string }) {
   const [name, setName] = useState("");
   const [tagline, setTagline] = useState("");
   const [description, setDescription] = useState("");
@@ -243,7 +254,6 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
           "Authorization": `Bearer ${accessToken}`
         },
         body: JSON.stringify({ 
-          makerId,
           name, 
           tagline, 
           description,
@@ -256,10 +266,10 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
       
       if (res.ok) setSuccess(true);
       else {
-        const data = await res.json();
-        setError(data.Error || "Bir hata oluştu.");
+        const data: unknown = await res.json();
+        setError(getApiProblemMessage(data, "Bir hata oluştu."));
       }
-    } catch (err) {
+    } catch {
       setError("Bağlantı hatası.");
     } finally {
       setIsSubmitting(false);
@@ -287,7 +297,7 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
               {isUploadingLogo ? (
                 <span className="text-xs font-medium animate-pulse">Yükleniyor...</span>
               ) : logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                <Image src={logoUrl} alt="Logo" fill sizes="96px" className="object-cover" />
               ) : (
                 <>
                   <ImageIcon className="w-8 h-8 mb-1 opacity-50 group-hover:scale-110 transition-transform" />
@@ -320,7 +330,7 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
             <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
               {galleryUrls.map((url, i) => (
                 <div key={i} className="relative w-40 h-28 flex-shrink-0 rounded-xl overflow-hidden border border-border group">
-                  <img src={url} alt={`Gallery ${i}`} className="w-full h-full object-cover" />
+                  <Image src={url} alt={`Gallery ${i}`} fill sizes="160px" className="object-cover" />
                   <button type="button" onClick={() => removeGalleryImage(i)} className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <X className="w-4 h-4" />
                   </button>
@@ -454,9 +464,9 @@ function ProductSubmitForm({ makerId, accessToken }: { makerId: string, accessTo
         
         <div className="bg-card rounded-3xl border border-border p-6 shadow-xl">
            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-xl border border-border bg-background flex items-center justify-center text-muted-foreground shrink-0 overflow-hidden">
+              <div className="relative w-16 h-16 rounded-xl border border-border bg-background flex items-center justify-center text-muted-foreground shrink-0 overflow-hidden">
                 {logoUrl ? (
-                  <img src={logoUrl} alt="Preview Logo" className="w-full h-full object-cover" />
+                  <Image src={logoUrl} alt="Preview Logo" fill sizes="64px" className="object-cover" />
                 ) : (
                   <ImageIcon className="w-6 h-6 opacity-50" />
                 )}

@@ -45,7 +45,7 @@ export function SiteFooter() {
               </span>
             </Link>
             <p className="text-sm text-muted-foreground mb-6">
-              En yeni ürünleri keşfedin, oy verin ve favori geliştiricilerinizi destekleyin. Türkiye'nin ürün avcıları topluluğu.
+              En yeni ürünleri keşfedin, oy verin ve favori geliştiricilerinizi destekleyin. Türkiye&apos;nin ürün avcıları topluluğu.
             </p>
             <div className="flex items-center gap-3">
               <a

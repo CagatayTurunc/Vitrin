@@ -5,8 +5,8 @@ namespace Vitrin.Auth.Domain.Entities;
 public class UserBadge : Entity
 {
     public Guid UserId { get; private set; }
-    public string Name { get; private set; }
-    public string Icon { get; private set; } // e.g. "Trophy", "Flame", "Star"
+    public string Name { get; private set; } = string.Empty;
+    public string Icon { get; private set; } = string.Empty; // e.g. "Trophy", "Flame", "Star"
     public DateTime EarnedAt { get; private set; }
 
     public virtual User User { get; private set; } = null!;

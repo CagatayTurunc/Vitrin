@@ -3,28 +3,26 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Bookmark, LayoutGrid } from "lucide-react";
+import type { CollectionSummary } from "@/core/domain/collection.types";
 
 export default function CollectionsPage() {
-  const [collections, setCollections] = useState<any[]>([]);
+  const [collections, setCollections] = useState<CollectionSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchCollections();
-  }, []);
-
-  const fetchCollections = async () => {
-    try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/collections");
-      if (res.ok) {
-        const data = await res.json();
-        setCollections(data);
+    const fetchCollections = async () => {
+      try {
+        const response = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/collections");
+        if (response.ok) setCollections(await response.json() as CollectionSummary[]);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
+
+    void fetchCollections();
+  }, []);
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12 min-h-screen">

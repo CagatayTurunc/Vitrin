@@ -46,14 +46,14 @@ export default function AboutPage() {
         <div className="mx-auto max-w-4xl px-4 py-24 sm:py-32 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-sm font-medium mb-6">
             <Sparkles className="w-4 h-4" />
-            Türkiye'nin Ürün Platformu
+            Türkiye&apos;nin Ürün Platformu
           </div>
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-foreground mb-6 leading-tight">
             Harika ürünler{" "}
             <span className="text-emerald-500">gün yüzüne çıksın</span>
           </h1>
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Vitrin, Türkiye'deki geliştiriciler ve girişimcilerin yarattığı ürünleri
+            Vitrin, Türkiye&apos;deki geliştiriciler ve girişimcilerin yarattığı ürünleri
             dünyaya açmak için kurulmuş bir topluluk platformudur.
           </p>
         </div>
@@ -77,8 +77,8 @@ export default function AboutPage() {
           <div>
             <h2 className="text-3xl font-extrabold text-foreground mb-4">Misyonumuz</h2>
             <p className="text-muted-foreground leading-relaxed mb-4">
-              Product Hunt'tan ilham alarak başladık ama kendi yolumuzda ilerliyoruz.
-              Amacımız Türkiye'deki maker ekosistemini güçlendirmek, ürünlere görünürlük
+              Product Hunt&apos;tan ilham alarak başladık ama kendi yolumuzda ilerliyoruz.
+              Amacımız Türkiye&apos;deki maker ekosistemini güçlendirmek, ürünlere görünürlük
               kazandırmak ve topluluğun sesini yükseltmek.
             </p>
             <p className="text-muted-foreground leading-relaxed">

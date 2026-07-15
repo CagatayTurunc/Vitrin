@@ -13,11 +13,11 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Vitrin.Comment.Infrastructure\Vitrin.Comment.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Vitrin.Shared.Infrastructure\Vitrin.Shared.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

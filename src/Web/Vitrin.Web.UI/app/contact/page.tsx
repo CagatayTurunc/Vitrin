@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Mail, MessageSquare, MapPin, Send, Github, Twitter, Linkedin } from "lucide-react";
+import { AtSign, BriefcaseBusiness, Code2, Mail, MessageSquare, MapPin, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,9 +66,9 @@ export default function ContactPage() {
               <h3 className="text-sm font-semibold text-foreground mb-4">Sosyal Medya</h3>
               <div className="flex gap-3">
                 {[
-                  { icon: Twitter, label: "Twitter", href: "#" },
-                  { icon: Github, label: "GitHub", href: "#" },
-                  { icon: Linkedin, label: "LinkedIn", href: "#" },
+                  { icon: AtSign, label: "Twitter", href: "#" },
+                  { icon: Code2, label: "GitHub", href: "#" },
+                  { icon: BriefcaseBusiness, label: "LinkedIn", href: "#" },
                 ].map(({ icon: Icon, label, href }) => (
                   <a
                     key={label}
