@@ -34,9 +34,11 @@ public static class DependencyInjection
 
         services.AddScoped<ProductEventPublisher>();
         services.AddVitrinOutbox<ProductDbContext>(configuration);
+        services.AddHostedService<ScheduledLaunchWorker>();
 
         // Kafka Consumer — Voting servisinden gelen VoteAdded/VoteRemoved event'lerini dinler
         services.AddHostedService<VotingEventsConsumer>();
+        services.AddHostedService<EngagementEventsConsumer>();
 
         return services;
     }

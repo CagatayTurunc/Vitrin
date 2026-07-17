@@ -84,11 +84,33 @@ app.MapGet("/api/auth/admin/users", async (Vitrin.Auth.Infrastructure.Data.AuthD
             user.FullName,
             user.Headline,
             user.Role,
-            user.CreatedAt
+            user.CreatedAt,
+            user.ActiveBanId,
+            user.SuspendedUntilUtc,
+            user.SuspensionReason,
+            IsBanned = user.ActiveBanId.HasValue && (!user.SuspendedUntilUtc.HasValue || user.SuspendedUntilUtc > DateTime.UtcNow)
         })
         .ToListAsync();
     return Results.Ok(users);
 }).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+app.MapGet("/api/auth/users/resolve", async (string usernames, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+{
+    var requested = usernames
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(username => username.TrimStart('@').ToLowerInvariant())
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Take(10)
+        .ToArray();
+    if (requested.Length == 0) return Results.Ok(Array.Empty<object>());
+
+    var users = await db.Users
+        .AsNoTracking()
+        .Where(user => requested.Contains(user.Username))
+        .Select(user => new { UserId = user.Id, user.Username })
+        .ToListAsync();
+    return Results.Ok(users);
+});
 
 app.MapGet("/api/auth/users/by-username/{username}", async (string username, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
@@ -190,6 +212,11 @@ app.MapGet("/api/auth/users/me", async (HttpContext context, Vitrin.Auth.Infrast
         Badges = user.Badges.Select(b => new { b.Name, b.Icon, b.EarnedAt }),
         FollowerCount = followerCount,
         FollowingCount = followingCount
+        ,
+        user.ActiveBanId,
+        user.SuspendedUntilUtc,
+        user.SuspensionReason,
+        IsBanned = user.ActiveBanId.HasValue && (!user.SuspendedUntilUtc.HasValue || user.SuspendedUntilUtc > DateTime.UtcNow)
     });
 }).RequireAuthorization();
 
@@ -305,6 +332,396 @@ app.MapPost("/api/auth/admin/maker-applications/{id}/reject", async (Guid id, Ht
         context.RequestAborted);
     return Results.Ok(new { Message = "Rejected successfully." });
 }).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+// MODERATION: REPORTS, BANS, APPEALS AND AUDIT LOG
+app.MapPost("/api/auth/moderation/reports", async (
+    HttpContext context,
+    [Microsoft.AspNetCore.Mvc.FromBody] CreateModerationReportRequest request,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db,
+    IAuditLogger auditLogger) =>
+{
+    var reporterUserId = context.User.GetUserId();
+    if (reporterUserId is null) return Results.Unauthorized();
+    if (!Enum.TryParse<Vitrin.Auth.Domain.Entities.ModerationTargetType>(request.TargetType, true, out var targetType))
+        return ApiProblemResults.BadRequest("Unknown report target type.", "moderation.target_type_invalid");
+    if (!Enum.TryParse<Vitrin.Auth.Domain.Entities.ReportCategory>(request.Category, true, out var category))
+        return ApiProblemResults.BadRequest("Unknown report category.", "moderation.category_invalid");
+    if (request.TargetOwnerUserId == reporterUserId)
+        return ApiProblemResults.BadRequest("You cannot report your own content.", "moderation.self_report_not_allowed");
+
+    var hasOpenDuplicate = await db.ModerationReports.AnyAsync(report =>
+        report.ReporterUserId == reporterUserId.Value
+        && report.TargetType == targetType
+        && report.TargetId == request.TargetId
+        && (report.Status == Vitrin.Auth.Domain.Entities.ModerationCaseStatus.Open
+            || report.Status == Vitrin.Auth.Domain.Entities.ModerationCaseStatus.UnderReview));
+    if (hasOpenDuplicate)
+        return ApiProblemResults.BadRequest("You already have an open report for this target.", "moderation.duplicate_report");
+
+    var reportResult = Vitrin.Auth.Domain.Entities.ModerationReport.Create(
+        reporterUserId.Value,
+        targetType,
+        request.TargetId,
+        request.TargetOwnerUserId,
+        category,
+        request.Details);
+    if (!reportResult.IsSuccess)
+        return ApiProblemResults.BadRequest(reportResult.Error, "moderation.report_invalid");
+
+    db.ModerationReports.Add(reportResult.Value);
+    await db.SaveChangesAsync(context.RequestAborted);
+    await auditLogger.WriteAsync(
+        new AuditEvent(
+            "moderation.report_created",
+            reporterUserId,
+            targetType.ToString(),
+            request.TargetId.ToString(),
+            "Succeeded",
+            context.TraceIdentifier,
+            category.ToString()),
+        context.RequestAborted);
+    return Results.Ok(new { reportResult.Value.Id, reportResult.Value.Status });
+}).RequireAuthorization();
+
+app.MapGet("/api/auth/moderation/reports/me", async (
+    HttpContext context,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+    var reports = await db.ModerationReports
+        .AsNoTracking()
+        .Where(report => report.ReporterUserId == userId.Value)
+        .OrderByDescending(report => report.CreatedAtUtc)
+        .Take(100)
+        .ToListAsync();
+    return Results.Ok(reports);
+}).RequireAuthorization();
+
+app.MapGet("/api/auth/moderation/appeals/me", async (
+    HttpContext context,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+    var appeals = await db.ModerationAppeals
+        .AsNoTracking()
+        .Where(appeal => appeal.UserId == userId.Value)
+        .OrderByDescending(appeal => appeal.CreatedAtUtc)
+        .Take(100)
+        .ToListAsync();
+    return Results.Ok(appeals);
+}).RequireAuthorization();
+
+app.MapPost("/api/auth/moderation/appeals", async (
+    HttpContext context,
+    [Microsoft.AspNetCore.Mvc.FromBody] CreateAppealRequest request,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db,
+    IAuditLogger auditLogger) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+    var ban = await db.UserBans.FindAsync([request.BanId], context.RequestAborted);
+    if (ban is null || ban.UserId != userId.Value || !ban.IsActive(DateTime.UtcNow))
+        return ApiProblemResults.BadRequest("An active ban belonging to you is required.", "moderation.active_ban_required");
+    if (await db.ModerationAppeals.AnyAsync(
+            appeal => appeal.BanId == ban.Id && appeal.Status == Vitrin.Auth.Domain.Entities.AppealStatus.Open,
+            context.RequestAborted))
+        return ApiProblemResults.BadRequest("There is already an open appeal for this ban.", "moderation.duplicate_appeal");
+
+    var appealResult = Vitrin.Auth.Domain.Entities.ModerationAppeal.Create(ban.Id, userId.Value, request.Statement);
+    if (!appealResult.IsSuccess)
+        return ApiProblemResults.BadRequest(appealResult.Error, "moderation.appeal_invalid");
+
+    db.ModerationAppeals.Add(appealResult.Value);
+    await db.SaveChangesAsync(context.RequestAborted);
+    await auditLogger.WriteAsync(
+        new AuditEvent("moderation.appeal_created", userId, "UserBan", ban.Id.ToString(), "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
+    return Results.Ok(new { appealResult.Value.Id, appealResult.Value.Status });
+}).RequireAuthorization();
+
+app.MapGet("/api/auth/admin/moderation/reports", async (
+    string? status,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+{
+    var query = db.ModerationReports.AsNoTracking();
+    if (Enum.TryParse<Vitrin.Auth.Domain.Entities.ModerationCaseStatus>(status, true, out var parsedStatus))
+        query = query.Where(report => report.Status == parsedStatus);
+
+    var reports = await query
+        .OrderByDescending(report => report.CreatedAtUtc)
+        .Take(300)
+        .Select(report => new
+        {
+            report.Id,
+            report.ReporterUserId,
+            ReporterUsername = db.Users.Where(user => user.Id == report.ReporterUserId).Select(user => user.Username).FirstOrDefault(),
+            report.TargetType,
+            report.TargetId,
+            report.TargetOwnerUserId,
+            TargetOwnerUsername = db.Users.Where(user => user.Id == report.TargetOwnerUserId).Select(user => user.Username).FirstOrDefault(),
+            report.Category,
+            report.Details,
+            report.Status,
+            report.CreatedAtUtc,
+            report.Resolution,
+            report.ReviewedAtUtc
+        })
+        .ToListAsync();
+    return Results.Ok(reports);
+}).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+app.MapPatch("/api/auth/admin/moderation/reports/{id:guid}", async (
+    Guid id,
+    HttpContext context,
+    [Microsoft.AspNetCore.Mvc.FromBody] ResolveModerationReportRequest request,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db,
+    Vitrin.Auth.Infrastructure.Kafka.IAuthNotificationPublisher notificationPublisher,
+    IAuditLogger auditLogger) =>
+{
+    var moderatorUserId = context.User.GetUserId();
+    if (moderatorUserId is null) return Results.Unauthorized();
+    var report = await db.ModerationReports.FindAsync([id], context.RequestAborted);
+    if (report is null) return ApiProblemResults.NotFound("Report not found.", "moderation.report_not_found");
+    if (report.Status is Vitrin.Auth.Domain.Entities.ModerationCaseStatus.Resolved or Vitrin.Auth.Domain.Entities.ModerationCaseStatus.Dismissed)
+        return ApiProblemResults.BadRequest("This report is already closed.", "moderation.report_already_closed");
+
+    Guid? createdBanId = null;
+    if (request.BanDays.HasValue && report.TargetOwnerUserId.HasValue)
+    {
+        var targetUser = await db.Users.FindAsync([report.TargetOwnerUserId.Value], context.RequestAborted);
+        if (targetUser is not null && targetUser.Role != Vitrin.Auth.Domain.Entities.UserRole.Admin)
+        {
+            var expiresAtUtc = request.BanDays.Value > 0 ? DateTime.UtcNow.AddDays(request.BanDays.Value) : (DateTime?)null;
+            var ban = Vitrin.Auth.Domain.Entities.UserBan.Create(
+                targetUser.Id,
+                moderatorUserId.Value,
+                request.Resolution,
+                expiresAtUtc);
+            db.UserBans.Add(ban);
+            targetUser.Suspend(ban.Id, request.Resolution, expiresAtUtc);
+            createdBanId = ban.Id;
+            await notificationPublisher.NotifyAsync(
+                targetUser.Id,
+                expiresAtUtc.HasValue
+                    ? $"Hesabınız {expiresAtUtc.Value:dd.MM.yyyy HH:mm} tarihine kadar askıya alındı. Gerekçe: {request.Resolution}"
+                    : $"Hesabınız kalıcı olarak askıya alındı. Gerekçe: {request.Resolution}",
+                "account_banned",
+                context.RequestAborted);
+        }
+    }
+
+    report.Resolve(moderatorUserId.Value, request.Resolution, request.Dismissed);
+    await db.SaveChangesAsync(context.RequestAborted);
+    await auditLogger.WriteAsync(
+        new AuditEvent(
+            request.Dismissed ? "admin.report_dismissed" : "admin.report_resolved",
+            moderatorUserId,
+            report.TargetType.ToString(),
+            report.TargetId.ToString(),
+            "Succeeded",
+            context.TraceIdentifier,
+            $"ReportId={report.Id}; Resolution={request.Resolution}; BanId={createdBanId}"),
+        context.RequestAborted);
+    return Results.Ok(new { report.Id, report.Status, BanId = createdBanId });
+}).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+app.MapPost("/api/auth/admin/moderation/bans", async (
+    HttpContext context,
+    [Microsoft.AspNetCore.Mvc.FromBody] CreateUserBanRequest request,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db,
+    Vitrin.Auth.Infrastructure.Kafka.IAuthNotificationPublisher notificationPublisher,
+    IAuditLogger auditLogger) =>
+{
+    var moderatorUserId = context.User.GetUserId();
+    if (moderatorUserId is null) return Results.Unauthorized();
+    if (request.UserId == moderatorUserId.Value)
+        return ApiProblemResults.BadRequest("You cannot ban yourself.", "moderation.self_ban_not_allowed");
+    if (string.IsNullOrWhiteSpace(request.Reason))
+        return ApiProblemResults.BadRequest("A ban reason is required.", "moderation.ban_reason_required");
+
+    var user = await db.Users.FindAsync([request.UserId], context.RequestAborted);
+    if (user is null) return ApiProblemResults.NotFound("User not found.", "user.not_found");
+    if (user.Role == Vitrin.Auth.Domain.Entities.UserRole.Admin)
+        return ApiProblemResults.BadRequest("Administrators cannot be banned.", "moderation.admin_ban_not_allowed");
+    if (user.IsBanned(DateTime.UtcNow))
+        return ApiProblemResults.BadRequest("The user already has an active ban.", "moderation.active_ban_exists");
+
+    var expiresAtUtc = request.DurationDays.HasValue && request.DurationDays.Value > 0
+        ? DateTime.UtcNow.AddDays(request.DurationDays.Value)
+        : (DateTime?)null;
+    var ban = Vitrin.Auth.Domain.Entities.UserBan.Create(user.Id, moderatorUserId.Value, request.Reason, expiresAtUtc);
+    db.UserBans.Add(ban);
+    user.Suspend(ban.Id, request.Reason, expiresAtUtc);
+    await notificationPublisher.NotifyAsync(
+        user.Id,
+        expiresAtUtc.HasValue
+            ? $"Hesabınız {expiresAtUtc.Value:dd.MM.yyyy HH:mm} tarihine kadar askıya alındı. Gerekçe: {request.Reason}"
+            : $"Hesabınız kalıcı olarak askıya alındı. Gerekçe: {request.Reason}",
+        "account_banned",
+        context.RequestAborted);
+    await db.SaveChangesAsync(context.RequestAborted);
+    await auditLogger.WriteAsync(
+        new AuditEvent("admin.user_banned", moderatorUserId, "User", user.Id.ToString(), "Succeeded", context.TraceIdentifier, request.Reason),
+        context.RequestAborted);
+    return Results.Ok(new { ban.Id, ban.ExpiresAtUtc });
+}).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+app.MapGet("/api/auth/admin/moderation/bans", async (Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+{
+    var now = DateTime.UtcNow;
+    var bans = await db.UserBans
+        .AsNoTracking()
+        .Where(ban => !ban.RevokedAtUtc.HasValue && (!ban.ExpiresAtUtc.HasValue || ban.ExpiresAtUtc > now))
+        .OrderByDescending(ban => ban.CreatedAtUtc)
+        .Take(300)
+        .Select(ban => new
+        {
+            ban.Id,
+            ban.UserId,
+            Username = db.Users.Where(user => user.Id == ban.UserId).Select(user => user.Username).FirstOrDefault(),
+            ban.Reason,
+            ban.CreatedAtUtc,
+            ban.ExpiresAtUtc,
+            ban.IssuedByUserId
+        })
+        .ToListAsync();
+    return Results.Ok(bans);
+}).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+app.MapDelete("/api/auth/admin/moderation/bans/{id:guid}", async (
+    Guid id,
+    HttpContext context,
+    [Microsoft.AspNetCore.Mvc.FromBody] RevokeUserBanRequest request,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db,
+    Vitrin.Auth.Infrastructure.Kafka.IAuthNotificationPublisher notificationPublisher,
+    IAuditLogger auditLogger) =>
+{
+    var moderatorUserId = context.User.GetUserId();
+    if (moderatorUserId is null) return Results.Unauthorized();
+    var ban = await db.UserBans.FindAsync([id], context.RequestAborted);
+    if (ban is null) return ApiProblemResults.NotFound("Ban not found.", "moderation.ban_not_found");
+    var user = await db.Users.FindAsync([ban.UserId], context.RequestAborted);
+
+    ban.Revoke(moderatorUserId.Value, request.Reason);
+    if (user?.ActiveBanId == ban.Id) user.LiftSuspension();
+    await notificationPublisher.NotifyAsync(
+        ban.UserId,
+        $"Hesap askınız kaldırıldı. Not: {request.Reason}",
+        "account_ban_revoked",
+        context.RequestAborted);
+    await db.SaveChangesAsync(context.RequestAborted);
+    await auditLogger.WriteAsync(
+        new AuditEvent("admin.user_ban_revoked", moderatorUserId, "UserBan", ban.Id.ToString(), "Succeeded", context.TraceIdentifier, request.Reason),
+        context.RequestAborted);
+    return Results.Ok(new { ban.Id, Revoked = true });
+}).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+app.MapGet("/api/auth/admin/moderation/appeals", async (Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+{
+    var appeals = await db.ModerationAppeals
+        .AsNoTracking()
+        .OrderByDescending(appeal => appeal.CreatedAtUtc)
+        .Take(300)
+        .Select(appeal => new
+        {
+            appeal.Id,
+            appeal.BanId,
+            appeal.UserId,
+            Username = db.Users.Where(user => user.Id == appeal.UserId).Select(user => user.Username).FirstOrDefault(),
+            appeal.Statement,
+            appeal.Status,
+            appeal.CreatedAtUtc,
+            appeal.ReviewNote,
+            appeal.ReviewedAtUtc
+        })
+        .ToListAsync();
+    return Results.Ok(appeals);
+}).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+app.MapPatch("/api/auth/admin/moderation/appeals/{id:guid}", async (
+    Guid id,
+    HttpContext context,
+    [Microsoft.AspNetCore.Mvc.FromBody] ReviewAppealRequest request,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db,
+    Vitrin.Auth.Infrastructure.Kafka.IAuthNotificationPublisher notificationPublisher,
+    IAuditLogger auditLogger) =>
+{
+    var moderatorUserId = context.User.GetUserId();
+    if (moderatorUserId is null) return Results.Unauthorized();
+    var appeal = await db.ModerationAppeals.FindAsync([id], context.RequestAborted);
+    if (appeal is null) return ApiProblemResults.NotFound("Appeal not found.", "moderation.appeal_not_found");
+    if (appeal.Status != Vitrin.Auth.Domain.Entities.AppealStatus.Open)
+        return ApiProblemResults.BadRequest("This appeal is already reviewed.", "moderation.appeal_already_reviewed");
+
+    var ban = await db.UserBans.FindAsync([appeal.BanId], context.RequestAborted);
+    var user = await db.Users.FindAsync([appeal.UserId], context.RequestAborted);
+    appeal.Review(moderatorUserId.Value, request.Approved, request.Note);
+    if (request.Approved && ban is not null)
+    {
+        ban.Revoke(moderatorUserId.Value, $"Appeal approved: {request.Note}");
+        if (user?.ActiveBanId == ban.Id) user.LiftSuspension();
+    }
+
+    await notificationPublisher.NotifyAsync(
+        appeal.UserId,
+        request.Approved
+            ? $"İtirazınız kabul edildi ve hesap askınız kaldırıldı. Not: {request.Note}"
+            : $"İtirazınız reddedildi. Not: {request.Note}",
+        request.Approved ? "appeal_approved" : "appeal_rejected",
+        context.RequestAborted);
+    await db.SaveChangesAsync(context.RequestAborted);
+    await auditLogger.WriteAsync(
+        new AuditEvent(
+            request.Approved ? "admin.appeal_approved" : "admin.appeal_rejected",
+            moderatorUserId,
+            "ModerationAppeal",
+            appeal.Id.ToString(),
+            "Succeeded",
+            context.TraceIdentifier,
+            request.Note),
+        context.RequestAborted);
+    return Results.Ok(new { appeal.Id, appeal.Status });
+}).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+app.MapGet("/api/auth/admin/moderation/audit", async (
+    string? action,
+    string? resourceType,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+{
+    var query = db.ModerationAuditEntries.AsNoTracking();
+    if (!string.IsNullOrWhiteSpace(action)) query = query.Where(entry => entry.Action == action);
+    if (!string.IsNullOrWhiteSpace(resourceType)) query = query.Where(entry => entry.ResourceType == resourceType);
+    var entries = await query
+        .OrderByDescending(entry => entry.OccurredAtUtc)
+        .Take(500)
+        .ToListAsync();
+    return Results.Ok(entries);
+}).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+app.MapGet("/api/auth/activity", async (int? limit, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+{
+    var take = Math.Clamp(limit ?? 30, 1, 100);
+    var activity = await (
+        from follow in db.UserFollows.AsNoTracking()
+        join actor in db.Users.AsNoTracking() on follow.FollowerId equals actor.Id
+        join followed in db.Users.AsNoTracking() on follow.FollowingId equals followed.Id
+        orderby follow.CreatedAt descending
+        select new AuthActivityResponse(
+            $"follow:{follow.FollowerId}:{follow.FollowingId}",
+            "follow",
+            actor.Id,
+            actor.Username,
+            $"@{followed.Username} kullanıcısını takip etmeye başladı",
+            "User",
+            followed.Id,
+            followed.Username,
+            follow.CreatedAt))
+        .Take(take)
+        .ToListAsync();
+    return Results.Ok(activity);
+});
 
 // FOLLOW SYSTEM
 app.MapPost("/api/auth/users/{username}/follow", async (string username, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, Vitrin.Auth.Infrastructure.Kafka.IAuthNotificationPublisher notificationPublisher) =>
@@ -478,3 +895,24 @@ app.Run();
 
 public record MakerApplicationRequest(string PortfolioUrl, string Reason);
 public record UpdateProfileRequest(string FullName, string Username, string? Headline, string? About, string? AvatarUrl, string? WebsiteUrl, string? GithubUrl, string? LinkedInUrl);
+public record CreateModerationReportRequest(
+    string TargetType,
+    Guid TargetId,
+    Guid? TargetOwnerUserId,
+    string Category,
+    string Details);
+public record ResolveModerationReportRequest(string Resolution, bool Dismissed, int? BanDays = null);
+public record CreateUserBanRequest(Guid UserId, string Reason, int? DurationDays = null);
+public record RevokeUserBanRequest(string Reason);
+public record CreateAppealRequest(Guid BanId, string Statement);
+public record ReviewAppealRequest(bool Approved, string Note);
+public record AuthActivityResponse(
+    string Id,
+    string Type,
+    Guid ActorUserId,
+    string ActorUsername,
+    string Summary,
+    string EntityType,
+    Guid EntityId,
+    string? Metadata,
+    DateTime CreatedAtUtc);

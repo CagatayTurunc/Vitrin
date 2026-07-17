@@ -85,7 +85,7 @@ public class NotificationKafkaConsumer : KafkaConsumerBase
         }
 
         var result = await mediator.Send(
-            new SendNotificationCommand(@event.RecipientUserId, @event.Message),
+            new SendNotificationCommand(@event.RecipientUserId, @event.Message, @event.NotificationType),
             cancellationToken);
 
         if (result.IsSuccess)

@@ -9,6 +9,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { FollowersModal } from "@/components/followers-modal";
+import { ReportDialog } from "@/components/report-dialog";
 import type { UserProfile } from "@/core/domain/user.types";
 
 export default function ProfilePage() {
@@ -191,6 +192,15 @@ export default function ProfilePage() {
                 {user.isFollowing ? "Takipten Çık" : "Takip Et"}
               </button>
             ) : null}
+            {session?.user && session.user.username !== user.username && (
+              <ReportDialog
+                targetType="User"
+                targetId={user.id}
+                targetOwnerUserId={user.id}
+                compact
+                triggerClassName="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-background text-muted-foreground hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-500"
+              />
+            )}
           </div>
           
           {user.about && (

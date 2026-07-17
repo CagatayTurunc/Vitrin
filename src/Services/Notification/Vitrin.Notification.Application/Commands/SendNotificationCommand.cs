@@ -4,7 +4,7 @@ using MediatR;
 
 namespace Vitrin.Notification.Application.Commands;
 
-public record SendNotificationCommand(Guid UserId, string Message) : IRequest<Result<Guid>>;
+public record SendNotificationCommand(Guid UserId, string Message, string? NotificationType = null) : IRequest<Result<Guid>>;
 
 public interface INotificationRepository
 {
@@ -24,13 +24,11 @@ public class SendNotificationCommandHandler : IRequestHandler<SendNotificationCo
 
     public async Task<Result<Guid>> Handle(SendNotificationCommand request, CancellationToken cancellationToken)
     {
-        var notificationResult = NotificationItem.Create(request.UserId, request.Message);
+        var notificationResult = NotificationItem.Create(request.UserId, request.Message, request.NotificationType);
         if (!notificationResult.IsSuccess)
             return Result<Guid>.Failure(notificationResult.Error);
 
         await _repository.AddAsync(notificationResult.Value, cancellationToken);
-        
-        // SignalR ile anlık bildirim gönderme tetiklenebilir
         
         return Result<Guid>.Success(notificationResult.Value.Id);
     }

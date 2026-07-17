@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using NpgsqlTypes;
 using Vitrin.Product.Infrastructure.Data;
 
 #nullable disable
@@ -81,6 +82,11 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("Visibility")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
                     b.HasKey("Id");
 
                     b.HasIndex("Slug")
@@ -90,7 +96,86 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.HasIndex("UserId", "CreatedAt")
                         .HasDatabaseName("IX_Collections_UserId_CreatedAt");
 
+                    b.HasIndex("Visibility", "CreatedAt")
+                        .HasDatabaseName("IX_Collections_Visibility_CreatedAt");
+
                     b.ToTable("Collections");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CollectionCollaborator", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_CollectionCollaborators_UserId");
+
+                    b.HasIndex("CollectionId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CollectionCollaborators_CollectionId_UserId");
+
+                    b.ToTable("CollectionCollaborators");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductClaimRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClaimantUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClaimantUsername")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId", "ClaimantUserId", "Status")
+                        .HasDatabaseName("IX_ProductClaimRequests_Product_User_Status");
+
+                    b.ToTable("ProductClaimRequests");
                 });
 
             modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductItem", b =>
@@ -98,6 +183,14 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CommentCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -121,6 +214,18 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.Property<DateTime?>("PublishedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("ScheduledLaunchAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<NpgsqlTsVector>("SearchVector")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("tsvector")
+                        .HasComputedColumnSql("setweight(to_tsvector('simple', coalesce(\"Name\", '')), 'A') || setweight(to_tsvector('simple', coalesce(\"Tagline\", '')), 'B') || setweight(to_tsvector('simple', coalesce(\"Description\", '')), 'C')", true);
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -137,6 +242,11 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.Property<string>("ThumbnailUrl")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int>("ViewCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.HasKey("Id");
 
@@ -155,6 +265,11 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
                     NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
 
+                    b.HasIndex("SearchVector")
+                        .HasDatabaseName("IX_Products_SearchVector");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "GIN");
+
                     b.HasIndex("Slug")
                         .IsUnique()
                         .HasDatabaseName("UX_Products_Slug");
@@ -164,6 +279,9 @@ namespace Vitrin.Product.Infrastructure.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Tagline"), "gin");
                     NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Tagline"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("Status", "ScheduledLaunchAt")
+                        .HasDatabaseName("IX_Products_Status_ScheduledLaunchAt");
 
                     b.HasIndex("Status", "PublishedAt", "Id")
                         .HasDatabaseName("IX_Products_Status_PublishedAt_Id");
@@ -195,6 +313,102 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.HasIndex("ProductId");
 
                     b.ToTable("ProductLinks");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChangeType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChangedByUsername")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<List<string>>("GalleryUrls")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("RevisionNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ScheduledLaunchAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Summary")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Tagline")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ThumbnailUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId", "RevisionNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProductRevisions_ProductId_RevisionNumber");
+
+                    b.ToTable("ProductRevisions");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductTeamMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProductTeamMembers_ProductId_UserId");
+
+                    b.ToTable("ProductTeamMembers");
                 });
 
             modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductUpvote", b =>
@@ -366,10 +580,46 @@ namespace Vitrin.Product.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CollectionCollaborator", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.Collection", null)
+                        .WithMany("Collaborators")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductClaimRequest", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductLink", b =>
                 {
                     b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
                         .WithMany("Links")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductRevision", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductTeamMember", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
+                        .WithMany("TeamMembers")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -384,9 +634,16 @@ namespace Vitrin.Product.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.Collection", b =>
+                {
+                    b.Navigation("Collaborators");
+                });
+
             modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductItem", b =>
                 {
                     b.Navigation("Links");
+
+                    b.Navigation("TeamMembers");
 
                     b.Navigation("Upvotes");
                 });

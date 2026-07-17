@@ -3,10 +3,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Vitrin.Auth.Application.Interfaces;
 using Vitrin.Auth.Infrastructure.Data;
+using Vitrin.Auth.Infrastructure.Audit;
 using Vitrin.Auth.Infrastructure.Kafka;
 using Vitrin.Auth.Infrastructure.Repositories;
 using Vitrin.Auth.Infrastructure.Services;
 using Vitrin.Shared.Infrastructure.Kafka;
+using Vitrin.Shared.Infrastructure.Audit;
 using Vitrin.Shared.Infrastructure.Outbox;
 
 namespace Vitrin.Auth.Infrastructure;
@@ -34,6 +36,7 @@ public static class DependencyInjection
         // Kafka Producer + Notification Publisher
         services.AddSingleton<IEventPublisher, KafkaProducer>();
         services.AddScoped<IAuthNotificationPublisher, AuthNotificationPublisher>();
+        services.AddScoped<IAuditLogger, AuthAuditLogger>();
         services.AddVitrinOutbox<AuthDbContext>(configuration);
 
         return services;

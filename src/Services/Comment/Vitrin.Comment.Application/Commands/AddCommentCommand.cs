@@ -10,8 +10,18 @@ public record AddCommentCommand(
     string UserName,
     string Content,
     Guid? ParentCommentId = null,
-    Guid? ProductMakerId = null)   // caller biliyorsa geçer, consumer'dan gelmeyebilir
+    Guid? ProductMakerId = null,
+    IReadOnlyCollection<MentionRecipient>? Mentions = null)
     : IRequest<Result<Guid>>;
+
+public sealed record MentionRecipient(Guid UserId, string Username);
+
+public interface ICommentMentionResolver
+{
+    Task<IReadOnlyCollection<MentionRecipient>> ResolveAsync(
+        string content,
+        CancellationToken cancellationToken = default);
+}
 
 public interface ICommentRepository
 {
@@ -27,6 +37,12 @@ public interface ICommentRepository
 public interface ICommentNotificationPublisher
 {
     Task NotifyAsync(Guid recipientUserId, string message, string notificationType, CancellationToken ct = default);
+    Task RecordEngagementAsync(
+        Guid productId,
+        Guid commentId,
+        Guid userId,
+        bool isReply,
+        CancellationToken ct = default);
 }
 
 public class AddCommentCommandHandler : IRequestHandler<AddCommentCommand, Result<Guid>>
@@ -55,6 +71,25 @@ public class AddCommentCommandHandler : IRequestHandler<AddCommentCommand, Resul
             return Result<Guid>.Failure(commentResult.Error);
 
         await _repository.AddAsync(commentResult.Value, cancellationToken);
+
+        foreach (var mention in request.Mentions ?? Array.Empty<MentionRecipient>())
+        {
+            if (mention.UserId == request.UserId) continue;
+
+            commentResult.Value.AddMention(mention.UserId, mention.Username);
+            await _notificationPublisher.NotifyAsync(
+                mention.UserId,
+                $"@{request.UserName} bir yorumda sizden bahsetti.",
+                "comment_mention",
+                cancellationToken);
+        }
+
+        await _notificationPublisher.RecordEngagementAsync(
+            request.ProductId,
+            commentResult.Value.Id,
+            request.UserId,
+            request.ParentCommentId.HasValue,
+            cancellationToken);
 
         // 1. Üst yoruma cevap verilmişse → üst yorum sahibine bildirim
         if (request.ParentCommentId.HasValue)

@@ -65,7 +65,7 @@ export default function RootLayout({
               <SiteFooter />
             </div>
             <Toaster />
-            <Analytics />
+            {process.env.NODE_ENV === 'production' && <Analytics />}
           </ThemeProvider>
         </NextAuthProvider>
       </body>

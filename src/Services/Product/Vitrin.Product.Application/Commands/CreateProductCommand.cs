@@ -11,4 +11,6 @@ public record CreateProductCommand(
     string Slug,
     List<string> Topics,
     string? ThumbnailUrl,
-    List<string>? GalleryUrls) : IRequest<Result<Guid>>;
+    List<string>? GalleryUrls,
+    bool SaveAsDraft = false,
+    string RequestingUsername = "") : IRequest<Result<Guid>>;

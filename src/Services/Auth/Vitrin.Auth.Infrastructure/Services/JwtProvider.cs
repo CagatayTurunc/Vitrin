@@ -27,8 +27,12 @@ public class JwtProvider : IJwtProvider
             new Claim(JwtRegisteredClaimNames.Name, user.Username),
             new Claim(VitrinAuthDefaults.FullNameClaim, user.FullName),
             new Claim(VitrinAuthDefaults.AvatarUrlClaim, user.AvatarUrl),
-            new Claim(VitrinAuthDefaults.RoleClaim, user.Role.ToString())
+            new Claim(VitrinAuthDefaults.RoleClaim, user.Role.ToString()),
+            new Claim("vitrin:banned", user.IsBanned(DateTime.UtcNow) ? "true" : "false")
         };
+
+        if (user.ActiveBanId.HasValue)
+            claims.Add(new Claim("vitrin:ban_id", user.ActiveBanId.Value.ToString()));
 
         var secret = _configuration["Jwt:Secret"];
         if (string.IsNullOrWhiteSpace(secret) || Encoding.UTF8.GetByteCount(secret) < 32)

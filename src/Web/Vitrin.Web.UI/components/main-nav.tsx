@@ -75,10 +75,10 @@ const navItems = [
     href: '#',
     items: [
       {
-        title: 'Tartışmalar',
-        description: 'Soru sor, destek bul ve ağ kur',
+        title: 'Topluluk Akışı',
+        description: 'Lansmanları, yorumları ve yeni bağlantıları canlı izle',
         icon: <MessageSquare className="h-4 w-4 text-indigo-500" />,
-        href: '#'
+        href: '/activity'
       },
       {
         title: 'Liderlik Tablosu',
@@ -133,10 +133,10 @@ export function MainNav() {
       ))}
       
       <Link 
-        href="#" 
+        href="/compare"
         className="px-3 py-2 text-sm whitespace-nowrap font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50"
       >
-        Öne Çıkar
+        Karşılaştır
       </Link>
     </nav>
   );

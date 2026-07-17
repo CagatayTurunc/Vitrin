@@ -29,6 +29,13 @@ public class ProductRepository : IProductRepository
         }
     }
 
+    public async Task<ProductItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return await _context.Products
+            .Include(product => product.TeamMembers)
+            .FirstOrDefaultAsync(product => product.Id == id, cancellationToken);
+    }
+
     public async Task<bool> IsSlugUniqueAsync(string slug, CancellationToken cancellationToken)
     {
         var exists = await _context.Products.AnyAsync(p => p.Slug == slug, cancellationToken);
@@ -44,6 +51,64 @@ public class ProductRepository : IProductRepository
     {
         // Entity is already tracked, just save changes to detect additions/removals in collections
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateWithRevisionAsync(
+        ProductItem product,
+        Guid changedByUserId,
+        string changedByUsername,
+        string changeType,
+        string? summary,
+        CancellationToken cancellationToken)
+    {
+        await AddRevisionWithoutSavingAsync(
+            product,
+            changedByUserId,
+            changedByUsername,
+            changeType,
+            summary,
+            cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AddRevisionAsync(
+        ProductItem product,
+        Guid changedByUserId,
+        string changedByUsername,
+        string changeType,
+        string? summary,
+        CancellationToken cancellationToken)
+    {
+        await AddRevisionWithoutSavingAsync(
+            product,
+            changedByUserId,
+            changedByUsername,
+            changeType,
+            summary,
+            cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task AddRevisionWithoutSavingAsync(
+        ProductItem product,
+        Guid changedByUserId,
+        string changedByUsername,
+        string changeType,
+        string? summary,
+        CancellationToken cancellationToken)
+    {
+        var nextRevision = await _context.ProductRevisions
+            .Where(revision => revision.ProductId == product.Id)
+            .Select(revision => (int?)revision.RevisionNumber)
+            .MaxAsync(cancellationToken) ?? 0;
+
+        _context.ProductRevisions.Add(ProductRevision.Create(
+            product,
+            nextRevision + 1,
+            changedByUserId,
+            changedByUsername,
+            changeType,
+            summary));
     }
 
 }

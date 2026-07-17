@@ -4,6 +4,7 @@ using Vitrin.Product.Domain.Entities;
 using Vitrin.Product.Api.Products;
 using Vitrin.Product.Infrastructure.Data;
 using Xunit;
+using NpgsqlTypes;
 
 namespace Vitrin.Product.Tests.Infrastructure;
 
@@ -53,5 +54,34 @@ public class ProductQueryTranslationTests
         sql.Should().Contain("Collections");
         sql.Should().Contain("Products");
         sql.Should().Contain("ProductUpvotes");
+    }
+
+    [Fact]
+    public void FullText_And_Trigram_Search_ShouldTranslateToPostgreSql()
+    {
+        var options = new DbContextOptionsBuilder<ProductDbContext>()
+            .UseNpgsql("Host=localhost;Database=translation_test;Username=test;Password=test")
+            .Options;
+        using var db = new ProductDbContext(options);
+        const string term = "gelistirci";
+
+        var sql = db.Products
+            .AsNoTracking()
+            .Where(product =>
+                EF.Property<NpgsqlTsVector>(product, "SearchVector")
+                    .Matches(EF.Functions.WebSearchToTsQuery("simple", term)) ||
+                EF.Functions.TrigramsSimilarity(product.Name, term) >= 0.2)
+            .Select(product => new
+            {
+                product.Id,
+                Rank = EF.Property<NpgsqlTsVector>(product, "SearchVector")
+                    .Rank(EF.Functions.WebSearchToTsQuery("simple", term)),
+                Similarity = EF.Functions.TrigramsSimilarity(product.Name, term)
+            })
+            .ToQueryString();
+
+        sql.Should().Contain("websearch_to_tsquery");
+        sql.Should().Contain("similarity");
+        sql.Should().Contain("SearchVector");
     }
 }

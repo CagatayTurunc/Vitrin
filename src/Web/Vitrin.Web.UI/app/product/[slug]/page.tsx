@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowUp, ExternalLink, MessageSquare, Share2, AlertCircle, Bookmark, X, ChevronLeft, ChevronRight, Maximize2, Star } from "lucide-react";
 import { LoginModal } from "@/components/login-modal";
 import { AddToCollectionModal } from "@/components/add-to-collection-modal";
+import { ReportDialog } from "@/components/report-dialog";
 import dynamic from "next/dynamic";
 import "@uiw/react-markdown-preview/markdown.css";
 import type { ProductDetailApiModel } from "@/core/domain/product.types";
@@ -23,6 +24,11 @@ interface ProductComment {
   parentCommentId?: string | null;
   isDeleted: boolean;
   updatedAt?: string | null;
+  moderationStatus: number;
+  isModerated: boolean;
+  mentionedUsers: Array<{ mentionedUserId: string; mentionedUsername: string }>;
+  reactionCounts: Record<string, number>;
+  myReaction?: string | null;
 }
 
 interface ProductCommentNode extends ProductComment {
@@ -31,11 +37,18 @@ interface ProductCommentNode extends ProductComment {
 
 const MarkdownPreview = dynamic(() => import("@uiw/react-markdown-preview").then((mod) => mod.default), { ssr: false });
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+const commentReactions = [
+  { value: "like", emoji: "👍", label: "Beğen" },
+  { value: "love", emoji: "❤️", label: "Sev" },
+  { value: "insightful", emoji: "💡", label: "Faydalı" },
+  { value: "celebrate", emoji: "🎉", label: "Kutla" },
+];
 
 export default function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const unwrappedParams = use(params);
   const slug = unwrappedParams.slug as string;
   const { data: session } = useSession();
+  const accessToken = session?.accessToken;
 
   const [product, setProduct] = useState<ProductDetailApiModel | null>(null);
   const [maker, setMaker] = useState<UserProfile | null>(null);
@@ -68,7 +81,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
 
   const fetchAiData = useCallback(async (productId: string) => {
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/ai/product/${productId}`);
+      const res = await fetch(`${API_URL}/api/ai/product/${productId}`);
       if (res.ok) {
         const data = await res.json();
         setAiSummary(data.summary);
@@ -76,11 +89,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         setAiTags(tagsArray);
         
         // Fetch recommendations
-        const recRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/ai/product/${productId}/recommendations`);
+        const recRes = await fetch(`${API_URL}/api/ai/product/${productId}/recommendations`);
         if (recRes.ok) {
           const recIds = await recRes.json();
           if (recIds && recIds.length > 0) {
-            const batchRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/batch?ids=${recIds.join(',')}`);
+            const batchRes = await fetch(`${API_URL}/api/products/batch?ids=${recIds.join(',')}`);
             if (batchRes.ok) {
               setRecommendations(await batchRes.json() as ProductDetailApiModel[]);
             }
@@ -88,7 +101,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         }
       }
     } catch (error) {
-      console.error("AI veri çekme hatası:", error);
+      console.warn("AI verisi şu anda alınamadı:", error);
     }
   }, []);
 
@@ -96,7 +109,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
     if (!product || !session?.accessToken) return;
     setIsGeneratingAi(true);
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/ai/analyze`, {
+      const res = await fetch(`${API_URL}/api/ai/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -121,7 +134,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
   const fetchProductData = useCallback(async () => {
     try {
       // 1. Fetch Product Details
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/products/${slug}`);
+      const res = await fetch(`${API_URL}/api/products/${slug}`);
       if (res.ok) {
         const productData = await res.json() as ProductDetailApiModel;
         setProduct(productData);
@@ -129,31 +142,42 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         // Fetch AI Data
         void fetchAiData(productData.id);
 
-        // 2. Fetch Comments
-        const commentsRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/comments/${productData.id}`);
-        if (commentsRes.ok) {
-          const commentsData = await commentsRes.json() as ProductComment[];
-          setComments(commentsData);
+        // 2. Fetch Comments. A temporary comment-service outage must not hide the product.
+        try {
+          const commentsRes = await fetch(`${API_URL}/api/comments/${productData.id}`, {
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+          });
+          if (commentsRes.ok) {
+            const commentsData = await commentsRes.json() as ProductComment[];
+            setComments(commentsData);
+          }
+        } catch (error) {
+          console.warn("Yorumlar şu anda alınamadı:", error);
+          setComments([]);
         }
 
         // 3. Fetch Maker
         if (productData.makerId) {
-          const makerRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/users/${productData.makerId}`);
-          if (makerRes.ok) {
-            const makerData = await makerRes.json() as UserProfile;
-            setMaker(makerData);
+          try {
+            const makerRes = await fetch(`${API_URL}/api/auth/users/${productData.makerId}`);
+            if (makerRes.ok) {
+              const makerData = await makerRes.json() as UserProfile;
+              setMaker(makerData);
+            }
+          } catch (error) {
+            console.warn("Maker bilgisi şu anda alınamadı:", error);
           }
         }
       } else {
         setProduct(null);
       }
     } catch (error) {
-      console.error(error);
+      console.warn("Ürün verisi şu anda alınamadı:", error);
       setProduct(null);
     } finally {
       setIsLoading(false);
     }
-  }, [fetchAiData, slug]);
+  }, [accessToken, fetchAiData, slug]);
 
   useEffect(() => {
     // Client-side route data is synchronized after the network request resolves.
@@ -172,7 +196,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
       .then((productIds) => {
         if (isCurrent) setHasVoted(productIds.includes(product.id));
       })
-      .catch((error) => console.error("Oy durumu alınamadı", error));
+      .catch((error) => console.warn("Oy durumu şu anda alınamadı:", error));
 
     return () => {
       isCurrent = false;
@@ -188,7 +212,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
     if (!maker) return;
 
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/auth/users/${maker.username}/follow`, {
+      const res = await fetch(`${API_URL}/api/auth/users/${maker.username}/follow`, {
         method: "POST",
         headers: { Authorization: `Bearer ${session.accessToken}` }
       });
@@ -262,7 +286,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
 
     setIsSubmittingComment(true);
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/comments", {
+      const res = await fetch(`${API_URL}/api/comments`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -271,7 +295,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         body: JSON.stringify({
           productId: product.id,
           content: contentToSend,
-          parentCommentId: parentId || null
+          parentCommentId: parentId || null,
+          productMakerId: product.makerId,
         })
       });
       
@@ -284,7 +309,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         }
         
         // Refresh comments
-        const commentsRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/comments/${product.id}`);
+        const commentsRes = await fetch(`${API_URL}/api/comments/${product.id}`, {
+          headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
+        });
         if (commentsRes.ok) {
           setComments(await commentsRes.json() as ProductComment[]);
         }
@@ -299,7 +326,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
   const handleCommentEdit = async (commentId: string) => {
     if (!editContent.trim() || !product) return;
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/comments/${commentId}`, {
+      const res = await fetch(`${API_URL}/api/comments/${commentId}`, {
         method: "PUT",
         headers: { 
           "Content-Type": "application/json",
@@ -310,7 +337,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
       if (res.ok) {
         setEditCommentId(null);
         // Refresh comments
-        const commentsRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/comments/${product.id}`);
+        const commentsRes = await fetch(`${API_URL}/api/comments/${product.id}`, {
+          headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
+        });
         if (commentsRes.ok) setComments(await commentsRes.json() as ProductComment[]);
       }
     } catch (err) { console.error(err); }
@@ -319,16 +348,91 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
   const handleCommentDelete = async (commentId: string) => {
     if (!product || !confirm("Bu yorumu silmek istediğinize emin misiniz?")) return;
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/comments/${commentId}`, {
+      const res = await fetch(`${API_URL}/api/comments/${commentId}`, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${session?.accessToken}` }
       });
       if (res.ok) {
-        const commentsRes = await fetch(process.env.NEXT_PUBLIC_API_URL + `/api/comments/${product.id}`);
+        const commentsRes = await fetch(`${API_URL}/api/comments/${product.id}`, {
+          headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
+        });
         if (commentsRes.ok) setComments(await commentsRes.json() as ProductComment[]);
       }
     } catch (err) { console.error(err); }
   };
+
+  const handleCommentReaction = async (comment: ProductComment, reaction: string) => {
+    if (!session?.accessToken) {
+      setIsLoginModalOpen(true);
+      return;
+    }
+
+    const remove = comment.myReaction === reaction;
+    try {
+      const response = await fetch(`${API_URL}/api/comments/${comment.id}/reactions`, {
+        method: remove ? "DELETE" : "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.accessToken}`,
+        },
+        body: remove ? undefined : JSON.stringify({ reaction }),
+      });
+      if (!response.ok) return;
+
+      const result = await response.json() as {
+        reactionCounts: Record<string, number>;
+        myReaction?: string | null;
+      };
+      setComments((current) => current.map((item) => item.id === comment.id
+        ? { ...item, reactionCounts: result.reactionCounts, myReaction: result.myReaction }
+        : item));
+    } catch (error) {
+      console.error("Yorum tepkisi kaydedilemedi", error);
+    }
+  };
+
+  const renderMentionedContent = (content: string) => content
+    .split(/(@[a-zA-Z0-9_]{2,30})/g)
+    .map((part, index) => part.startsWith("@") ? (
+      <Link
+        key={`${part}-${index}`}
+        href={`/profile/${part.slice(1)}`}
+        className="font-semibold text-primary hover:underline"
+      >
+        {part}
+      </Link>
+    ) : <span key={`${part}-${index}`}>{part}</span>);
+
+  const renderReactionBar = (comment: ProductComment) => (
+    <div className="flex flex-wrap items-center gap-1.5 pt-3">
+      {commentReactions.map((reaction) => {
+        const count = comment.reactionCounts?.[reaction.value] ?? 0;
+        const selected = comment.myReaction === reaction.value;
+        return (
+          <button
+            key={reaction.value}
+            type="button"
+            title={reaction.label}
+            onClick={() => handleCommentReaction(comment, reaction.value)}
+            className={`inline-flex h-8 items-center gap-1 rounded-full border px-2.5 text-xs transition-all ${selected
+              ? "border-primary/40 bg-primary/10 text-primary shadow-sm"
+              : "border-border/70 bg-background/70 text-muted-foreground hover:border-primary/30 hover:text-foreground"
+            }`}
+          >
+            <span>{reaction.emoji}</span>
+            {count > 0 && <span className="font-semibold">{count}</span>}
+          </button>
+        );
+      })}
+      <ReportDialog
+        targetType="Comment"
+        targetId={comment.id}
+        targetOwnerUserId={comment.userId}
+        compact
+        triggerClassName="ml-1 inline-flex h-8 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground hover:bg-red-500/10 hover:text-red-500 disabled:opacity-40"
+      />
+    </div>
+  );
 
   // Build hierarchical comments
   const buildCommentTree = () => {
@@ -563,7 +667,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
               ) : (
                 buildCommentTree().map((comment) => (
                   <div key={comment.id} className="space-y-4">
-                    <div className={`flex gap-4 p-5 rounded-2xl transition-colors ${comment.userId === product.makerId ? 'bg-primary/5 border border-primary/20' : 'bg-card border shadow-sm'} ${comment.isDeleted ? 'opacity-60' : ''}`}>
+                    <div className={`flex gap-4 p-5 rounded-2xl transition-colors ${comment.userId === product.makerId ? 'bg-primary/5 border border-primary/20' : 'bg-card border shadow-sm'} ${comment.isDeleted || comment.isModerated ? 'opacity-60' : ''}`}>
                       <div className={`h-10 w-10 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm text-white ${comment.userId === product.makerId ? 'bg-primary' : 'bg-secondary text-secondary-foreground'}`}>
                         {comment.isDeleted ? "-" : (comment.userName?.[0]?.toUpperCase() || "U")}
                       </div>
@@ -592,6 +696,10 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                         
                         {comment.isDeleted ? (
                           <p className="text-muted-foreground italic text-sm pt-1">Bu yorum silinmiştir.</p>
+                        ) : comment.isModerated ? (
+                          <div className="mt-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                            Bu yorum topluluk kuralları nedeniyle moderatörler tarafından gizlendi.
+                          </div>
                         ) : editCommentId === comment.id ? (
                           <div className="mt-2 space-y-2">
                             <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} className="min-h-[60px]" />
@@ -603,9 +711,10 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                         ) : (
                           <>
                             <p className="text-foreground leading-relaxed text-sm pt-1">
-                              {comment.content}
+                              {renderMentionedContent(comment.content)}
                               {comment.updatedAt && <span className="text-[10px] text-muted-foreground ml-2">(Düzenlendi)</span>}
                             </p>
+                            {renderReactionBar(comment)}
                             <div className="pt-2">
                               <button 
                                 onClick={() => {
@@ -641,7 +750,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                     {comment.replies?.length > 0 && (
                       <div className="pl-6 md:pl-12 space-y-4 border-l-2 ml-4 md:ml-6 mt-4">
                         {comment.replies.map((reply) => (
-                          <div key={reply.id} className={`flex gap-4 p-4 rounded-xl transition-colors ${reply.userId === product.makerId ? 'bg-primary/5 border border-primary/20' : 'bg-muted/30'} ${reply.isDeleted ? 'opacity-60' : ''}`}>
+                          <div key={reply.id} className={`flex gap-4 p-4 rounded-xl transition-colors ${reply.userId === product.makerId ? 'bg-primary/5 border border-primary/20' : 'bg-muted/30'} ${reply.isDeleted || reply.isModerated ? 'opacity-60' : ''}`}>
                             <div className={`h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-xs text-white ${reply.userId === product.makerId ? 'bg-primary' : 'bg-secondary text-secondary-foreground'}`}>
                               {reply.isDeleted ? "-" : (reply.userName?.[0]?.toUpperCase() || "U")}
                             </div>
@@ -670,6 +779,10 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                               
                               {reply.isDeleted ? (
                                 <p className="text-muted-foreground italic text-sm pt-1">Bu cevap silinmiştir.</p>
+                              ) : reply.isModerated ? (
+                                <p className="mt-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                                  Bu cevap moderatörler tarafından gizlendi.
+                                </p>
                               ) : editCommentId === reply.id ? (
                                 <div className="mt-2 space-y-2">
                                   <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} className="min-h-[50px] text-sm" />
@@ -679,10 +792,13 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                                   </div>
                                 </div>
                               ) : (
-                                <p className="text-muted-foreground leading-relaxed text-sm">
-                                  {reply.content}
-                                  {reply.updatedAt && <span className="text-[10px] text-muted-foreground ml-2">(Düzenlendi)</span>}
-                                </p>
+                                <>
+                                  <p className="text-muted-foreground leading-relaxed text-sm">
+                                    {renderMentionedContent(reply.content)}
+                                    {reply.updatedAt && <span className="text-[10px] text-muted-foreground ml-2">(Düzenlendi)</span>}
+                                  </p>
+                                  {renderReactionBar(reply)}
+                                </>
                               )}
                             </div>
                           </div>
@@ -744,9 +860,12 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
               <Button variant="secondary" className="w-full justify-start gap-2 rounded-xl">
                 <Share2 className="h-4 w-4" /> Paylaş
               </Button>
-              <Button variant="ghost" className="w-full justify-start gap-2 rounded-xl text-muted-foreground hover:text-red-500 hover:bg-red-50">
-                <AlertCircle className="h-4 w-4" /> Şikayet Et
-              </Button>
+              <ReportDialog
+                targetType="Product"
+                targetId={product.id}
+                targetOwnerUserId={product.makerId}
+                triggerClassName="inline-flex w-full items-center justify-start gap-2 rounded-xl px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-red-500/10 hover:text-red-500 disabled:opacity-40"
+              />
             </div>
           </div>
         </div>

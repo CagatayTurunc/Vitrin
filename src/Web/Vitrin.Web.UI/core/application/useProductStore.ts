@@ -77,6 +77,9 @@ export const useProductStore = create<ProductStore>((set, get) => ({
         image: p.thumbnailUrl || '/products/notai.png',
         topics: p.topics || [],
         votes: p.upvotes || 0, // Gerçek upvote sayısı backend'den dönüyor
+        views: p.viewCount || 0,
+        comments: p.commentCount || 0,
+        trendScore: p.trendScore || 0,
       }));
       
       set({
@@ -114,6 +117,9 @@ export const useProductStore = create<ProductStore>((set, get) => ({
         image: p.thumbnailUrl || '/products/notai.png',
         topics: p.topics || [],
         votes: p.upvotes || 0,
+        views: p.viewCount || 0,
+        comments: p.commentCount || 0,
+        trendScore: p.trendScore || 0,
       }));
 
       set((state) => ({
@@ -135,7 +141,8 @@ export const useProductStore = create<ProductStore>((set, get) => ({
       const data = await ProductRepository.getMyVotes(token);
       set({ votedProductIds: data });
     } catch (error) {
-      console.error("Failed to fetch my votes", error);
+      console.warn("Oylar şu anda alınamadı:", error);
+      set({ votedProductIds: [] });
     }
   },
 
@@ -153,6 +160,9 @@ export const useProductStore = create<ProductStore>((set, get) => ({
         image: p.thumbnailUrl || '/products/notai.png',
         topics: p.topics || [],
         votes: p.upvotes || 0,
+        views: p.viewCount || 0,
+        comments: p.commentCount || 0,
+        trendScore: p.trendScore || 0,
       }));
       set({ makerProducts: mappedProducts, isLoading: false });
     } catch (error: unknown) {
@@ -174,6 +184,9 @@ export const useProductStore = create<ProductStore>((set, get) => ({
         image: p.thumbnailUrl || '/products/notai.png',
         topics: p.topics || [],
         votes: p.upvotes || 0,
+        views: p.viewCount || 0,
+        comments: p.commentCount || 0,
+        trendScore: p.trendScore || 0,
       }));
       set({ upvotedProducts: mappedProducts, isLoading: false });
     } catch (error: unknown) {

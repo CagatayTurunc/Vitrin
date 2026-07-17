@@ -39,4 +39,31 @@ public sealed class CommentNotificationPublisher(
 
         return Task.CompletedTask;
     }
+
+    public Task RecordEngagementAsync(
+        Guid productId,
+        Guid commentId,
+        Guid userId,
+        bool isReply,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        var @event = new CommentCreatedAnalyticsEvent
+        {
+            ProductId = productId,
+            CommentId = commentId,
+            UserId = userId,
+            IsReply = isReply
+        };
+
+        dbContext.OutboxMessages.Add(
+            OutboxMessage.Create(@event, timeProvider.GetUtcNow().UtcDateTime));
+        logger.LogInformation(
+            "[Comment] Engagement event queued. EventId={EventId}, ProductId={ProductId}, IsReply={IsReply}",
+            @event.EventId,
+            productId,
+            isReply);
+
+        return Task.CompletedTask;
+    }
 }

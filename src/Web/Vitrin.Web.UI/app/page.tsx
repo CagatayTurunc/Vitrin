@@ -2,6 +2,8 @@ import { CalendarDays } from 'lucide-react'
 import { ProductFeed } from '@/components/product-feed'
 import { CategoryMenu } from '@/components/category-menu'
 import { LeaderboardWidget } from '@/components/leaderboard-widget'
+import { TrendingProducts } from '@/components/trending-products'
+import Link from 'next/link'
 
 export default function HomePage() {
   return (
@@ -21,6 +23,8 @@ export default function HomePage() {
           </p>
         </div>
 
+        <TrendingProducts />
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mt-8">
           <div className="lg:col-span-3 space-y-8">
             <CategoryMenu />
@@ -36,12 +40,12 @@ export default function HomePage() {
 
         <p className="mt-12 text-center text-sm text-muted-foreground">
           Daha fazlasını mı arıyorsun?{' '}
-          <a
-            href="#"
+          <Link
+            href="/discover"
             className="font-semibold text-primary underline-offset-4 hover:underline"
           >
             Tüm ürünleri keşfet
-          </a>
+          </Link>
         </p>
       </main>
     </div>

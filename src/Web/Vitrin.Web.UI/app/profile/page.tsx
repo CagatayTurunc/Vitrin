@@ -7,7 +7,8 @@ import { useProductStore } from '@/core/application/useProductStore';
 import { ProductRow } from '@/components/product-row';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Heart, Box, CheckCircle2, User as UserIcon, CalendarDays, Settings } from 'lucide-react';
+import { Sparkles, Heart, Box, CheckCircle2, User as UserIcon, CalendarDays, Settings, LayoutList } from 'lucide-react';
+import Link from 'next/link';
 import { FollowersModal } from '@/components/followers-modal';
 import Image from 'next/image';
 import type { UserProfile } from '@/core/domain/user.types';
@@ -217,6 +218,14 @@ export default function ProfilePage() {
           <div className="space-y-4">
             {activeTab === 'my-products' && (
               <>
+                <div className="flex justify-end mb-4">
+                  <Link href="/my-products">
+                    <Button variant="outline" size="sm" className="rounded-full text-xs gap-1.5">
+                      <LayoutList className="w-3.5 h-3.5" />
+                      Tüm Ürünlerimi Yönet
+                    </Button>
+                  </Link>
+                </div>
                 {makerProducts.length === 0 ? (
                   <div className="text-center py-16 px-4 bg-muted/30 rounded-3xl border border-border border-dashed">
                     <Box className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />

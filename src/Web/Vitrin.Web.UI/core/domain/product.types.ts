@@ -8,6 +8,11 @@ export interface Product {
   image: string;
   topics?: { id: string; name: string; slug: string }[];
   votes: number;
+  views?: number;
+  comments?: number;
+  trendScore?: number;
+  searchScore?: number;
+  matchType?: string | null;
 }
 
 export interface Topic {
@@ -26,6 +31,11 @@ export interface ProductApiModel {
   thumbnailUrl?: string | null;
   topics?: Topic[];
   upvotes?: number;
+  viewCount?: number;
+  commentCount?: number;
+  trendScore?: number;
+  searchScore?: number;
+  matchType?: string | null;
 }
 
 export interface ProductDetailApiModel extends ProductApiModel {
@@ -40,4 +50,17 @@ export interface CursorPage<T> {
   items: T[];
   nextCursor: string | null;
   hasMore: boolean;
+}
+
+export type ProductSort = 'newest' | 'trending' | 'most_voted' | 'most_commented' | 'most_viewed';
+
+export interface ProductFilters {
+  q?: string;
+  topics?: string[];
+  minUpvotes?: number;
+  minComments?: number;
+  minViews?: number;
+  publishedFrom?: string;
+  publishedTo?: string;
+  sort?: ProductSort;
 }

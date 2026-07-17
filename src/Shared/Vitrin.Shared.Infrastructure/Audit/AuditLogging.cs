@@ -10,7 +10,8 @@ public sealed record AuditEvent(
     string ResourceType,
     string? ResourceId,
     string Outcome,
-    string? TraceId = null);
+    string? TraceId = null,
+    string? Details = null);
 
 public interface IAuditLogger
 {
@@ -27,14 +28,15 @@ public sealed class StructuredAuditLogger(
     {
         logger.LogInformation(
             "AUDIT {OccurredAtUtc} Action={Action} ActorUserId={ActorUserId} " +
-            "ResourceType={ResourceType} ResourceId={ResourceId} Outcome={Outcome} TraceId={TraceId}",
+            "ResourceType={ResourceType} ResourceId={ResourceId} Outcome={Outcome} TraceId={TraceId} Details={Details}",
             timeProvider.GetUtcNow(),
             auditEvent.Action,
             auditEvent.ActorUserId,
             auditEvent.ResourceType,
             auditEvent.ResourceId,
             auditEvent.Outcome,
-            auditEvent.TraceId);
+            auditEvent.TraceId,
+            auditEvent.Details);
 
         return ValueTask.CompletedTask;
     }
