@@ -170,7 +170,7 @@ function ProductSubmitForm({ accessToken }: { accessToken: string }) {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<"submitted" | "draft" | false>(false);
   const [error, setError] = useState("");
 
   const toggleCategory = (cat: string) => {
@@ -241,10 +241,17 @@ function ProductSubmitForm({ accessToken }: { accessToken: string }) {
     setGalleryUrls(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent | React.MouseEvent, saveAsDraft = false) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError("");
+
+    // For drafts, name is the only required field
+    if (saveAsDraft && !name.trim()) {
+      setError("Taslak kaydı için en azından ürün adı gereklidir.");
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/products", {
@@ -254,17 +261,18 @@ function ProductSubmitForm({ accessToken }: { accessToken: string }) {
           "Authorization": `Bearer ${accessToken}`
         },
         body: JSON.stringify({ 
-          name, 
-          tagline, 
-          description,
-          slug: slug || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, ""),
+          name: name || "Taslak",
+          tagline: tagline || "",
+          description: description || "",
+          slug: slug || name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") || `taslak-${Date.now()}`,
           topics: selectedCategories,
-          thumbnailUrl: logoUrl,
-          galleryUrls: galleryUrls
+          thumbnailUrl: logoUrl || "",
+          galleryUrls: galleryUrls,
+          saveAsDraft,
         })
       });
       
-      if (res.ok) setSuccess(true);
+      if (res.ok) setSuccess(saveAsDraft ? "draft" : "submitted");
       else {
         const data: unknown = await res.json();
         setError(getApiProblemMessage(data, "Bir hata oluştu."));
@@ -276,11 +284,22 @@ function ProductSubmitForm({ accessToken }: { accessToken: string }) {
     }
   };
 
-  if (success) {
+  if (success === "submitted") {
     return (
       <div className="text-center p-12 bg-card text-foreground rounded-3xl border border-emerald-500/30 shadow-[0_0_40px_rgba(16,185,129,0.1)]">
         <h2 className="text-3xl font-bold mb-4">Ürününüz Gönderildi! 🚀</h2>
         <p className="text-muted-foreground text-lg max-w-md mx-auto">Ürününüz inceleme için admin onayına gönderildi. İnceleme tamamlandığında anasayfada yer alacak.</p>
+        <a href="/my-products" className="inline-block mt-6 text-sm text-emerald-600 hover:underline">Ürünlerimi Görüntüle →</a>
+      </div>
+    );
+  }
+
+  if (success === "draft") {
+    return (
+      <div className="text-center p-12 bg-card text-foreground rounded-3xl border border-border shadow-xl">
+        <h2 className="text-3xl font-bold mb-4">Taslak Kaydedildi 📝</h2>
+        <p className="text-muted-foreground text-lg max-w-md mx-auto">Ürününüz taslak olarak kaydedildi. İstediğinizde düzenleyip incelemeye gönderebilirsiniz.</p>
+        <a href="/my-products" className="inline-block mt-6 text-sm text-emerald-600 hover:underline">Ürünlerimi Görüntüle →</a>
       </div>
     );
   }
@@ -446,10 +465,19 @@ function ProductSubmitForm({ accessToken }: { accessToken: string }) {
           {error && <p className="text-sm text-destructive font-medium bg-destructive/10 p-3 rounded-lg border border-destructive/20">{error}</p>}
           
           <div className="pt-8 mt-8 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <span className="text-muted-foreground text-sm font-medium hover:text-foreground cursor-pointer transition-colors">
+            <button
+              type="button"
+              disabled={isSubmitting || isUploadingLogo || isUploadingGallery}
+              onClick={(e) => { e.preventDefault(); void handleSubmit(e, true); }}
+              className="text-muted-foreground text-sm font-medium hover:text-foreground cursor-pointer transition-colors disabled:opacity-50"
+            >
               Taslak olarak kaydet
-            </span>
-            <Button type="submit" disabled={isSubmitting || isUploadingLogo || isUploadingGallery} className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-full px-8 py-6 h-auto shadow-[0_0_30px_rgba(16,185,129,0.25)] hover:shadow-[0_0_40px_rgba(16,185,129,0.4)] transition-all">
+            </button>
+            <Button
+              type="submit"
+              disabled={isSubmitting || isUploadingLogo || isUploadingGallery}
+              className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-full px-8 py-6 h-auto shadow-[0_0_30px_rgba(16,185,129,0.25)] hover:shadow-[0_0_40px_rgba(16,185,129,0.4)] transition-all"
+            >
               {isSubmitting ? "Gönderiliyor..." : (isUploadingLogo || isUploadingGallery) ? "Görseller Yükleniyor..." : "Ürünü İncelemeye Gönder"} <ArrowRight className="ml-2 w-4 h-4" />
             </Button>
           </div>

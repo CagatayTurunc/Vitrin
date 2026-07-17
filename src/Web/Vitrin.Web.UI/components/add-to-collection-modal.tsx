@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Plus, Bookmark } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast";
-import type { CollectionSummary } from "@/core/domain/collection.types";
+import { CollectionVisibility, type CollectionSummary } from "@/core/domain/collection.types";
 import { getErrorMessage } from "@/lib/errors";
 
 interface AddToCollectionModalProps {
@@ -25,6 +25,7 @@ export function AddToCollectionModal({ isOpen, onClose, productId }: AddToCollec
   
   const [newCollectionName, setNewCollectionName] = useState("");
   const [newCollectionDesc, setNewCollectionDesc] = useState("");
+  const [newCollectionVisibility, setNewCollectionVisibility] = useState(CollectionVisibility.Private);
   const [isCreating, setIsCreating] = useState(false);
 
   const accessToken = session?.accessToken;
@@ -38,7 +39,8 @@ export function AddToCollectionModal({ isOpen, onClose, productId }: AddToCollec
         headers: { "Authorization": `Bearer ${accessToken}` },
       });
       if (res.ok) {
-        setCollections(await res.json() as CollectionSummary[]);
+        const data = await res.json() as CollectionSummary[];
+        setCollections(data.filter(collection => collection.canEdit));
       }
     } catch (e) {
       console.error(e);
@@ -67,13 +69,15 @@ export function AddToCollectionModal({ isOpen, onClose, productId }: AddToCollec
         },
         body: JSON.stringify({
           name: newCollectionName,
-          description: newCollectionDesc
+          description: newCollectionDesc,
+          visibility: newCollectionVisibility,
         }),
       });
       
       if (res.ok) {
         setNewCollectionName("");
         setNewCollectionDesc("");
+        setNewCollectionVisibility(CollectionVisibility.Private);
         await fetchCollections(); // Refresh the list
         toast({
           title: "Koleksiyon oluşturuldu",
@@ -160,6 +164,15 @@ export function AddToCollectionModal({ isOpen, onClose, productId }: AddToCollec
                 {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               </Button>
             </div>
+            <select
+              value={newCollectionVisibility}
+              onChange={(event) => setNewCollectionVisibility(Number(event.target.value) as CollectionVisibility)}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value={CollectionVisibility.Private}>Özel — yalnızca ben</option>
+              <option value={CollectionVisibility.Public}>Herkese açık</option>
+              <option value={CollectionVisibility.Shared}>Ortak — davet edilenler</option>
+            </select>
           </div>
 
           <div>

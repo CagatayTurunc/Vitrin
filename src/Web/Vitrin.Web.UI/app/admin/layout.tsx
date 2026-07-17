@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Package, Users, Settings, LogOut, Search } from "lucide-react";
+import { LayoutDashboard, Package, Users, Settings, LogOut, Search, ShieldAlert } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +13,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Ürünler", href: "/admin/products", icon: Package },
     { name: "Maker Başvuruları", href: "/admin/maker-requests", icon: Users },
     { name: "Kullanıcılar", href: "/admin/users", icon: Users },
+    { name: "Moderasyon", href: "/admin/moderation", icon: ShieldAlert },
     { name: "Ayarlar", href: "/admin/settings", icon: Settings },
   ];
 

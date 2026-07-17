@@ -39,6 +39,19 @@ namespace Vitrin.Comment.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("ModeratedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ModeratedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ModerationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("ModerationStatus")
+                        .HasColumnType("integer");
+
                     b.Property<Guid?>("ParentCommentId")
                         .HasColumnType("uuid");
 
@@ -64,6 +77,104 @@ namespace Vitrin.Comment.Infrastructure.Migrations
                         .HasDatabaseName("IX_Comments_ProductId_CreatedAt_Id");
 
                     b.ToTable("Comments");
+                });
+
+            modelBuilder.Entity("Vitrin.Comment.Domain.Entities.CommentMention", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CommentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MentionedUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MentionedUsername")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MentionedUserId");
+
+                    b.HasIndex("CommentId", "MentionedUserId")
+                        .IsUnique();
+
+                    b.ToTable("CommentMentions");
+                });
+
+            modelBuilder.Entity("Vitrin.Comment.Domain.Entities.CommentModerationAction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CommentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ModeratorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommentId");
+
+                    b.HasIndex("CreatedAtUtc", "Id");
+
+                    b.ToTable("CommentModerationActions");
+                });
+
+            modelBuilder.Entity("Vitrin.Comment.Domain.Entities.CommentReaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CommentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ReactionType")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommentId", "UserId")
+                        .IsUnique();
+
+                    b.HasIndex("CreatedAtUtc", "Id");
+
+                    b.ToTable("CommentReactions");
                 });
 
             modelBuilder.Entity("Vitrin.Shared.Infrastructure.Outbox.OutboxMessage", b =>
@@ -124,6 +235,31 @@ namespace Vitrin.Comment.Infrastructure.Migrations
                     b.HasIndex("ProcessedAtUtc", "DeadLetteredAtUtc", "NextAttemptAtUtc");
 
                     b.ToTable("OutboxMessages");
+                });
+
+            modelBuilder.Entity("Vitrin.Comment.Domain.Entities.CommentMention", b =>
+                {
+                    b.HasOne("Vitrin.Comment.Domain.Entities.CommentItem", null)
+                        .WithMany("Mentions")
+                        .HasForeignKey("CommentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Comment.Domain.Entities.CommentReaction", b =>
+                {
+                    b.HasOne("Vitrin.Comment.Domain.Entities.CommentItem", null)
+                        .WithMany("Reactions")
+                        .HasForeignKey("CommentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Comment.Domain.Entities.CommentItem", b =>
+                {
+                    b.Navigation("Mentions");
+
+                    b.Navigation("Reactions");
                 });
 #pragma warning restore 612, 618
         }

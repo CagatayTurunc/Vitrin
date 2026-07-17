@@ -23,6 +23,14 @@ public class AddCommentCommandHandlerTests
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        _notificationPublisherMock
+            .Setup(p => p.RecordEngagementAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         _repositoryMock
             .Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -54,6 +62,14 @@ public class AddCommentCommandHandlerTests
             Times.Once);
         _repositoryMock.Verify(
             r => r.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+        _notificationPublisherMock.Verify(
+            publisher => publisher.RecordEngagementAsync(
+                command.ProductId,
+                result.Value,
+                command.UserId,
+                false,
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 

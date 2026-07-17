@@ -13,6 +13,16 @@ public class CommentItem : AggregateRoot
     public Guid? ParentCommentId { get; private set; }
     public bool IsDeleted { get; private set; } = false;
     public DateTime? UpdatedAt { get; private set; }
+    public CommentModerationStatus ModerationStatus { get; private set; } = CommentModerationStatus.Visible;
+    public string? ModerationReason { get; private set; }
+    public Guid? ModeratedByUserId { get; private set; }
+    public DateTime? ModeratedAtUtc { get; private set; }
+
+    private readonly List<CommentMention> _mentions = new();
+    public IReadOnlyCollection<CommentMention> Mentions => _mentions.AsReadOnly();
+
+    private readonly List<CommentReaction> _reactions = new();
+    public IReadOnlyCollection<CommentReaction> Reactions => _reactions.AsReadOnly();
 
     private CommentItem() { } // EF Core
 
@@ -55,4 +65,46 @@ public class CommentItem : AggregateRoot
         // Optionally clear content for GDPR compliance, but soft delete usually leaves it or replaces it.
         // We'll let the frontend handle IsDeleted flag.
     }
+
+    public void AddMention(Guid mentionedUserId, string mentionedUsername)
+    {
+        var normalizedUsername = mentionedUsername.Trim().TrimStart('@').ToLowerInvariant();
+        if (mentionedUserId == UserId || string.IsNullOrWhiteSpace(normalizedUsername)) return;
+        if (_mentions.Any(mention => mention.MentionedUserId == mentionedUserId)) return;
+
+        _mentions.Add(CommentMention.Create(Id, mentionedUserId, normalizedUsername));
+    }
+
+    public bool SetReaction(Guid userId, string userName, CommentReactionType reactionType)
+    {
+        var existing = _reactions.FirstOrDefault(reaction => reaction.UserId == userId);
+        if (existing is not null)
+        {
+            existing.Change(reactionType);
+            return false;
+        }
+
+        _reactions.Add(CommentReaction.Create(Id, userId, userName, reactionType));
+        return true;
+    }
+
+    public bool RemoveReaction(Guid userId)
+    {
+        var existing = _reactions.FirstOrDefault(reaction => reaction.UserId == userId);
+        return existing is not null && _reactions.Remove(existing);
+    }
+
+    public void Moderate(CommentModerationStatus status, Guid moderatorUserId, string reason)
+    {
+        ModerationStatus = status;
+        ModerationReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        ModeratedByUserId = moderatorUserId;
+        ModeratedAtUtc = DateTime.UtcNow;
+    }
+}
+
+public enum CommentModerationStatus
+{
+    Visible = 0,
+    Hidden = 1
 }

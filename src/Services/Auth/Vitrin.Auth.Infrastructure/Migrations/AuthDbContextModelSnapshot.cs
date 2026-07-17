@@ -57,6 +57,149 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                     b.ToTable("MakerApplications");
                 });
 
+            modelBuilder.Entity("Vitrin.Auth.Domain.Entities.ModerationAppeal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Statement")
+                        .IsRequired()
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("BanId", "UserId");
+
+                    b.HasIndex("Status", "CreatedAtUtc");
+
+                    b.ToTable("ModerationAppeals");
+                });
+
+            modelBuilder.Entity("Vitrin.Auth.Domain.Entities.ModerationAuditEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ResourceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("TraceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAtUtc", "Id");
+
+                    b.HasIndex("ResourceType", "ResourceId");
+
+                    b.ToTable("ModerationAuditEntries");
+                });
+
+            modelBuilder.Entity("Vitrin.Auth.Domain.Entities.ModerationReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Details")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ReporterUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Resolution")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TargetOwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("TargetType")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "CreatedAtUtc");
+
+                    b.HasIndex("ReporterUserId", "TargetType", "TargetId");
+
+                    b.ToTable("ModerationReports");
+                });
+
             modelBuilder.Entity("Vitrin.Auth.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -65,6 +208,9 @@ namespace Vitrin.Auth.Infrastructure.Migrations
 
                     b.Property<string>("About")
                         .HasColumnType("text");
+
+                    b.Property<Guid?>("ActiveBanId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("AvatarUrl")
                         .IsRequired()
@@ -116,6 +262,13 @@ namespace Vitrin.Auth.Infrastructure.Migrations
 
                     b.Property<int>("Role")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("SuspendedUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SuspensionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("Username")
                         .IsRequired()
@@ -173,6 +326,48 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("UserBadges");
+                });
+
+            modelBuilder.Entity("Vitrin.Auth.Domain.Entities.UserBan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("IssuedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("RevocationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevokedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RevokedAtUtc", "ExpiresAtUtc");
+
+                    b.HasIndex("UserId", "CreatedAtUtc");
+
+                    b.ToTable("UserBans");
                 });
 
             modelBuilder.Entity("Vitrin.Auth.Domain.Entities.UserFollow", b =>
@@ -254,6 +449,30 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                     b.ToTable("OutboxMessages");
                 });
 
+            modelBuilder.Entity("Vitrin.Auth.Domain.Entities.ModerationAppeal", b =>
+                {
+                    b.HasOne("Vitrin.Auth.Domain.Entities.UserBan", null)
+                        .WithMany()
+                        .HasForeignKey("BanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vitrin.Auth.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Auth.Domain.Entities.ModerationReport", b =>
+                {
+                    b.HasOne("Vitrin.Auth.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ReporterUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Vitrin.Auth.Domain.Entities.UserBadge", b =>
                 {
                     b.HasOne("Vitrin.Auth.Domain.Entities.User", "User")
@@ -263,6 +482,15 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Vitrin.Auth.Domain.Entities.UserBan", b =>
+                {
+                    b.HasOne("Vitrin.Auth.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Vitrin.Auth.Domain.Entities.UserFollow", b =>

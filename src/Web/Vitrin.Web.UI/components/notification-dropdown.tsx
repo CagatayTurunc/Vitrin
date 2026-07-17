@@ -1,12 +1,46 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Bell } from 'lucide-react';
+import { Bell, CheckCircle2, XCircle, MessageSquare, UserCheck, Heart, Megaphone, AtSign, SmilePlus, Ban, Scale } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useNotificationStore } from '@/core/application/useNotificationStore';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
+
+type NotificationType = 'product_approved' | 'product_rejected' | 'comment' | 'follow' | 'upvote' | 'maker_approved' | string | undefined;
+
+function NotificationIcon({ type }: { type: NotificationType }) {
+  switch (type) {
+    case 'product_approved':
+      return <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />;
+    case 'product_rejected':
+      return <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />;
+    case 'comment':
+    case 'comment_reply':
+    case 'comment_on_product':
+      return <MessageSquare className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />;
+    case 'comment_mention':
+      return <AtSign className="w-4 h-4 text-cyan-500 shrink-0 mt-0.5" />;
+    case 'comment_reaction':
+      return <SmilePlus className="w-4 h-4 text-pink-500 shrink-0 mt-0.5" />;
+    case 'follow':
+      return <UserCheck className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />;
+    case 'upvote':
+      return <Heart className="w-4 h-4 text-pink-500 shrink-0 mt-0.5" />;
+    case 'maker_approved':
+      return <UserCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />;
+    case 'account_banned':
+      return <Ban className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />;
+    case 'appeal_approved':
+    case 'account_ban_revoked':
+      return <Scale className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />;
+    case 'appeal_rejected':
+      return <Scale className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />;
+    default:
+      return <Megaphone className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />;
+  }
+}
 
 export function NotificationDropdown() {
   const { data: session } = useSession();
@@ -17,22 +51,15 @@ export function NotificationDropdown() {
   useEffect(() => {
     if (accessToken) {
       fetchNotifications(accessToken);
-      
-      // Optionally set up polling here for real-time updates
       const intervalId = setInterval(() => {
         fetchNotifications(accessToken);
-      }, 15000); // Check every 15 seconds
-
+      }, 15000);
       return () => clearInterval(intervalId);
     }
   }, [accessToken, fetchNotifications]);
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
-    if (open) {
-      // Mark all as read when opened? Let's just mark individually if clicked, or mark all as read.
-      // For simplicity, we can let user click them, or if we want to mark all as read:
-    }
   };
 
   const handleNotificationClick = async (id: string, isRead: boolean) => {
@@ -60,27 +87,33 @@ export function NotificationDropdown() {
             <span className="text-xs text-muted-foreground">{unreadCount} okunmamış</span>
           )}
         </div>
-        <div className="max-h-[300px] overflow-y-auto">
+        <div className="max-h-[380px] overflow-y-auto">
           {notifications.length === 0 ? (
-            <div className="p-4 text-center text-sm text-muted-foreground">
+            <div className="p-6 text-center text-sm text-muted-foreground">
               Henüz bir bildiriminiz yok.
             </div>
           ) : (
-            <div className="flex flex-col">
+            <div className="flex flex-col divide-y divide-border/50">
               {notifications.map((notification) => (
                 <button
                   key={notification.id}
                   onClick={() => handleNotificationClick(notification.id, notification.isRead)}
-                  className={`flex flex-col items-start px-4 py-3 text-left transition-colors hover:bg-muted/50 ${
+                  className={`flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50 w-full ${
                     !notification.isRead ? 'bg-primary/5' : ''
                   }`}
                 >
-                  <p className={`text-sm ${!notification.isRead ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
-                    {notification.message}
-                  </p>
-                  <span className="text-xs text-muted-foreground mt-1">
-                    {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: tr })}
-                  </span>
+                  <NotificationIcon type={notification.notificationType} />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm leading-snug ${!notification.isRead ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
+                      {notification.message}
+                    </p>
+                    <span className="text-xs text-muted-foreground mt-1 block">
+                      {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: tr })}
+                    </span>
+                  </div>
+                  {!notification.isRead && (
+                    <span className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />
+                  )}
                 </button>
               ))}
             </div>

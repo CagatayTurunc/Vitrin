@@ -5,6 +5,7 @@ using Vitrin.Comment.Application.Commands;
 using Vitrin.Comment.Infrastructure.Data;
 using Vitrin.Comment.Infrastructure.Kafka;
 using Vitrin.Comment.Infrastructure.Repositories;
+using Vitrin.Comment.Infrastructure.Services;
 using Vitrin.Shared.Infrastructure.Kafka;
 using Vitrin.Shared.Infrastructure.Outbox;
 
@@ -34,6 +35,12 @@ public static class DependencyInjection
 
         // Notification publisher — HTTP yerine Kafka
         services.AddScoped<ICommentNotificationPublisher, CommentNotificationPublisher>();
+        services.AddHttpClient<ICommentMentionResolver, AuthCommentMentionResolver>(client =>
+        {
+            var authBaseUrl = configuration["Services:AuthBaseUrl"] ?? "http://localhost:5104";
+            client.BaseAddress = new Uri(authBaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(3);
+        });
         services.AddVitrinOutbox<CommentDbContext>(configuration);
 
         return services;

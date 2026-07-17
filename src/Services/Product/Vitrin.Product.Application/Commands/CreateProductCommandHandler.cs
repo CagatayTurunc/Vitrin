@@ -8,9 +8,24 @@ namespace Vitrin.Product.Application.Commands;
 public interface IProductRepository
 {
     Task AddAsync(ProductItem product, CancellationToken cancellationToken);
+    Task<ProductItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<bool> IsSlugUniqueAsync(string slug, CancellationToken cancellationToken);
     Task<Topic?> GetTopicBySlugAsync(string slug, CancellationToken cancellationToken);
     Task UpdateAsync(ProductItem product, CancellationToken cancellationToken);
+    Task UpdateWithRevisionAsync(
+        ProductItem product,
+        Guid changedByUserId,
+        string changedByUsername,
+        string changeType,
+        string? summary,
+        CancellationToken cancellationToken);
+    Task AddRevisionAsync(
+        ProductItem product,
+        Guid changedByUserId,
+        string changedByUsername,
+        string changeType,
+        string? summary,
+        CancellationToken cancellationToken);
 }
 
 public sealed class DuplicateSlugException(string resource, Exception innerException)
@@ -49,8 +64,11 @@ public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand,
             product.SetGalleryUrls(request.GalleryUrls);
         }
 
-        // Auto submit for review
-        product.SubmitForReview();
+        // Submit for review or keep as draft based on caller preference
+        if (!request.SaveAsDraft)
+        {
+            product.SubmitForReview();
+        }
 
         if (request.Topics != null)
         {
@@ -76,6 +94,13 @@ public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand,
         try
         {
             await _repository.AddAsync(product, cancellationToken);
+            await _repository.AddRevisionAsync(
+                product,
+                request.MakerId,
+                request.RequestingUsername,
+                "created",
+                request.SaveAsDraft ? "Ürün taslak olarak oluşturuldu." : "Ürün oluşturuldu ve incelemeye gönderildi.",
+                cancellationToken);
         }
         catch (DuplicateSlugException exception)
         {

@@ -42,9 +42,9 @@ function groupProducts(products: Product[]) {
     else groups.older.push(p);
   });
 
-  // Sort by votes and assign rank within groups
+  // Trend skoru zaman etkisini içerir; eşitlikte oy sayısı belirleyicidir.
   Object.values(groups).forEach(group => {
-    group.sort((a, b) => b.votes - a.votes);
+    group.sort((a, b) => (b.trendScore ?? 0) - (a.trendScore ?? 0) || b.votes - a.votes);
     group.forEach((p, idx) => p.rank = idx + 1);
   });
 

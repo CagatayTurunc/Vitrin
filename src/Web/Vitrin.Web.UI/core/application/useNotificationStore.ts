@@ -8,6 +8,7 @@ export interface Notification {
   message: string;
   isRead: boolean;
   createdAt: string;
+  notificationType?: string;
 }
 
 interface NotificationStore {
@@ -19,7 +20,7 @@ interface NotificationStore {
   markAsRead: (notificationId: string, token: string) => Promise<void>;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5177';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export const useNotificationStore = create<NotificationStore>((set) => ({
   notifications: [],

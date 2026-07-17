@@ -74,7 +74,8 @@ app.MapGet("/api/notifications/me", async (HttpContext context, NotificationDbCo
             n.UserId,
             n.Message,
             n.IsRead,
-            n.CreatedAt
+            n.CreatedAt,
+            n.NotificationType
         })
         .ToListAsync();
 

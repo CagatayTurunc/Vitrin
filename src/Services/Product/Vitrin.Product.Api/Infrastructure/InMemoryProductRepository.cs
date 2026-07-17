@@ -13,6 +13,11 @@ public class InMemoryProductRepository : IProductRepository
         return Task.CompletedTask;
     }
 
+    public Task<ProductItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_products.FirstOrDefault(p => p.Id == id));
+    }
+
     public Task<bool> IsSlugUniqueAsync(string slug, CancellationToken cancellationToken)
     {
         return Task.FromResult(!_products.Any(p => p.Slug == slug));
@@ -27,6 +32,12 @@ public class InMemoryProductRepository : IProductRepository
     {
         return Task.CompletedTask;
     }
+
+    public Task UpdateWithRevisionAsync(ProductItem product, Guid changedByUserId, string changedByUsername, string changeType, string? summary, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+
+    public Task AddRevisionAsync(ProductItem product, Guid changedByUserId, string changedByUsername, string changeType, string? summary, CancellationToken cancellationToken)
+        => Task.CompletedTask;
 
     public IEnumerable<ProductItem> GetAll()
     {

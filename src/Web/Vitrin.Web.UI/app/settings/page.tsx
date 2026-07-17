@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { ProfileSettingsForm } from "@/components/profile-settings-form";
+import { AccountModerationStatus } from "@/components/account-moderation-status";
 
 export const metadata = {
   title: "Ayarlar — Vitrin",
@@ -49,6 +50,12 @@ export default async function SettingsPage() {
           Hesabınızı, profilinizi ve tercihlerinizi buradan kolayca yönetebilirsiniz.
         </p>
       </div>
+      <AccountModerationStatus
+        activeBanId={userProfile.activeBanId}
+        suspendedUntilUtc={userProfile.suspendedUntilUtc}
+        suspensionReason={userProfile.suspensionReason}
+        isBanned={userProfile.isBanned}
+      />
       <ProfileSettingsForm initialData={userProfile} />
     </div>
   );

@@ -41,6 +41,9 @@ public class User : AggregateRoot
     public IReadOnlyCollection<UserBadge> Badges => _badges.AsReadOnly();
 
     public DateTime CreatedAt { get; private set; }
+    public Guid? ActiveBanId { get; private set; }
+    public DateTime? SuspendedUntilUtc { get; private set; }
+    public string? SuspensionReason { get; private set; }
 
     // Constructor for EF Core
     protected User() { }
@@ -127,6 +130,23 @@ public class User : AggregateRoot
         {
             _badges.Add(new UserBadge(Id, name, icon));
         }
+    }
+
+    public bool IsBanned(DateTime utcNow) =>
+        ActiveBanId.HasValue && (!SuspendedUntilUtc.HasValue || SuspendedUntilUtc.Value > utcNow);
+
+    public void Suspend(Guid banId, string reason, DateTime? untilUtc)
+    {
+        ActiveBanId = banId;
+        SuspensionReason = reason.Trim();
+        SuspendedUntilUtc = untilUtc;
+    }
+
+    public void LiftSuspension()
+    {
+        ActiveBanId = null;
+        SuspensionReason = null;
+        SuspendedUntilUtc = null;
     }
 }
 
