@@ -21,7 +21,8 @@ public class AddCommentCommandHandlerTests
                 It.IsAny<Guid>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<CancellationToken>(),
+                It.IsAny<Guid?>()))
             .Returns(Task.CompletedTask);
         _notificationPublisherMock
             .Setup(p => p.RecordEngagementAsync(
@@ -124,7 +125,8 @@ public class AddCommentCommandHandlerTests
                 parentComment.UserId,
                 It.IsAny<string>(),
                 "comment_reply",
-                It.IsAny<CancellationToken>()),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<Guid?>()),
             Times.Once);
     }
 }
