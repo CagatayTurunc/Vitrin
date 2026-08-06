@@ -1,0 +1,80 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  # ============================================================
+  # 1. TEST
+  # ============================================================
+  test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore Vitrin.sln
+
+      - name: Build
+        run: dotnet build Vitrin.sln --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test Vitrin.sln --no-build --configuration Release --verbosity minimal
+
+  # ============================================================
+  # 2. DEPLOY
+  # ============================================================
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 300s
+          script: |
+            set -e
+
+            # Repo yoksa clone et, varsa pull
+            if [ ! -d "/home/ec2-user/vitrin" ]; then
+              git clone https://github.com/CagatayTurunc/Vitrin.git /home/ec2-user/vitrin
+            else
+              cd /home/ec2-user/vitrin
+              git pull origin main
+            fi
+
+            cd /home/ec2-user/vitrin
+
+            # .env dosyasını yaz
+            echo '${{ secrets.ENV_FILE }}' > .env
+
+            # Web portu 3002 olarak güncelle
+            sed -i 's/NEXTAUTH_URL=http:\/\/localhost:3000/NEXTAUTH_URL=http:\/\/63.180.14.214:3002/' .env
+
+            # data klasörlerini oluştur
+            mkdir -p data/voting data/notification data/analytics data/ai
+
+            # İmajları build et ve başlat
+            docker compose pull --ignore-buildable 2>/dev/null || true
+            docker compose build --parallel
+            docker compose up -d --remove-orphans
+
+            # Eski imajları temizle (disk tasarrufu)
+            docker image prune -f
+
+            echo "✅ Deploy tamamlandı!"
+            docker compose ps
