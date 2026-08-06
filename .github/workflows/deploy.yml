@@ -39,42 +39,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Kodu sunucuya kopyala (SCP)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "."
+          target: "/home/ec2-user/vitrin"
+          rm: false
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 300s
+          timeout: 600s
+          envs: ENV_FILE
           script: |
             set -e
-
-            # Repo yoksa clone et, varsa pull
-            if [ ! -d "/home/ec2-user/vitrin" ]; then
-              git clone https://github.com/CagatayTurunc/Vitrin.git /home/ec2-user/vitrin
-            else
-              cd /home/ec2-user/vitrin
-              git pull origin main
-            fi
-
             cd /home/ec2-user/vitrin
 
-            # .env dosyasını yaz
-            echo '${{ secrets.ENV_FILE }}' > .env
+            # .env dosyasini environment variable'dan yaz (ozel karakter sorunu yok)
+            printf '%s' "$ENV_FILE" > .env
 
-            # Web portu 3002 olarak güncelle
-            sed -i 's/NEXTAUTH_URL=http:\/\/localhost:3000/NEXTAUTH_URL=http:\/\/63.180.14.214:3002/' .env
+            # NEXTAUTH_URL'yi sunucu IP'sine guncelle
+            sed -i 's|NEXTAUTH_URL=http://localhost:3000|NEXTAUTH_URL=http://63.180.14.214:3002|g' .env
+            sed -i 's|NEXTAUTH_URL=http://localhost:3001|NEXTAUTH_URL=http://63.180.14.214:3002|g' .env
+            sed -i 's|NEXTAUTH_URL=http://localhost:3002|NEXTAUTH_URL=http://63.180.14.214:3002|g' .env
 
-            # data klasörlerini oluştur
+            # data klasorlerini olustur
             mkdir -p data/voting data/notification data/analytics data/ai
 
-            # İmajları build et ve başlat
-            docker compose pull --ignore-buildable 2>/dev/null || true
+            # Imajlari build et ve baslat
             docker compose build --parallel
             docker compose up -d --remove-orphans
 
-            # Eski imajları temizle (disk tasarrufu)
+            # Eski imajlari temizle
             docker image prune -f
 
-            echo "✅ Deploy tamamlandı!"
+            echo "Deploy tamamlandi!"
             docker compose ps
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
