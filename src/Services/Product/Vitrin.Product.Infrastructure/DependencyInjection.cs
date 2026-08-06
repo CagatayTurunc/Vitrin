@@ -33,6 +33,7 @@ public static class DependencyInjection
         services.AddSingleton<IEventPublisher, KafkaProducer>();
 
         services.AddScoped<ProductEventPublisher>();
+        services.AddScoped<ProductDiscoveryNotifier>();
         services.AddVitrinOutbox<ProductDbContext>(configuration);
         services.AddHostedService<ScheduledLaunchWorker>();
 

@@ -11,6 +11,7 @@ public interface IProductRepository
     Task<ProductItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<bool> IsSlugUniqueAsync(string slug, CancellationToken cancellationToken);
     Task<Topic?> GetTopicBySlugAsync(string slug, CancellationToken cancellationToken);
+    Task<ProductCategory?> GetCategoryBySlugAsync(string slug, CancellationToken cancellationToken);
     Task UpdateAsync(ProductItem product, CancellationToken cancellationToken);
     Task UpdateWithRevisionAsync(
         ProductItem product,
@@ -51,17 +52,44 @@ public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand,
             return Result<Guid>.Failure("This slug is already in use.");
         }
 
+        var launchVersionLabel = string.IsNullOrWhiteSpace(request.LaunchVersionLabel)
+            ? "İlk Lansman"
+            : request.LaunchVersionLabel.Trim();
+        var launchTagline = string.IsNullOrWhiteSpace(request.LaunchTagline)
+            ? request.Tagline.Trim()
+            : request.LaunchTagline.Trim();
+        if (launchVersionLabel.Length > 80)
+            return Result<Guid>.Failure("Launch version label cannot exceed 80 characters.");
+        if (launchTagline.Length > 200)
+            return Result<Guid>.Failure("Launch tagline cannot exceed 200 characters.");
+
         var product = ProductItem.Create(
             request.MakerId,
             request.Name,
             request.Tagline,
             request.Description,
             request.Slug,
-            request.ThumbnailUrl);
+            request.ThumbnailUrl,
+            launchVersionLabel,
+            launchTagline);
             
         if (request.GalleryUrls != null && request.GalleryUrls.Any())
         {
             product.SetGalleryUrls(request.GalleryUrls);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.WebsiteUrl) &&
+            Uri.TryCreate(request.WebsiteUrl.Trim(), UriKind.Absolute, out var websiteUri) &&
+            websiteUri.Scheme is "http" or "https")
+        {
+            product.AddLink("Website", websiteUri.ToString());
+        }
+
+        if (request.ScheduledLaunchAt is { } scheduledLaunchAt)
+        {
+            var scheduleResult = product.SetScheduledLaunch(scheduledLaunchAt);
+            if (scheduleResult.IsFailure)
+                return Result<Guid>.Failure(scheduleResult.Error);
         }
 
         // Submit for review or keep as draft based on caller preference
@@ -88,6 +116,24 @@ public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand,
                         product.AddTopic(Topic.Create(topicName, slug));
                     }
                 }
+            }
+        }
+
+        if (request.Categories != null)
+        {
+            foreach (var categorySlug in request.Categories
+                         .Select(value => value.Trim().ToLowerInvariant())
+                         .Where(value => !string.IsNullOrWhiteSpace(value))
+                         .Distinct(StringComparer.Ordinal)
+                         .Take(3))
+            {
+                var category = await _repository.GetCategoryBySlugAsync(categorySlug, cancellationToken);
+                if (category is null)
+                    return Result<Guid>.Failure($"Unknown product category: {categorySlug}");
+
+                var categoryResult = product.AddCategory(category);
+                if (categoryResult.IsFailure)
+                    return Result<Guid>.Failure(categoryResult.Error);
             }
         }
 

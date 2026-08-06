@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Bell, CheckCircle2, XCircle, MessageSquare, UserCheck, Heart, Megaphone, AtSign, SmilePlus, Ban, Scale } from 'lucide-react';
+import { Bell, CheckCircle2, XCircle, MessageSquare, UserCheck, Heart, Megaphone, AtSign, SmilePlus, Ban, Scale, SearchCheck, Radio } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useNotificationStore } from '@/core/application/useNotificationStore';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
+import Link from 'next/link';
 
 type NotificationType = 'product_approved' | 'product_rejected' | 'comment' | 'follow' | 'upvote' | 'maker_approved' | string | undefined;
 
@@ -37,6 +38,10 @@ function NotificationIcon({ type }: { type: NotificationType }) {
       return <Scale className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />;
     case 'appeal_rejected':
       return <Scale className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />;
+    case 'saved_search_match':
+      return <SearchCheck className="w-4 h-4 text-cyan-500 shrink-0 mt-0.5" />;
+    case 'topic_product_published':
+      return <Radio className="w-4 h-4 text-violet-500 shrink-0 mt-0.5" />;
     default:
       return <Megaphone className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />;
   }
@@ -45,18 +50,25 @@ function NotificationIcon({ type }: { type: NotificationType }) {
 export function NotificationDropdown() {
   const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(false);
-  const { notifications, unreadCount, fetchNotifications, markAsRead } = useNotificationStore();
+  const {
+    notifications,
+    unreadCount,
+    realtimeStatus,
+    fetchNotifications,
+    markAsRead,
+    markAllAsRead,
+    connectRealtime,
+    disconnectRealtime,
+  } = useNotificationStore();
   const accessToken = session?.accessToken;
 
   useEffect(() => {
     if (accessToken) {
-      fetchNotifications(accessToken);
-      const intervalId = setInterval(() => {
-        fetchNotifications(accessToken);
-      }, 15000);
-      return () => clearInterval(intervalId);
+      void fetchNotifications(accessToken);
+      connectRealtime(accessToken);
+      return disconnectRealtime;
     }
-  }, [accessToken, fetchNotifications]);
+  }, [accessToken, connectRealtime, disconnectRealtime, fetchNotifications]);
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
@@ -65,6 +77,12 @@ export function NotificationDropdown() {
   const handleNotificationClick = async (id: string, isRead: boolean) => {
     if (!isRead && session?.accessToken) {
       await markAsRead(id, session.accessToken);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (session?.accessToken) {
+      await markAllAsRead(session.accessToken);
     }
   };
 
@@ -82,9 +100,21 @@ export function NotificationDropdown() {
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h4 className="font-semibold text-sm">Bildirimler</h4>
+          <div className="flex items-center gap-2">
+            <h4 className="font-semibold text-sm">Bildirimler</h4>
+            <span
+              className={`h-2 w-2 rounded-full ${realtimeStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'}`}
+              title={realtimeStatus === 'connected' ? 'Canlı bağlantı aktif' : 'Canlı bağlantı kuruluyor'}
+            />
+          </div>
           {unreadCount > 0 && (
-            <span className="text-xs text-muted-foreground">{unreadCount} okunmamış</span>
+            <button
+              onClick={handleMarkAllAsRead}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              title="Tümünü okundu işaretle"
+            >
+              Tümünü okundu işaretle
+            </button>
           )}
         </div>
         <div className="max-h-[380px] overflow-y-auto">
@@ -118,6 +148,9 @@ export function NotificationDropdown() {
               ))}
             </div>
           )}
+        </div>
+        <div className="border-t border-border p-2">
+          <Link href="/notifications" className="block rounded-lg px-3 py-2 text-center text-sm font-bold text-primary hover:bg-muted">Tüm bildirimleri aç</Link>
         </div>
       </PopoverContent>
     </Popover>

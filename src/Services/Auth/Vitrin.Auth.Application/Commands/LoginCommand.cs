@@ -37,6 +37,9 @@ public record LoginCommandHandler : IRequestHandler<LoginCommand, Result<string>
         if (!passwordMatches || user is null || user.Provider != Domain.Entities.AuthProvider.Local)
             return Result<string>.Failure("E-posta veya şifre hatalı.");
 
+        if (!user.IsEmailConfirmed)
+            return Result<string>.Failure("Giriş yapmadan önce e-posta adresini doğrulamalısın.");
+
         var token = _jwtProvider.Generate(user);
         return Result<string>.Success(token);
     }

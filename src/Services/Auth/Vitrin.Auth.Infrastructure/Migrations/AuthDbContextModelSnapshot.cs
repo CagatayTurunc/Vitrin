@@ -209,6 +209,9 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                     b.Property<string>("About")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("AnonymizedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("ActiveBanId")
                         .HasColumnType("uuid");
 
@@ -223,10 +226,16 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                     b.Property<int>("CurrentStreak")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("DeleteRequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("citext");
+
+                    b.Property<DateTime?>("EmailConfirmedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("FullName")
                         .IsRequired()
@@ -283,6 +292,10 @@ namespace Vitrin.Auth.Infrastructure.Migrations
                     b.HasIndex("Email")
                         .IsUnique()
                         .HasDatabaseName("UX_Users_Email");
+
+                    b.HasIndex("DeleteRequestedAtUtc")
+                        .HasDatabaseName("IX_Users_DeleteRequestedAtUtc")
+                        .HasFilter("\"DeleteRequestedAtUtc\" IS NOT NULL");
 
                     b.HasIndex("GithubId")
                         .IsUnique()

@@ -10,18 +10,22 @@ namespace Vitrin.Auth.Tests.Application;
 public class RegisterCommandHandlerTests
 {
     private readonly Mock<IUserRepository> _userRepositoryMock;
-    private readonly Mock<IJwtProvider> _jwtProviderMock;
+    private readonly Mock<IAccountActionTokenService> _tokenServiceMock;
+    private readonly Mock<IAccountEmailService> _emailServiceMock;
     private readonly RegisterCommandHandler _handler;
 
     public RegisterCommandHandlerTests()
     {
         _userRepositoryMock = new Mock<IUserRepository>();
-        _jwtProviderMock = new Mock<IJwtProvider>();
-        _handler = new RegisterCommandHandler(_userRepositoryMock.Object, _jwtProviderMock.Object);
+        _tokenServiceMock = new Mock<IAccountActionTokenService>();
+        _emailServiceMock = new Mock<IAccountEmailService>();
+        _tokenServiceMock.Setup(service => service.Generate(It.IsAny<User>(), AccountActionPurpose.ConfirmEmail, It.IsAny<TimeSpan>())).Returns("confirmation-token");
+        _emailServiceMock.Setup(service => service.SendEmailConfirmationAsync(It.IsAny<User>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _handler = new RegisterCommandHandler(_userRepositoryMock.Object, _tokenServiceMock.Object, _emailServiceMock.Object);
     }
 
     [Fact]
-    public async Task Handle_WithValidData_Should_Return_Success_With_Token()
+    public async Task Handle_WithValidData_Should_Send_Confirmation_Email()
     {
         // Arrange
         var command = new RegisterCommand("new@example.com", "newuser", "New User", "Password123!");
@@ -38,19 +42,16 @@ public class RegisterCommandHandlerTests
             .Setup(r => r.AddAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        _jwtProviderMock
-            .Setup(j => j.Generate(It.IsAny<User>()))
-            .Returns("fake-jwt-token");
-
         // Act
         var result = await _handler.Handle(command, CancellationToken.None);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value.Should().Be("fake-jwt-token");
+        result.Value.Should().Contain("E-posta");
 
         _userRepositoryMock.Verify(r => r.AddAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Once);
-        _jwtProviderMock.Verify(j => j.Generate(It.IsAny<User>()), Times.Once);
+        _emailServiceMock.Verify(service => service.SendEmailConfirmationAsync(
+            It.IsAny<User>(), "confirmation-token", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -116,6 +117,7 @@ public class RegisterCommandHandlerTests
         var result = await _handler.Handle(command, CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
-        _jwtProviderMock.Verify(provider => provider.Generate(It.IsAny<User>()), Times.Never);
+        _emailServiceMock.Verify(service => service.SendEmailConfirmationAsync(
+            It.IsAny<User>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

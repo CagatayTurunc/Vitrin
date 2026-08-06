@@ -27,6 +27,7 @@ public class LoginCommandHandlerTests
         var password = "Password123!";
         var passwordHash = BCrypt.Net.BCrypt.HashPassword(password);
         var user = User.CreateWithPassword("user@example.com", "user", "User Name", passwordHash);
+        user.ConfirmEmail(DateTime.UtcNow);
 
         _userRepositoryMock
             .Setup(r => r.GetByEmailAsync("user@example.com", It.IsAny<CancellationToken>()))
@@ -103,5 +104,25 @@ public class LoginCommandHandlerTests
         // Assert
         result.IsFailure.Should().BeTrue();
         result.Error.Should().Be("E-posta veya şifre hatalı.");
+    }
+
+    [Fact]
+    public async Task Handle_WithUnconfirmedLocalUser_Should_Return_Failure()
+    {
+        var password = "Password123!";
+        var user = User.CreateWithPassword(
+            "pending@example.com",
+            "pending",
+            "Pending User",
+            BCrypt.Net.BCrypt.HashPassword(password));
+        _userRepositoryMock
+            .Setup(repository => repository.GetByEmailAsync(user.Email, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+
+        var result = await _handler.Handle(new LoginCommand(user.Email, password), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().Contain("doğrulamalısın");
+        _jwtProviderMock.Verify(provider => provider.Generate(It.IsAny<User>()), Times.Never);
     }
 }

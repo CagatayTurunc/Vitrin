@@ -17,6 +17,61 @@ namespace Vitrin.Notification.Infrastructure.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.8");
 
+            modelBuilder.Entity("Vitrin.Notification.Domain.Entities.NewsletterSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("AiDigest")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("DailyLaunches")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("DeveloperDigest")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EmailAddress")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("ProductUpdates")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("UpcomingLaunches")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("WeeklyRoundup")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmailAddress")
+                        .IsUnique()
+                        .HasDatabaseName("UX_NewsletterSubscriptions_EmailAddress");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_NewsletterSubscriptions_UserId")
+                        .HasFilter("UserId IS NOT NULL");
+
+                    b.ToTable("NewsletterSubscriptions");
+                });
+
             modelBuilder.Entity("Vitrin.Notification.Domain.Entities.NotificationItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -47,6 +102,61 @@ namespace Vitrin.Notification.Infrastructure.Data.Migrations
                         .HasDatabaseName("IX_Notifications_UserId_IsRead_CreatedAt_Id");
 
                     b.ToTable("Notifications");
+                });
+
+            modelBuilder.Entity("Vitrin.Notification.Domain.Entities.NotificationPreference", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("CommentsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DigestFrequency")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EmailAddress")
+                        .HasMaxLength(254)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("EmailEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("InAppEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastDigestSentAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("MentionsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("ModerationEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("ProductUpdatesEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("ReactionsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SocialEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_NotificationPreferences_UserId");
+
+                    b.ToTable("NotificationPreferences");
                 });
 
             modelBuilder.Entity("Vitrin.Shared.Infrastructure.Inbox.InboxMessage", b =>

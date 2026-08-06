@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ProductRow } from "@/components/product-row";
 import { Product, ProductApiModel } from "@/core/domain/product.types";
-import { User, Calendar, Loader2, Package, Shield, ShieldAlert, Edit, Link as LinkIcon, Globe } from "lucide-react";
+import { User, Calendar, Loader2, Package, Shield, ShieldAlert, Edit, Link as LinkIcon, Globe, MessageSquare, Bookmark } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -23,6 +23,7 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
   const [isFollowingModalOpen, setIsFollowingModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'products' | 'collections' | 'comments'>('products');
 
   const fetchUserProfile = async (uname: string) => {
     setIsLoading(true);
@@ -174,6 +175,17 @@ export default function ProfilePage() {
                 {user.headline && <span className="hidden sm:inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/30"></span>}
                 {user.headline && <span className="text-sm">{user.headline}</span>}
               </p>
+              
+              {/* Uzmanlık Alanları (Maker Byline) - Mock Data for Demo */}
+              {(user.role === 1 || user.role === 'maker') && (
+                <div className="mt-2 flex flex-wrap gap-2 justify-center sm:justify-start">
+                  {['SaaS', 'AI', 'Developer Tools'].map(tag => (
+                    <span key={tag} className="inline-flex items-center rounded-md bg-secondary/50 px-2 py-1 text-xs font-medium text-secondary-foreground ring-1 ring-inset ring-secondary/50">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             
             {session?.user?.username === user.username ? (
@@ -267,29 +279,58 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Paylaşılan Ürünler */}
+      {/* Sekmeli Yapı */}
       <div className="space-y-6">
-        <div className="flex items-center gap-2 pb-2 border-b">
-          <Package className="h-6 w-6 text-primary" />
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">
-            Paylaştığı Ürünler
-          </h2>
-          <span className="ml-auto rounded-full bg-muted px-3 py-0.5 text-sm font-medium">
-            {products.length}
-          </span>
+        <div className="flex gap-4 border-b border-border overflow-x-auto pb-[-1px]">
+          <button 
+            onClick={() => setActiveTab('products')} 
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${activeTab === 'products' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          >
+            <Package className="w-4 h-4" /> Ürünler <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">{products.length}</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('collections')} 
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${activeTab === 'collections' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          >
+            <Bookmark className="w-4 h-4" /> Koleksiyonlar
+          </button>
+          <button 
+            onClick={() => setActiveTab('comments')} 
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${activeTab === 'comments' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          >
+            <MessageSquare className="w-4 h-4" /> Yorumlar
+          </button>
         </div>
 
-        {products.length > 0 ? (
-          <div className="rounded-3xl border border-border bg-card p-2 shadow-sm sm:p-3 flex flex-col divide-y divide-border/60">
-            {products.map((product) => (
-              <ProductRow key={product.id} product={product} />
-            ))}
-          </div>
-        ) : (
+        {activeTab === 'products' && (
+          products.length > 0 ? (
+            <div className="rounded-3xl border border-border bg-card p-2 shadow-sm sm:p-3 flex flex-col divide-y divide-border/60">
+              {products.map((product) => (
+                <ProductRow key={product.id} product={product} />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground rounded-3xl border border-dashed border-border bg-muted/30">
+              <Package className="h-12 w-12 mb-4 opacity-20" />
+              <h3 className="text-lg font-semibold text-foreground mb-1">Henüz ürün paylaşmamış</h3>
+              <p className="text-sm">@{user.username} tarafından paylaşılan bir ürün bulunmuyor.</p>
+            </div>
+          )
+        )}
+
+        {activeTab === 'collections' && (
           <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground rounded-3xl border border-dashed border-border bg-muted/30">
-            <Package className="h-12 w-12 mb-4 opacity-20" />
-            <h3 className="text-lg font-semibold text-foreground mb-1">Henüz ürün paylaşmamış</h3>
-            <p className="text-sm">@{user.username} tarafından paylaşılan bir ürün bulunmuyor.</p>
+            <Bookmark className="h-12 w-12 mb-4 opacity-20" />
+            <h3 className="text-lg font-semibold text-foreground mb-1">Koleksiyonlar Çok Yakında</h3>
+            <p className="text-sm">Koleksiyon yönetimi henüz geliştirme aşamasında.</p>
+          </div>
+        )}
+
+        {activeTab === 'comments' && (
+          <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground rounded-3xl border border-dashed border-border bg-muted/30">
+            <MessageSquare className="h-12 w-12 mb-4 opacity-20" />
+            <h3 className="text-lg font-semibold text-foreground mb-1">Yorum Geçmişi</h3>
+            <p className="text-sm">Yorumlar henüz bu sayfaya entegre edilmedi.</p>
           </div>
         )}
       </div>

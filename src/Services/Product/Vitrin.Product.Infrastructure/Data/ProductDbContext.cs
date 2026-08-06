@@ -15,12 +15,28 @@ public class ProductDbContext : DbContext
     public DbSet<ProductItem> Products { get; set; }
     public DbSet<ProductLink> ProductLinks { get; set; }
     public DbSet<Topic> Topics { get; set; }
+    public DbSet<ProductCategory> ProductCategories { get; set; }
+    public DbSet<ProductLaunch> ProductLaunches { get; set; }
     public DbSet<ProductUpvote> ProductUpvotes { get; set; }
     public DbSet<ProductRevision> ProductRevisions { get; set; }
     public DbSet<ProductTeamMember> ProductTeamMembers { get; set; }
     public DbSet<ProductClaimRequest> ProductClaimRequests { get; set; }
     public DbSet<Collection> Collections { get; set; }
     public DbSet<CollectionCollaborator> CollectionCollaborators { get; set; }
+    public DbSet<SavedSearch> SavedSearches { get; set; }
+    public DbSet<TopicFollow> TopicFollows { get; set; }
+    public DbSet<ProductFollow> ProductFollows { get; set; }
+    public DbSet<CommunityThread> CommunityThreads { get; set; }
+    public DbSet<CommunityReply> CommunityReplies { get; set; }
+    public DbSet<CommunityReaction> CommunityReactions { get; set; }
+    public DbSet<CommunityThreadFollow> CommunityThreadFollows { get; set; }
+    public DbSet<CommunityReport> CommunityReports { get; set; }
+    public DbSet<ProductReview> ProductReviews { get; set; }
+    public DbSet<ProductReviewHelpful> ProductReviewHelpfulVotes { get; set; }
+    public DbSet<ProductChangelogEntry> ProductChangelogEntries { get; set; }
+    public DbSet<CollectionFollow> CollectionFollows { get; set; }
+    public DbSet<ProductDiscoverySignal> ProductDiscoverySignals { get; set; }
+    public DbSet<ProductMarketProfile> ProductMarketProfiles { get; set; }
     public DbSet<InboxMessage> InboxMessages { get; set; }
     public DbSet<OutboxMessage> OutboxMessages { get; set; }
 
@@ -88,6 +104,134 @@ public class ProductDbContext : DbContext
                    .WithOne()
                    .HasForeignKey(member => member.ProductId)
                    .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasMany(p => p.Launches)
+                   .WithOne()
+                   .HasForeignKey(launch => launch.ProductId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasMany(p => p.Categories)
+                   .WithMany()
+                   .UsingEntity<Dictionary<string, object>>(
+                       "ProductCategoryAssignment",
+                       right => right.HasOne<ProductCategory>().WithMany().HasForeignKey("CategoryId").OnDelete(DeleteBehavior.Cascade),
+                       left => left.HasOne<ProductItem>().WithMany().HasForeignKey("ProductId").OnDelete(DeleteBehavior.Cascade),
+                       join =>
+                       {
+                           join.HasKey("ProductId", "CategoryId");
+                           join.HasIndex("CategoryId").HasDatabaseName("IX_ProductCategoryAssignments_CategoryId");
+                           join.ToTable("ProductCategoryAssignments");
+                       });
+        });
+
+        modelBuilder.Entity<CommunityThread>(builder =>
+        {
+            builder.Property(item => item.Title).IsRequired().HasMaxLength(160);
+            builder.Property(item => item.Slug).IsRequired().HasMaxLength(180);
+            builder.Property(item => item.Body).IsRequired().HasMaxLength(20_000);
+            builder.HasIndex(item => item.Slug).IsUnique();
+            builder.HasIndex(item => new { item.ProductId, item.CreatedAtUtc });
+            builder.HasOne<ProductItem>().WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<CommunityReply>(builder =>
+        {
+            builder.Property(item => item.Body).IsRequired().HasMaxLength(10_000);
+            builder.HasIndex(item => new { item.ThreadId, item.CreatedAtUtc });
+            builder.HasOne<CommunityThread>().WithMany().HasForeignKey(item => item.ThreadId).OnDelete(DeleteBehavior.Cascade);
+            builder.HasOne<CommunityReply>().WithMany().HasForeignKey(item => item.ParentReplyId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<CommunityReaction>(builder =>
+        {
+            builder.Property(item => item.Type).IsRequired().HasMaxLength(20);
+            builder.HasIndex(item => new { item.UserId, item.ThreadId }).IsUnique().HasFilter("\"ThreadId\" IS NOT NULL");
+            builder.HasIndex(item => new { item.UserId, item.ReplyId }).IsUnique().HasFilter("\"ReplyId\" IS NOT NULL");
+            builder.HasOne<CommunityThread>().WithMany().HasForeignKey(item => item.ThreadId).OnDelete(DeleteBehavior.Cascade);
+            builder.HasOne<CommunityReply>().WithMany().HasForeignKey(item => item.ReplyId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<CommunityThreadFollow>(builder =>
+        {
+            builder.HasIndex(item => new { item.UserId, item.ThreadId }).IsUnique();
+            builder.HasOne<CommunityThread>().WithMany().HasForeignKey(item => item.ThreadId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<CommunityReport>(builder =>
+        {
+            builder.Property(item => item.Reason).IsRequired().HasMaxLength(500);
+            builder.HasIndex(item => new { item.ReporterId, item.ThreadId }).IsUnique();
+            builder.HasOne<CommunityThread>().WithMany().HasForeignKey(item => item.ThreadId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ProductReview>(builder =>
+        {
+            builder.Property(item => item.Title).IsRequired().HasMaxLength(120);
+            builder.Property(item => item.Body).IsRequired().HasMaxLength(5000);
+            builder.HasIndex(item => new { item.UserId, item.ProductId }).IsUnique();
+            builder.HasIndex(item => new { item.ProductId, item.CreatedAtUtc });
+            builder.HasOne<ProductItem>().WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ProductReviewHelpful>(builder =>
+        {
+            builder.HasIndex(item => new { item.UserId, item.ReviewId }).IsUnique();
+            builder.HasOne<ProductReview>().WithMany().HasForeignKey(item => item.ReviewId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ProductChangelogEntry>(builder =>
+        {
+            builder.Property(item => item.Version).IsRequired().HasMaxLength(40);
+            builder.Property(item => item.Title).IsRequired().HasMaxLength(140);
+            builder.Property(item => item.Body).IsRequired().HasMaxLength(10_000);
+            builder.HasIndex(item => new { item.ProductId, item.PublishedAtUtc });
+            builder.HasOne<ProductItem>().WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<CollectionFollow>(builder =>
+        {
+            builder.HasIndex(item => new { item.UserId, item.CollectionId }).IsUnique();
+            builder.HasOne<Collection>().WithMany().HasForeignKey(item => item.CollectionId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ProductDiscoverySignal>(builder =>
+        {
+            builder.HasIndex(item => new { item.UserId, item.ProductId }).IsUnique();
+            builder.HasOne<ProductItem>().WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ProductMarketProfile>(builder =>
+        {
+            builder.Property(item => item.PricingModel).IsRequired().HasMaxLength(30);
+            builder.Property(item => item.PlatformsCsv).IsRequired().HasMaxLength(200);
+            builder.HasIndex(item => item.ProductId).IsUnique();
+            builder.HasOne<ProductItem>().WithOne().HasForeignKey<ProductMarketProfile>(item => item.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ProductLaunch>(builder =>
+        {
+            builder.HasKey(launch => launch.Id);
+            builder.Property(launch => launch.VersionLabel).IsRequired().HasMaxLength(80);
+            builder.Property(launch => launch.Tagline).IsRequired().HasMaxLength(200);
+            builder.Property(launch => launch.Description).IsRequired();
+            builder.Property(launch => launch.ThumbnailUrl).HasMaxLength(1000);
+            builder.Property(launch => launch.FinalScore).HasPrecision(12, 3);
+            builder.HasIndex(launch => new { launch.ProductId, launch.SequenceNumber })
+                .IsUnique()
+                .HasDatabaseName("UX_ProductLaunches_ProductId_SequenceNumber");
+            builder.HasIndex(launch => new { launch.Status, launch.PublishedAtUtc, launch.Id })
+                .HasDatabaseName("IX_ProductLaunches_Status_PublishedAtUtc_Id");
+            builder.HasIndex(launch => new { launch.Status, launch.ScheduledAtUtc, launch.Id })
+                .HasDatabaseName("IX_ProductLaunches_Status_ScheduledAtUtc_Id");
+        });
+
+        modelBuilder.Entity<ProductCategory>(builder =>
+        {
+            builder.HasKey(category => category.Id);
+            builder.Property(category => category.Name).IsRequired().HasMaxLength(80);
+            builder.Property(category => category.Slug).IsRequired().HasMaxLength(80);
+            builder.Property(category => category.Description).IsRequired().HasMaxLength(300);
+            builder.HasIndex(category => category.Slug)
+                .IsUnique()
+                .HasDatabaseName("UX_ProductCategories_Slug");
+            builder.HasIndex(category => new { category.ParentId, category.SortOrder })
+                .HasDatabaseName("IX_ProductCategories_ParentId_SortOrder");
+            builder.HasOne<ProductCategory>()
+                .WithMany()
+                .HasForeignKey(category => category.ParentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasData(ProductCategorySeedData.All);
         });
 
         modelBuilder.Entity<ProductLink>(builder =>
@@ -117,6 +261,23 @@ public class ProductDbContext : DbContext
             builder.HasIndex(upvote => new { upvote.ProductItemId, upvote.UserId })
                 .IsUnique()
                 .HasDatabaseName("UX_ProductUpvotes_ProductId_UserId");
+        });
+
+        modelBuilder.Entity<ProductFollow>(builder =>
+        {
+            builder.HasKey(follow => follow.Id);
+            builder.Property(follow => follow.UserId).IsRequired();
+            builder.Property(follow => follow.ProductId).IsRequired();
+            builder.Property(follow => follow.CreatedAtUtc).IsRequired();
+            builder.HasIndex(follow => new { follow.UserId, follow.ProductId })
+                .IsUnique()
+                .HasDatabaseName("UX_ProductFollows_UserId_ProductId");
+            builder.HasIndex(follow => new { follow.ProductId, follow.CreatedAtUtc })
+                .HasDatabaseName("IX_ProductFollows_ProductId_CreatedAtUtc");
+            builder.HasOne<ProductItem>()
+                .WithMany()
+                .HasForeignKey(follow => follow.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ProductRevision>(builder =>
@@ -193,6 +354,34 @@ public class ProductDbContext : DbContext
                 .HasDatabaseName("UX_CollectionCollaborators_CollectionId_UserId");
             builder.HasIndex(member => member.UserId)
                 .HasDatabaseName("IX_CollectionCollaborators_UserId");
+        });
+
+        modelBuilder.Entity<SavedSearch>(builder =>
+        {
+            builder.HasKey(search => search.Id);
+            builder.Property(search => search.Name).IsRequired().HasMaxLength(60);
+            builder.Property(search => search.Query).HasMaxLength(100);
+            builder.Property(search => search.TopicSlugsCsv).IsRequired().HasMaxLength(500);
+            builder.Property(search => search.Sort).IsRequired().HasMaxLength(30);
+            builder.HasIndex(search => new { search.UserId, search.Name })
+                .IsUnique()
+                .HasDatabaseName("UX_SavedSearches_UserId_Name");
+            builder.HasIndex(search => new { search.UserId, search.CreatedAtUtc })
+                .HasDatabaseName("IX_SavedSearches_UserId_CreatedAtUtc");
+        });
+
+        modelBuilder.Entity<TopicFollow>(builder =>
+        {
+            builder.HasKey(follow => follow.Id);
+            builder.HasIndex(follow => new { follow.UserId, follow.TopicId })
+                .IsUnique()
+                .HasDatabaseName("UX_TopicFollows_UserId_TopicId");
+            builder.HasIndex(follow => follow.TopicId)
+                .HasDatabaseName("IX_TopicFollows_TopicId");
+            builder.HasOne<Topic>()
+                .WithMany()
+                .HasForeignKey(follow => follow.TopicId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.ConfigureVitrinInbox();

@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { ProfileSettingsForm } from "@/components/profile-settings-form";
 import { AccountModerationStatus } from "@/components/account-moderation-status";
+import { NotificationPreferences } from "@/components/notification-preferences";
+import { KvkkDataControls } from "@/components/kvkk-data-controls";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 export const metadata = {
   title: "Ayarlar — Vitrin",
@@ -17,7 +21,7 @@ export default async function SettingsPage() {
   }
 
   // Fetch current user details
-  const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/api/auth/users/me", {
+  const res = await fetch(`${API_URL}/api/auth/users/me`, {
     headers: {
       Authorization: `Bearer ${session.accessToken}`,
     },
@@ -56,6 +60,8 @@ export default async function SettingsPage() {
         suspensionReason={userProfile.suspensionReason}
         isBanned={userProfile.isBanned}
       />
+      <NotificationPreferences initialEmail={session.user.email ?? userProfile.email ?? ""} />
+      <KvkkDataControls deleteRequestedAt={userProfile.deleteRequestedAtUtc ?? null} />
       <ProfileSettingsForm initialData={userProfile} />
     </div>
   );

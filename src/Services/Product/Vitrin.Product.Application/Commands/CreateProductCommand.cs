@@ -13,4 +13,9 @@ public record CreateProductCommand(
     string? ThumbnailUrl,
     List<string>? GalleryUrls,
     bool SaveAsDraft = false,
-    string RequestingUsername = "") : IRequest<Result<Guid>>;
+    string RequestingUsername = "",
+    string? WebsiteUrl = null,
+    List<string>? Categories = null,
+    string? LaunchVersionLabel = null,
+    string? LaunchTagline = null,
+    DateTime? ScheduledLaunchAt = null) : IRequest<Result<Guid>>;

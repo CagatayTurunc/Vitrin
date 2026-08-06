@@ -17,6 +17,7 @@ public class AuthDbContext : DbContext
     public DbSet<ModerationAppeal> ModerationAppeals => Set<ModerationAppeal>();
     public DbSet<ModerationAuditEntry> ModerationAuditEntries => Set<ModerationAuditEntry>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,6 +37,9 @@ public class AuthDbContext : DbContext
             builder.HasIndex(u => u.Username).IsUnique().HasDatabaseName("UX_Users_Username");
             builder.HasIndex(u => u.GoogleId).IsUnique().HasDatabaseName("UX_Users_GoogleId");
             builder.HasIndex(u => u.GithubId).IsUnique().HasDatabaseName("UX_Users_GithubId");
+            builder.HasIndex(u => u.DeleteRequestedAtUtc)
+                .HasDatabaseName("IX_Users_DeleteRequestedAtUtc")
+                .HasFilter("\"DeleteRequestedAtUtc\" IS NOT NULL");
         });
 
         modelBuilder.Entity<UserFollow>(builder =>
@@ -119,5 +123,15 @@ public class AuthDbContext : DbContext
         });
 
         modelBuilder.ConfigureVitrinOutbox();
+
+        modelBuilder.Entity<FeatureFlag>(builder =>
+        {
+            builder.HasKey(f => f.Id);
+            builder.Property(f => f.Key).IsRequired().HasMaxLength(100);
+            builder.Property(f => f.Description).HasMaxLength(500);
+            builder.Property(f => f.AllowedRoles).HasMaxLength(500);
+            builder.Property(f => f.VariantPayload).HasMaxLength(4000);
+            builder.HasIndex(f => f.Key).IsUnique().HasDatabaseName("UX_FeatureFlags_Key");
+        });
     }
 }

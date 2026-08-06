@@ -61,6 +61,110 @@ app.MapPost("/api/auth/login", async (LoginCommand command, HttpContext context,
 })
 .AddEndpointFilter<ValidationEndpointFilter<LoginCommand>>();
 
+app.MapPost("/api/auth/confirm-email", async (
+    [Microsoft.AspNetCore.Mvc.FromBody] EmailTokenRequest request,
+    Vitrin.Auth.Application.Interfaces.IAccountActionTokenService tokenService,
+    Vitrin.Auth.Application.Interfaces.IUserRepository userRepository,
+    CancellationToken cancellationToken) =>
+{
+    if (!tokenService.TryValidate(
+            request.Token,
+            Vitrin.Auth.Application.Interfaces.AccountActionPurpose.ConfirmEmail,
+            out var claims) || claims is null)
+        return ApiProblemResults.BadRequest("Doğrulama bağlantısı geçersiz veya süresi dolmuş.", "auth.email_token_invalid");
+
+    var user = await userRepository.GetByIdAsync(claims.UserId, cancellationToken);
+    if (user is null)
+        return ApiProblemResults.BadRequest("Doğrulama bağlantısı geçersiz veya süresi dolmuş.", "auth.email_token_invalid");
+
+    if (user.IsEmailConfirmed)
+        return Results.Ok(new { Message = "E-posta adresin zaten doğrulanmış." });
+
+    if (!tokenService.MatchesUser(claims, user))
+        return ApiProblemResults.BadRequest("Doğrulama bağlantısı geçersiz veya süresi dolmuş.", "auth.email_token_invalid");
+
+    user.ConfirmEmail(DateTime.UtcNow);
+    await userRepository.UpdateAsync(user, cancellationToken);
+    return Results.Ok(new { Message = "E-posta adresin doğrulandı. Artık giriş yapabilirsin." });
+});
+
+app.MapPost("/api/auth/resend-confirmation", async (
+    [Microsoft.AspNetCore.Mvc.FromBody] EmailAddressRequest request,
+    Vitrin.Auth.Application.Interfaces.IAccountActionTokenService tokenService,
+    Vitrin.Auth.Application.Interfaces.IAccountEmailService emailService,
+    Vitrin.Auth.Application.Interfaces.IUserRepository userRepository,
+    CancellationToken cancellationToken) =>
+{
+    var user = string.IsNullOrWhiteSpace(request.Email)
+        ? null
+        : await userRepository.GetByEmailAsync(request.Email, cancellationToken);
+    if (user is { Provider: Vitrin.Auth.Domain.Entities.AuthProvider.Local, IsEmailConfirmed: false })
+    {
+        var token = tokenService.Generate(
+            user,
+            Vitrin.Auth.Application.Interfaces.AccountActionPurpose.ConfirmEmail,
+            TimeSpan.FromHours(24));
+        await emailService.SendEmailConfirmationAsync(user, token, cancellationToken);
+    }
+
+    return Results.Ok(new { Message = "Hesap uygunsa doğrulama e-postası gönderildi." });
+});
+
+app.MapPost("/api/auth/forgot-password", async (
+    [Microsoft.AspNetCore.Mvc.FromBody] EmailAddressRequest request,
+    Vitrin.Auth.Application.Interfaces.IAccountActionTokenService tokenService,
+    Vitrin.Auth.Application.Interfaces.IAccountEmailService emailService,
+    Vitrin.Auth.Application.Interfaces.IUserRepository userRepository,
+    CancellationToken cancellationToken) =>
+{
+    var user = string.IsNullOrWhiteSpace(request.Email)
+        ? null
+        : await userRepository.GetByEmailAsync(request.Email, cancellationToken);
+    if (user is { Provider: Vitrin.Auth.Domain.Entities.AuthProvider.Local, IsAnonymized: false })
+    {
+        var token = tokenService.Generate(
+            user,
+            Vitrin.Auth.Application.Interfaces.AccountActionPurpose.ResetPassword,
+            TimeSpan.FromHours(1));
+        await emailService.SendPasswordResetAsync(user, token, cancellationToken);
+    }
+
+    return Results.Ok(new { Message = "Bu e-posta ile bir hesap varsa şifre yenileme bağlantısı gönderildi." });
+});
+
+app.MapPost("/api/auth/reset-password", async (
+    [Microsoft.AspNetCore.Mvc.FromBody] ResetPasswordRequest request,
+    Vitrin.Auth.Application.Interfaces.IAccountActionTokenService tokenService,
+    Vitrin.Auth.Application.Interfaces.IUserRepository userRepository,
+    CancellationToken cancellationToken) =>
+{
+    var passwordIsValid = !string.IsNullOrEmpty(request.Password) &&
+                          request.Password.Length is >= 12 and <= 128 &&
+                          request.Password.Any(char.IsUpper) &&
+                          request.Password.Any(char.IsLower) &&
+                          request.Password.Any(char.IsDigit) &&
+                          request.Password.Any(character => !char.IsLetterOrDigit(character));
+    if (!passwordIsValid)
+        return ApiProblemResults.BadRequest(
+            "Şifre 12-128 karakter olmalı; büyük harf, küçük harf, rakam ve özel karakter içermelidir.",
+            "auth.password_weak");
+
+    if (!tokenService.TryValidate(
+            request.Token,
+            Vitrin.Auth.Application.Interfaces.AccountActionPurpose.ResetPassword,
+            out var claims) || claims is null)
+        return ApiProblemResults.BadRequest("Şifre yenileme bağlantısı geçersiz veya süresi dolmuş.", "auth.password_token_invalid");
+
+    var user = await userRepository.GetByIdAsync(claims.UserId, cancellationToken);
+    if (user is null || user.Provider != Vitrin.Auth.Domain.Entities.AuthProvider.Local ||
+        !tokenService.MatchesUser(claims, user))
+        return ApiProblemResults.BadRequest("Şifre yenileme bağlantısı geçersiz veya süresi dolmuş.", "auth.password_token_invalid");
+
+    user.ChangePassword(BCrypt.Net.BCrypt.HashPassword(request.Password));
+    await userRepository.UpdateAsync(user, cancellationToken);
+    return Results.Ok(new { Message = "Şifren yenilendi. Yeni şifrenle giriş yapabilirsin." });
+});
+
 app.MapPost("/api/auth/external-login", async (ExternalLoginCommand command, HttpContext context, IMediator mediator, IAuditLogger auditLogger) =>
 {
     var result = await mediator.Send(command);
@@ -295,7 +399,7 @@ app.MapGet("/api/auth/admin/maker-applications", async (Vitrin.Auth.Infrastructu
     return Results.Ok(result);
 }).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
-app.MapPost("/api/auth/admin/maker-applications/{id}/approve", async (Guid id, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, Vitrin.Auth.Infrastructure.Kafka.IAuthNotificationPublisher notificationPublisher, IAuditLogger auditLogger) =>
+app.MapPost("/api/auth/admin/maker-applications/{id}/approve", async (Guid id, HttpContext context, Vitrin.Auth.Infrastructure.Data.AuthDbContext db, Vitrin.Auth.Infrastructure.Kafka.IAuthNotificationPublisher notificationPublisher, Vitrin.Auth.Application.Interfaces.IAccountEmailService emailService, IAuditLogger auditLogger) =>
 {
     var appToApprove = await db.MakerApplications.FindAsync(id);
     if (appToApprove == null) return Results.NotFound();
@@ -314,6 +418,9 @@ app.MapPost("/api/auth/admin/maker-applications/{id}/approve", async (Guid id, H
     }
     
     await db.SaveChangesAsync(context.RequestAborted);
+    if (user != null)
+        await emailService.SendMakerApprovedAsync(user, context.RequestAborted);
+
     await auditLogger.WriteAsync(
         new AuditEvent("admin.maker_application_approved", context.User.GetUserId(), "MakerApplication", id.ToString(), "Succeeded", context.TraceIdentifier),
         context.RequestAborted);
@@ -891,9 +998,311 @@ app.MapGet("/api/auth/leaderboard", async (Vitrin.Auth.Infrastructure.Data.AuthD
     });
 });
 
+// ─── KVKK: Veri Export & Hesap Silme ──────────────────────────────────────
+
+// Kullanıcının kendi verisini JSON olarak export et
+app.MapGet("/api/auth/users/me/data-export", async (
+    HttpContext context,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
+    var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId.Value, context.RequestAborted);
+    if (user is null) return Results.NotFound();
+
+    var export = new
+    {
+        ExportedAt = DateTime.UtcNow,
+        Profile = new
+        {
+            user.Id, user.Email, user.Username, user.FullName,
+            user.Headline, user.About, user.WebsiteUrl, user.GithubUrl,
+            user.LinkedInUrl, user.Role, user.CreatedAt, user.Provider
+        },
+        Badges = await db.UserBadges.AsNoTracking()
+            .Where(b => b.UserId == userId.Value)
+            .Select(b => new { b.Name, b.Icon, b.EarnedAt })
+            .ToListAsync(context.RequestAborted),
+        Follows = new
+        {
+            Following = await db.UserFollows.AsNoTracking()
+                .Where(f => f.FollowerId == userId.Value)
+                .Select(f => f.FollowingId)
+                .ToListAsync(context.RequestAborted),
+            Followers = await db.UserFollows.AsNoTracking()
+                .Where(f => f.FollowingId == userId.Value)
+                .Select(f => f.FollowerId)
+                .ToListAsync(context.RequestAborted)
+        }
+    };
+
+    return Results.Json(export);
+})
+.WithName("ExportMyData")
+.RequireAuthorization();
+
+// Hesap silme talebi başlat (30 gün sonra anonim hale gelir)
+app.MapPost("/api/auth/users/me/request-deletion", async (
+    HttpContext context,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db,
+    IAuditLogger auditLogger) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
+    var user = await db.Users.FindAsync([userId.Value], context.RequestAborted);
+    if (user is null) return Results.NotFound();
+    if (user.IsAnonymized)
+        return ApiProblemResults.BadRequest("Hesap zaten silinmiş.", "user.already_deleted");
+
+    user.RequestDeletion(DateTime.UtcNow);
+    await db.SaveChangesAsync(context.RequestAborted);
+
+    await auditLogger.WriteAsync(
+        new AuditEvent("user.deletion_requested", userId, "User", userId.ToString(), "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
+
+    return Results.Ok(new
+    {
+        Message = "Hesap silme talebiniz alındı. Verileriniz 30 gün içinde anonim hale getirilecek.",
+        ScheduledDeletionAt = DateTime.UtcNow.AddDays(30)
+    });
+})
+.WithName("RequestAccountDeletion")
+.RequireAuthorization();
+
+// Hesap silme talebini geri al
+app.MapDelete("/api/auth/users/me/request-deletion", async (
+    HttpContext context,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db,
+    IAuditLogger auditLogger) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
+    var user = await db.Users.FindAsync([userId.Value], context.RequestAborted);
+    if (user is null) return Results.NotFound();
+    if (!user.DeleteRequestedAtUtc.HasValue)
+        return ApiProblemResults.BadRequest("Bekleyen bir silme talebi yok.", "user.no_pending_deletion");
+
+    user.CancelDeletion();
+    await db.SaveChangesAsync(context.RequestAborted);
+
+    await auditLogger.WriteAsync(
+        new AuditEvent("user.deletion_cancelled", userId, "User", userId.ToString(), "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
+
+    return Results.Ok(new { Message = "Hesap silme talebi iptal edildi." });
+})
+.WithName("CancelAccountDeletion")
+.RequireAuthorization();
+
+// ─── Feature Flags ─────────────────────────────────────────────────────────
+
+// Tüm aktif flag'leri listele (public — frontend kullanır)
+app.MapGet("/api/feature-flags", async (
+    HttpContext context,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+{
+    var userId = context.User.GetUserId();
+    var userRole = context.User.FindFirst("Role")?.Value ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+
+    var flags = await db.FeatureFlags
+        .AsNoTracking()
+        .Where(f => f.IsEnabled)
+        .ToListAsync(context.RequestAborted);
+
+    var result = flags
+        .Where(f =>
+        {
+            var roles = f.GetAllowedRoles();
+            if (roles.Count > 0 && !roles.Contains(userRole, StringComparer.OrdinalIgnoreCase))
+                return false;
+            return f.IsActiveForUser(userId);
+        })
+        .Select(f => new
+        {
+            f.Key,
+            f.VariantPayload,
+            IsActive = true
+        })
+        .ToList();
+
+    return Results.Ok(result);
+})
+.WithName("GetActiveFeatureFlags");
+
+// Admin: tüm flag'leri yönet
+app.MapGet("/api/admin/feature-flags", async (Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+{
+    var flags = await db.FeatureFlags.AsNoTracking()
+        .OrderBy(f => f.Key)
+        .ToListAsync();
+    return Results.Ok(flags);
+})
+.WithName("AdminGetFeatureFlags")
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+app.MapPost("/api/admin/feature-flags", async (
+    [Microsoft.AspNetCore.Mvc.FromBody] UpsertFeatureFlagRequest request,
+    HttpContext context,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db,
+    IAuditLogger auditLogger) =>
+{
+    var adminId = context.User.GetUserId();
+    if (adminId is null) return Results.Unauthorized();
+
+    var key = request.Key.Trim().ToLowerInvariant();
+    var existing = await db.FeatureFlags.FirstOrDefaultAsync(f => f.Key == key, context.RequestAborted);
+
+    if (existing is null)
+    {
+        var flag = Vitrin.Auth.Domain.Entities.FeatureFlag.Create(
+            key, request.Description, request.IsEnabled,
+            request.RolloutPercentage, request.AllowedRoles, request.VariantPayload);
+        db.FeatureFlags.Add(flag);
+    }
+    else
+    {
+        existing.Update(request.Description, request.IsEnabled, request.RolloutPercentage,
+            request.AllowedRoles, request.VariantPayload, adminId.Value);
+    }
+
+    await db.SaveChangesAsync(context.RequestAborted);
+    await auditLogger.WriteAsync(
+        new AuditEvent("admin.feature_flag_upserted", adminId, "FeatureFlag", key, "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
+
+    return Results.Ok(new { Key = key, Message = "Feature flag kaydedildi." });
+})
+.WithName("AdminUpsertFeatureFlag")
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+app.MapDelete("/api/admin/feature-flags/{key}", async (
+    string key,
+    HttpContext context,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db,
+    IAuditLogger auditLogger) =>
+{
+    var adminId = context.User.GetUserId();
+    if (adminId is null) return Results.Unauthorized();
+
+    var normalizedKey = key.Trim().ToLowerInvariant();
+    var flag = await db.FeatureFlags.FirstOrDefaultAsync(f => f.Key == normalizedKey, context.RequestAborted);
+    if (flag is null) return Results.NotFound();
+
+    db.FeatureFlags.Remove(flag);
+    await db.SaveChangesAsync(context.RequestAborted);
+    await auditLogger.WriteAsync(
+        new AuditEvent("admin.feature_flag_deleted", adminId, "FeatureFlag", normalizedKey, "Succeeded", context.TraceIdentifier),
+        context.RequestAborted);
+
+    return Results.NoContent();
+})
+.WithName("AdminDeleteFeatureFlag")
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+// ─── Admin: KVKK Pending Deletions ─────────────────────────────────────────
+
+// Silme bekleyen kullanıcılar + özet istatistikler
+app.MapGet("/api/auth/admin/kvkk/pending-deletions", async (
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db,
+    CancellationToken ct) =>
+{
+    var now = DateTime.UtcNow;
+
+    var pendingUsers = await db.Users
+        .AsNoTracking()
+        .Where(u => u.DeleteRequestedAtUtc.HasValue && !u.AnonymizedAtUtc.HasValue)
+        .OrderBy(u => u.DeleteRequestedAtUtc)
+        .Take(500)
+        .Select(u => new
+        {
+            u.Id,
+            u.Username,
+            u.Email,
+            u.FullName,
+            u.DeleteRequestedAtUtc
+        })
+        .ToListAsync(ct);
+
+    var users = pendingUsers.Select(u =>
+    {
+        var scheduled = u.DeleteRequestedAtUtc!.Value.AddDays(30);
+        var remaining = (int)Math.Ceiling((scheduled - now).TotalDays);
+        return new
+        {
+            u.Id,
+            u.Username,
+            u.Email,
+            u.FullName,
+            DeleteRequestedAtUtc = u.DeleteRequestedAtUtc,
+            ScheduledDeletionAt = scheduled,
+            DaysRemaining = Math.Max(0, remaining),
+            IsOverdue = scheduled <= now
+        };
+    }).ToList();
+
+    var firstOfMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+    var anonymizedThisMonth = await db.Users
+        .AsNoTracking()
+        .CountAsync(u => u.AnonymizedAtUtc.HasValue && u.AnonymizedAtUtc.Value >= firstOfMonth, ct);
+    var anonymizedTotal = await db.Users
+        .AsNoTracking()
+        .CountAsync(u => u.AnonymizedAtUtc.HasValue, ct);
+
+    var stats = new
+    {
+        TotalPendingDeletions = users.Count,
+        OverdueDeletions = users.Count(u => u.IsOverdue),
+        AnonymizedThisMonth = anonymizedThisMonth,
+        AnonymizedTotal = anonymizedTotal
+    };
+
+    return Results.Ok(new { users, stats });
+})
+.WithName("AdminGetKvkkPendingDeletions")
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
+// Bekleyen silme taleplerini CSV olarak export et
+app.MapGet("/api/auth/admin/kvkk/pending-deletions/export", async (
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db,
+    CancellationToken ct) =>
+{
+    var now = DateTime.UtcNow;
+    var pending = await db.Users
+        .AsNoTracking()
+        .Where(u => u.DeleteRequestedAtUtc.HasValue && !u.AnonymizedAtUtc.HasValue)
+        .OrderBy(u => u.DeleteRequestedAtUtc)
+        .Select(u => new { u.Id, u.Username, u.Email, u.FullName, u.DeleteRequestedAtUtc })
+        .ToListAsync(ct);
+
+    var lines = new System.Text.StringBuilder();
+    lines.AppendLine("Id,Username,Email,FullName,DeleteRequestedAtUtc,ScheduledDeletionAt,IsOverdue");
+    foreach (var u in pending)
+    {
+        var scheduled = u.DeleteRequestedAtUtc!.Value.AddDays(30);
+        lines.AppendLine($"{u.Id},{u.Username},{u.Email},{u.FullName},{u.DeleteRequestedAtUtc:u},{scheduled:u},{scheduled <= now}");
+    }
+
+    var bytes = System.Text.Encoding.UTF8.GetBytes(lines.ToString());
+    return Results.File(bytes, "text/csv", $"kvkk-pending-{now:yyyyMMdd}.csv");
+})
+.WithName("AdminExportKvkkPendingDeletions")
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
+
 app.Run();
 
+// ─── Admin: KVKK Pending Deletions ─────────────────────────────────────────
+
+// Bu endpoint'ler app.Run()'dan önce olmalı, ancak file sonuna da eklenebilir.
+// Not: app.Run() öncesinde tanımlandıklarından çalışırlar.
+
 public record MakerApplicationRequest(string PortfolioUrl, string Reason);
+public record EmailTokenRequest(string Token);
+public record EmailAddressRequest(string Email);
+public record ResetPasswordRequest(string Token, string Password);
 public record UpdateProfileRequest(string FullName, string Username, string? Headline, string? About, string? AvatarUrl, string? WebsiteUrl, string? GithubUrl, string? LinkedInUrl);
 public record CreateModerationReportRequest(
     string TargetType,
@@ -916,3 +1325,11 @@ public record AuthActivityResponse(
     Guid EntityId,
     string? Metadata,
     DateTime CreatedAtUtc);
+
+public record UpsertFeatureFlagRequest(
+    string Key,
+    string Description,
+    bool IsEnabled,
+    int RolloutPercentage = 100,
+    string? AllowedRoles = null,
+    string? VariantPayload = null);

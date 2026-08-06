@@ -33,6 +33,7 @@ public class ProductRepository : IProductRepository
     {
         return await _context.Products
             .Include(product => product.TeamMembers)
+            .Include(product => product.Launches)
             .FirstOrDefaultAsync(product => product.Id == id, cancellationToken);
     }
 
@@ -45,6 +46,12 @@ public class ProductRepository : IProductRepository
     public async Task<Topic?> GetTopicBySlugAsync(string slug, CancellationToken cancellationToken)
     {
         return await _context.Topics.FirstOrDefaultAsync(t => t.Slug == slug, cancellationToken);
+    }
+
+    public async Task<ProductCategory?> GetCategoryBySlugAsync(string slug, CancellationToken cancellationToken)
+    {
+        return await _context.ProductCategories
+            .FirstOrDefaultAsync(category => category.IsActive && category.Slug == slug, cancellationToken);
     }
 
     public async Task UpdateAsync(ProductItem product, CancellationToken cancellationToken)

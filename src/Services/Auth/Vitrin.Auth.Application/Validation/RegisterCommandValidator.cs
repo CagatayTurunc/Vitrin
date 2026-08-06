@@ -24,7 +24,7 @@ public sealed class RegisterCommandValidator : AbstractValidator<RegisterCommand
 
         RuleFor(command => command.Password)
             .NotEmpty()
-            .Length(12, 128)
+            .Length(8, 128)
             .Matches("[A-Z]").WithMessage("Password must contain an uppercase letter.")
             .Matches("[a-z]").WithMessage("Password must contain a lowercase letter.")
             .Matches("[0-9]").WithMessage("Password must contain a number.")

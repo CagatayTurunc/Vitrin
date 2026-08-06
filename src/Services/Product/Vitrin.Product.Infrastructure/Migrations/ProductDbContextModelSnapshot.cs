@@ -40,6 +40,22 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.ToTable("CollectionProductItem");
                 });
 
+            modelBuilder.Entity("ProductCategoryAssignment", b =>
+                {
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ProductId", "CategoryId");
+
+                    b.HasIndex("CategoryId")
+                        .HasDatabaseName("IX_ProductCategoryAssignments_CategoryId");
+
+                    b.ToTable("ProductCategoryAssignments", (string)null);
+                });
+
             modelBuilder.Entity("ProductItemTopic", b =>
                 {
                     b.Property<Guid>("ProductItemId")
@@ -61,6 +77,10 @@ namespace Vitrin.Product.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CoverImageUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -68,6 +88,9 @@ namespace Vitrin.Product.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsEditorial")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -132,6 +155,506 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.ToTable("CollectionCollaborators");
                 });
 
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CollectionFollow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.HasIndex("UserId", "CollectionId")
+                        .IsUnique();
+
+                    b.ToTable("CollectionFollows");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CommunityReaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReplyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ThreadId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReplyId");
+
+                    b.HasIndex("ThreadId");
+
+                    b.HasIndex("UserId", "ReplyId")
+                        .IsUnique()
+                        .HasFilter("\"ReplyId\" IS NOT NULL");
+
+                    b.HasIndex("UserId", "ThreadId")
+                        .IsUnique()
+                        .HasFilter("\"ThreadId\" IS NOT NULL");
+
+                    b.ToTable("CommunityReactions");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CommunityReply", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EditedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsOfficial")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("ParentReplyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ThreadId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParentReplyId");
+
+                    b.HasIndex("ThreadId", "CreatedAtUtc");
+
+                    b.ToTable("CommunityReplies");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CommunityReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("ReporterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ThreadId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ThreadId");
+
+                    b.HasIndex("ReporterId", "ThreadId")
+                        .IsUnique();
+
+                    b.ToTable("CommunityReports");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CommunityThread", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPinned")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ViewCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.HasIndex("ProductId", "CreatedAtUtc");
+
+                    b.ToTable("CommunityThreads");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CommunityThreadFollow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ThreadId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ThreadId");
+
+                    b.HasIndex("UserId", "ThreadId")
+                        .IsUnique();
+
+                    b.ToTable("CommunityThreadFollows");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProductCategories_Slug");
+
+                    b.HasIndex("ParentId", "SortOrder")
+                        .HasDatabaseName("IX_ProductCategories_ParentId_SortOrder");
+
+                    b.ToTable("ProductCategories");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Description = "Yazılım geliştirme, altyapı, API, test ve DevOps ürünleri.",
+                            IsActive = true,
+                            Name = "Mühendislik ve Geliştirme",
+                            Slug = "muhendislik-gelistirme",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000002"),
+                            Description = "Bireysel ve ekip üretkenliğini artıran araçlar.",
+                            IsActive = true,
+                            Name = "Üretkenlik",
+                            Slug = "uretkenlik",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000003"),
+                            Description = "Müşteri kazanımı, satış ve büyüme ürünleri.",
+                            IsActive = true,
+                            Name = "Pazarlama ve Satış",
+                            Slug = "pazarlama-satis",
+                            SortOrder = 30
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000004"),
+                            Description = "Tasarım, içerik ve yaratıcı üretim araçları.",
+                            IsActive = true,
+                            Name = "Tasarım ve Yaratıcılık",
+                            Slug = "tasarim-yaraticilik",
+                            SortOrder = 40
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000005"),
+                            Description = "Finans, muhasebe ve işletme operasyonu ürünleri.",
+                            IsActive = true,
+                            Name = "Finans ve İşletme",
+                            Slug = "finans-isletme",
+                            SortOrder = 50
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000006"),
+                            Description = "Topluluk, iletişim ve profesyonel ağ ürünleri.",
+                            IsActive = true,
+                            Name = "Sosyal ve Topluluk",
+                            Slug = "sosyal-topluluk",
+                            SortOrder = 60
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000007"),
+                            Description = "Yapay zekâ tabanlı ürünler, modeller ve ajanlar.",
+                            IsActive = true,
+                            Name = "Yapay Zekâ",
+                            Slug = "yapay-zeka",
+                            SortOrder = 70
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000001"),
+                            Description = "Kodlama ve geliştirici deneyimi araçları.",
+                            IsActive = true,
+                            Name = "Geliştirici Araçları",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Slug = "gelistirici-araclari",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000002"),
+                            Description = "API geliştirme, test ve entegrasyon araçları.",
+                            IsActive = true,
+                            Name = "API Araçları",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Slug = "api-araclari",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000003"),
+                            Description = "Dağıtım, gözlemlenebilirlik ve altyapı araçları.",
+                            IsActive = true,
+                            Name = "DevOps",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Slug = "devops",
+                            SortOrder = 30
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000004"),
+                            Description = "Takımlar için iletişim ve iş birliği ürünleri.",
+                            IsActive = true,
+                            Name = "Ekip İş Birliği",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000002"),
+                            Slug = "ekip-is-birligi",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000005"),
+                            Description = "Planlama, görev ve proje yönetimi ürünleri.",
+                            IsActive = true,
+                            Name = "Proje Yönetimi",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000002"),
+                            Slug = "proje-yonetimi",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000006"),
+                            Description = "Müşteri ilişkileri ve satış süreçleri araçları.",
+                            IsActive = true,
+                            Name = "CRM",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000003"),
+                            Slug = "crm",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000007"),
+                            Description = "Kampanya ve büyüme otomasyonu araçları.",
+                            IsActive = true,
+                            Name = "Pazarlama Otomasyonu",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000003"),
+                            Slug = "pazarlama-otomasyonu",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000008"),
+                            Description = "Grafik ve görsel tasarım ürünleri.",
+                            IsActive = true,
+                            Name = "Grafik Tasarım",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000004"),
+                            Slug = "grafik-tasarim",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000009"),
+                            Description = "Video, ses ve medya üretim araçları.",
+                            IsActive = true,
+                            Name = "Video ve Ses",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000004"),
+                            Slug = "video-ses",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000010"),
+                            Description = "Fatura, gider ve ön muhasebe ürünleri.",
+                            IsActive = true,
+                            Name = "Ön Muhasebe",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000005"),
+                            Slug = "on-muhasebe",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000011"),
+                            Description = "Ödeme, bankacılık ve finansal teknoloji ürünleri.",
+                            IsActive = true,
+                            Name = "Fintech",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000005"),
+                            Slug = "fintech",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000012"),
+                            Description = "Topluluk kurma ve yönetme araçları.",
+                            IsActive = true,
+                            Name = "Topluluk Yönetimi",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000006"),
+                            Slug = "topluluk-yonetimi",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000013"),
+                            Description = "Görevleri otonom veya yarı otonom yürüten ajanlar.",
+                            IsActive = true,
+                            Name = "AI Ajanları",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000007"),
+                            Slug = "ai-ajanlari",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000014"),
+                            Description = "Metin, görsel, video ve kod üreten yapay zekâ ürünleri.",
+                            IsActive = true,
+                            Name = "Üretken AI",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000007"),
+                            Slug = "uretken-ai",
+                            SortOrder = 20
+                        });
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductChangelogEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("PublishedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(140)
+                        .HasColumnType("character varying(140)");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId", "PublishedAtUtc");
+
+                    b.ToTable("ProductChangelogEntries");
+                });
+
             modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductClaimRequest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -176,6 +699,33 @@ namespace Vitrin.Product.Infrastructure.Migrations
                         .HasDatabaseName("IX_ProductClaimRequests_Product_User_Status");
 
                     b.ToTable("ProductClaimRequests");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductFollow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId", "CreatedAtUtc")
+                        .HasDatabaseName("IX_ProductFollows_ProductId_CreatedAtUtc");
+
+                    b.HasIndex("UserId", "ProductId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProductFollows_UserId_ProductId");
+
+                    b.ToTable("ProductFollows");
                 });
 
             modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductItem", b =>
@@ -289,6 +839,81 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.ToTable("Products");
                 });
 
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductLaunch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ArchivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("FinalRank")
+                        .HasColumnType("integer");
+
+                    b.Property<double?>("FinalScore")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("double precision");
+
+                    b.Property<List<string>>("GalleryUrls")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<bool>("IsFeatured")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("PublishedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ScheduledAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SequenceNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tagline")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ThumbnailUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("VersionLabel")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId", "SequenceNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProductLaunches_ProductId_SequenceNumber");
+
+                    b.HasIndex("Status", "PublishedAtUtc", "Id")
+                        .HasDatabaseName("IX_ProductLaunches_Status_PublishedAtUtc_Id");
+
+                    b.HasIndex("Status", "ScheduledAtUtc", "Id")
+                        .HasDatabaseName("IX_ProductLaunches_Status_ScheduledAtUtc_Id");
+
+                    b.ToTable("ProductLaunches");
+                });
+
             modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductLink", b =>
                 {
                     b.Property<Guid>("Id")
@@ -313,6 +938,78 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.HasIndex("ProductId");
 
                     b.ToTable("ProductLinks");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UsageStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId", "CreatedAtUtc");
+
+                    b.HasIndex("UserId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("ProductReviews");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductReviewHelpful", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ReviewId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewId");
+
+                    b.HasIndex("UserId", "ReviewId")
+                        .IsUnique();
+
+                    b.ToTable("ProductReviewHelpfulVotes");
                 });
 
             modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductRevision", b =>
@@ -435,6 +1132,67 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.ToTable("ProductUpvotes");
                 });
 
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.SavedSearch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("MinComments")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("MinUpvotes")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("MinViews")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<bool>("NotifyOnNewMatches")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("PublishedFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("PublishedTo")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Query")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Sort")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("TopicSlugsCsv")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAtUtc")
+                        .HasDatabaseName("IX_SavedSearches_UserId_CreatedAtUtc");
+
+                    b.HasIndex("UserId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("UX_SavedSearches_UserId_Name");
+
+                    b.ToTable("SavedSearches");
+                });
+
             modelBuilder.Entity("Vitrin.Product.Domain.Entities.Topic", b =>
                 {
                     b.Property<Guid>("Id")
@@ -464,6 +1222,33 @@ namespace Vitrin.Product.Infrastructure.Migrations
                         .HasDatabaseName("UX_Topics_Slug");
 
                     b.ToTable("Topics");
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.TopicFollow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TopicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TopicId")
+                        .HasDatabaseName("IX_TopicFollows_TopicId");
+
+                    b.HasIndex("UserId", "TopicId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_TopicFollows_UserId_TopicId");
+
+                    b.ToTable("TopicFollows");
                 });
 
             modelBuilder.Entity("Vitrin.Shared.Infrastructure.Inbox.InboxMessage", b =>
@@ -565,6 +1350,21 @@ namespace Vitrin.Product.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ProductCategoryAssignment", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.ProductCategory", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ProductItemTopic", b =>
                 {
                     b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
@@ -589,10 +1389,107 @@ namespace Vitrin.Product.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CollectionFollow", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.Collection", null)
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CommunityReaction", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.CommunityReply", null)
+                        .WithMany()
+                        .HasForeignKey("ReplyId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("Vitrin.Product.Domain.Entities.CommunityThread", null)
+                        .WithMany()
+                        .HasForeignKey("ThreadId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CommunityReply", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.CommunityReply", null)
+                        .WithMany()
+                        .HasForeignKey("ParentReplyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Vitrin.Product.Domain.Entities.CommunityThread", null)
+                        .WithMany()
+                        .HasForeignKey("ThreadId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CommunityReport", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.CommunityThread", null)
+                        .WithMany()
+                        .HasForeignKey("ThreadId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CommunityThread", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.CommunityThreadFollow", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.CommunityThread", null)
+                        .WithMany()
+                        .HasForeignKey("ThreadId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductCategory", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.ProductCategory", null)
+                        .WithMany()
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductChangelogEntry", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductClaimRequest", b =>
                 {
                     b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
                         .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductFollow", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductLaunch", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
+                        .WithMany("Launches")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -603,6 +1500,24 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
                         .WithMany("Links")
                         .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductReview", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.ProductItem", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductReviewHelpful", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.ProductReview", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -634,6 +1549,15 @@ namespace Vitrin.Product.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Vitrin.Product.Domain.Entities.TopicFollow", b =>
+                {
+                    b.HasOne("Vitrin.Product.Domain.Entities.Topic", null)
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Vitrin.Product.Domain.Entities.Collection", b =>
                 {
                     b.Navigation("Collaborators");
@@ -641,6 +1565,8 @@ namespace Vitrin.Product.Infrastructure.Migrations
 
             modelBuilder.Entity("Vitrin.Product.Domain.Entities.ProductItem", b =>
                 {
+                    b.Navigation("Launches");
+
                     b.Navigation("Links");
 
                     b.Navigation("TeamMembers");

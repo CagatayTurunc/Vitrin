@@ -35,9 +35,23 @@ public class ProductItem : AggregateRoot
     private readonly List<ProductTeamMember> _teamMembers = new();
     public IReadOnlyList<ProductTeamMember> TeamMembers => _teamMembers.AsReadOnly();
 
+    private readonly List<ProductLaunch> _launches = new();
+    public IReadOnlyList<ProductLaunch> Launches => _launches.AsReadOnly();
+
+    private readonly List<ProductCategory> _categories = new();
+    public IReadOnlyList<ProductCategory> Categories => _categories.AsReadOnly();
+
     private ProductItem() { } // EF Core
     
-    public static ProductItem Create(Guid makerId, string name, string tagline, string description, string slug, string? thumbnailUrl = null)
+    public static ProductItem Create(
+        Guid makerId,
+        string name,
+        string tagline,
+        string description,
+        string slug,
+        string? thumbnailUrl = null,
+        string? initialLaunchVersionLabel = null,
+        string? initialLaunchTagline = null)
     {
         var product = new ProductItem
         {
@@ -50,6 +64,13 @@ public class ProductItem : AggregateRoot
             Status = ProductStatus.Draft,
             CreatedAt = DateTime.UtcNow
         };
+
+        product._launches.Add(ProductLaunch.CreateInitial(
+            product.Id,
+            initialLaunchVersionLabel,
+            string.IsNullOrWhiteSpace(initialLaunchTagline) ? tagline : initialLaunchTagline,
+            description,
+            thumbnailUrl));
         
         // Add Domain Event if necessary (e.g., ProductCreatedEvent)
         return product;
@@ -62,6 +83,7 @@ public class ProductItem : AggregateRoot
             
         Status = ProductStatus.Published;
         PublishedAt = DateTime.UtcNow;
+        CurrentLaunch()?.Publish(PublishedAt.Value);
         
         // Add ProductPublishedEvent
         return Result.Success();
@@ -74,6 +96,7 @@ public class ProductItem : AggregateRoot
 
         Status = ProductStatus.UnderReview;
         RejectionReason = null;
+        CurrentLaunch()?.SubmitForReview();
         return Result.Success();
     }
     
@@ -88,6 +111,7 @@ public class ProductItem : AggregateRoot
             : ProductStatus.Published;
         RejectionReason = null;
         PublishedAt = Status == ProductStatus.Published ? now : null;
+        CurrentLaunch()?.Approve(now);
         return Result.Success();
     }
 
@@ -114,6 +138,8 @@ public class ProductItem : AggregateRoot
             ScheduledLaunchAt = null;
         }
 
+        CurrentLaunch()?.SetSchedule(ScheduledLaunchAt);
+
         return Result.Success();
     }
 
@@ -128,6 +154,7 @@ public class ProductItem : AggregateRoot
 
         Status = ProductStatus.Published;
         PublishedAt = now;
+        CurrentLaunch()?.Publish(now);
         return Result.Success();
     }
     
@@ -145,6 +172,7 @@ public class ProductItem : AggregateRoot
 
         Status = ProductStatus.Rejected;
         RejectionReason = normalizedReason;
+        CurrentLaunch()?.Reject();
         return Result.Success();
     }
 
@@ -155,6 +183,7 @@ public class ProductItem : AggregateRoot
 
         Status = ProductStatus.Archived;
         ArchivedAt = DateTime.UtcNow;
+        CurrentLaunch()?.Archive(ArchivedAt.Value);
         return Result.Success();
     }
 
@@ -168,6 +197,7 @@ public class ProductItem : AggregateRoot
 
         Status = ProductStatus.Draft;
         RejectionReason = null;
+        CurrentLaunch()?.Retract();
         return Result.Success();
     }
 
@@ -240,6 +270,17 @@ public class ProductItem : AggregateRoot
             _topics.Add(topic);
         }
     }
+
+    public Result AddCategory(ProductCategory category)
+    {
+        if (_categories.Any(item => item.Id == category.Id))
+            return Result.Success();
+        if (_categories.Count >= 3)
+            return Result.Failure("A product can have at most three categories.");
+
+        _categories.Add(category);
+        return Result.Success();
+    }
     
     public void ToggleUpvote(Guid userId)
     {
@@ -265,5 +306,11 @@ public class ProductItem : AggregateRoot
         {
             GalleryUrls.AddRange(urls);
         }
+        CurrentLaunch()?.SetGalleryUrls(GalleryUrls);
     }
+
+    private ProductLaunch? CurrentLaunch() => _launches
+        .OrderByDescending(launch => launch.SequenceNumber)
+        .FirstOrDefault(launch => launch.Status != ProductLaunchStatus.Archived)
+        ?? _launches.OrderByDescending(launch => launch.SequenceNumber).FirstOrDefault();
 }

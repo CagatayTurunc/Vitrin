@@ -10,10 +10,11 @@ public class NotificationItem : AggregateRoot
     public bool IsRead { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public string? NotificationType { get; private set; }
+    public Guid? RelatedEntityId { get; private set; }
 
     private NotificationItem() { }
 
-    public static Result<NotificationItem> Create(Guid userId, string message, string? notificationType = null)
+    public static Result<NotificationItem> Create(Guid userId, string message, string? notificationType = null, Guid? relatedEntityId = null)
     {
         if (string.IsNullOrWhiteSpace(message))
             return Result<NotificationItem>.Failure("Notification message cannot be empty.");
@@ -23,6 +24,7 @@ public class NotificationItem : AggregateRoot
             UserId           = userId,
             Message          = message,
             NotificationType = notificationType,
+            RelatedEntityId   = relatedEntityId,
             IsRead           = false,
             CreatedAt        = DateTime.UtcNow
         };

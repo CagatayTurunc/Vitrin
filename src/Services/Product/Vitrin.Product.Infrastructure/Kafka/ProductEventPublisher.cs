@@ -150,4 +150,22 @@ public sealed class ProductEventPublisher(
         dbContext.OutboxMessages.Add(
             OutboxMessage.Create(notificationEvent, timeProvider.GetUtcNow().UtcDateTime));
     }
+
+    public void EnqueueDiscoveryNotification(
+        Guid recipientUserId,
+        string message,
+        string notificationType,
+        Guid productId)
+    {
+        var notificationEvent = new SendNotificationEvent
+        {
+            RecipientUserId = recipientUserId,
+            Message = message,
+            NotificationType = notificationType,
+            RelatedEntityId = productId
+        };
+
+        dbContext.OutboxMessages.Add(
+            OutboxMessage.Create(notificationEvent, timeProvider.GetUtcNow().UtcDateTime));
+    }
 }

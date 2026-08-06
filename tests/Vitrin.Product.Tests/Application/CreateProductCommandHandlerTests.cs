@@ -153,6 +153,45 @@ public class CreateProductCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ShouldPersistLaunchFieldsAndSchedule()
+    {
+        var scheduledAt = DateTime.UtcNow.AddDays(2);
+        var command = new CreateProductCommand(
+            MakerId: Guid.NewGuid(),
+            Name: "Planlı Ürün",
+            Tagline: "Kalıcı ürün kısa açıklaması",
+            Description: "Açıklama",
+            Slug: "planli-urun",
+            Topics: [],
+            ThumbnailUrl: null,
+            GalleryUrls: null,
+            LaunchVersionLabel: "v2.0",
+            LaunchTagline: "Bu sürüm lansmana özel yepyeni özellikler getiriyor",
+            ScheduledLaunchAt: scheduledAt);
+
+        _repositoryMock
+            .Setup(repository => repository.IsSlugUniqueAsync(command.Slug, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        ProductItem? capturedProduct = null;
+        _repositoryMock
+            .Setup(repository => repository.AddAsync(It.IsAny<ProductItem>(), It.IsAny<CancellationToken>()))
+            .Callback<ProductItem, CancellationToken>((product, _) => capturedProduct = product)
+            .Returns(Task.CompletedTask);
+
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        capturedProduct.Should().NotBeNull();
+        capturedProduct!.ScheduledLaunchAt.Should().Be(scheduledAt);
+        capturedProduct.Launches.Should().ContainSingle();
+        capturedProduct.Launches[0].VersionLabel.Should().Be("v2.0");
+        capturedProduct.Launches[0].Tagline.Should().Be("Bu sürüm lansmana özel yepyeni özellikler getiriyor");
+        capturedProduct.Launches[0].ScheduledAtUtc.Should().Be(scheduledAt);
+        capturedProduct.Launches[0].Status.Should().Be(ProductLaunchStatus.UnderReview);
+    }
+
+    [Fact]
     public async Task Handle_WhenDatabaseDetectsConcurrentSlugConflict_ShouldReturnFailure()
     {
         var command = new CreateProductCommand(

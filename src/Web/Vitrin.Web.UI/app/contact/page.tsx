@@ -66,9 +66,9 @@ export default function ContactPage() {
               <h3 className="text-sm font-semibold text-foreground mb-4">Sosyal Medya</h3>
               <div className="flex gap-3">
                 {[
-                  { icon: AtSign, label: "Twitter", href: "#" },
-                  { icon: Code2, label: "GitHub", href: "#" },
-                  { icon: BriefcaseBusiness, label: "LinkedIn", href: "#" },
+                  { icon: AtSign, label: "Twitter", href: "https://x.com" },
+                  { icon: Code2, label: "GitHub", href: "https://github.com" },
+                  { icon: BriefcaseBusiness, label: "LinkedIn", href: "https://linkedin.com" },
                 ].map(({ icon: Icon, label, href }) => (
                   <a
                     key={label}

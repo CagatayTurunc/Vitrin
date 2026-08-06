@@ -3,6 +3,7 @@ import { ProductFeed } from '@/components/product-feed'
 import { CategoryMenu } from '@/components/category-menu'
 import { LeaderboardWidget } from '@/components/leaderboard-widget'
 import { TrendingProducts } from '@/components/trending-products'
+import { DailyLaunchFeed } from '@/components/daily-launch-feed'
 import Link from 'next/link'
 
 export default function HomePage() {
@@ -22,6 +23,8 @@ export default function HomePage() {
             Topluluğun bugün keşfettiği en yeni ürünler. En sevdiğine oy ver, öne çıkmasına yardım et.
           </p>
         </div>
+
+        <DailyLaunchFeed />
 
         <TrendingProducts />
 

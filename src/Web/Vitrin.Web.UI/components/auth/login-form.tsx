@@ -100,7 +100,7 @@ export function LoginForm() {
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Şifre</Label>
-                <Link href="#" className="text-xs text-[#007A52] hover:underline">
+                <Link href="/forgot-password" className="text-xs text-[#007A52] hover:underline">
                   Şifreni mi unuttun?
                 </Link>
               </div>

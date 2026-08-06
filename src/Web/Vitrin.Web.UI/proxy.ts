@@ -27,6 +27,17 @@ export default withAuth(
       return null;
     }
 
+    if (req.nextUrl.pathname.startsWith("/dashboard")) {
+      if (!isAuth) {
+        return NextResponse.redirect(new URL("/login", req.url));
+      }
+      // Dashboard sadece Maker ve Admin rolüne açık
+      if (token.role !== "Maker" && token.role !== "Admin") {
+        return NextResponse.redirect(new URL("/", req.url));
+      }
+      return null;
+    }
+
     if (isAdminPage) {
       // If not logged in, redirect to admin login
       if (!isAuth) {
@@ -54,5 +65,5 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ["/admin/:path*", "/login", "/register", "/submit"],
+  matcher: ["/admin/:path*", "/login", "/register", "/submit", "/dashboard/:path*", "/dashboard"],
 };

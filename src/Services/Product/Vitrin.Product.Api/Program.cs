@@ -16,12 +16,24 @@ using Vitrin.Product.Infrastructure.Kafka;
 using Vitrin.Product.Infrastructure.Repositories;
 using NpgsqlTypes;
 using Vitrin.Product.Domain.Services;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
+
+if (builder.Environment.IsDevelopment())
+{
+    var dataProtectionPath = Path.Combine(builder.Environment.ContentRootPath, ".data-protection");
+    Directory.CreateDirectory(dataProtectionPath);
+
+    builder.Services
+        .AddDataProtection()
+        .SetApplicationName("Vitrin.Product")
+        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath));
+}
 
 builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 builder.Services.AddVitrinApiErrors();
@@ -52,6 +64,14 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");
+app.MapLaunchEndpoints();
+app.MapCategoryEndpoints();
+app.MapProductFollowEndpoints();
+app.MapAdminOperationsEndpoints();
+app.MapCommunityEndpoints();
+app.MapProductExperienceEndpoints();
+app.MapDiscoveryAndComparisonEndpoints();
+app.MapProductBadgeEndpoints();
 
 app.MapPost("/api/products", async (HttpContext context, [FromBody] CreateProductRequest request, IMediator mediator) =>
 {
@@ -68,7 +88,12 @@ app.MapPost("/api/products", async (HttpContext context, [FromBody] CreateProduc
         request.ThumbnailUrl,
         request.GalleryUrls,
         request.SaveAsDraft,
-        context.User.GetUsername());
+        context.User.GetUsername(),
+        request.WebsiteUrl,
+        request.Categories,
+        request.LaunchVersionLabel,
+        request.LaunchTagline,
+        request.ScheduledLaunchAt);
     var result = await mediator.Send(command);
     if (result.IsSuccess)
     {
@@ -93,7 +118,8 @@ app.MapGet("/api/products", async (
     string? cursor,
     int? pageSize,
     HttpContext context,
-    ProductDbContext db) =>
+    ProductDbContext db,
+    ProductEventPublisher eventPublisher) =>
 {
     var requestedPageSize = pageSize ?? 20;
     if (requestedPageSize is < 1 or > 100)
@@ -111,9 +137,13 @@ app.MapGet("/api/products", async (
     }
 
     var normalizedSort = sort?.Trim().ToLowerInvariant() ?? "newest";
-    if (normalizedSort is not ("newest" or "trending" or "most_voted" or "most_commented" or "most_viewed"))
+    if (normalizedSort is not ("relevance" or "newest" or "trending" or "most_voted" or "most_commented" or "most_viewed"))
     {
         return ApiProblemResults.BadRequest("The requested product sort is invalid.", "product.invalid_sort");
+    }
+    if (normalizedSort == "relevance" && string.IsNullOrWhiteSpace(q))
+    {
+        return ApiProblemResults.BadRequest("Relevance sort requires a search query.", "product.relevance_requires_query");
     }
 
     SortedKeysetCursor? decodedCursor = null;
@@ -150,12 +180,20 @@ app.MapGet("/api/products", async (
             return ApiProblemResults.BadRequest("Search query cannot exceed 100 characters.", "search.query_too_long");
         }
 
+        var escapedTerm = EscapeLikePattern(searchTerm);
+        var containsPattern = $"%{escapedTerm}%";
+        var similarityThreshold = searchTerm.Length <= 3 ? 0.12 : 0.20;
         query = query.Where(product =>
             EF.Property<NpgsqlTsVector>(product, "SearchVector")
                 .Matches(EF.Functions.WebSearchToTsQuery("simple", searchTerm)) ||
-            EF.Functions.TrigramsSimilarity(product.Name, searchTerm) >= 0.18 ||
-            EF.Functions.TrigramsSimilarity(product.Tagline, searchTerm) >= 0.16 ||
-            product.Topics.Any(topic => EF.Functions.TrigramsSimilarity(topic.Name, searchTerm) >= 0.2));
+            EF.Functions.TrigramsSimilarity(product.Name, searchTerm) >= similarityThreshold ||
+            EF.Functions.TrigramsSimilarity(product.Tagline, searchTerm) >= similarityThreshold ||
+            EF.Functions.TrigramsSimilarity(product.Description, searchTerm) >= similarityThreshold ||
+            EF.Functions.ILike(product.Name, containsPattern, "\\") ||
+            EF.Functions.ILike(product.Tagline, containsPattern, "\\") ||
+            product.Topics.Any(topic =>
+                EF.Functions.ILike(topic.Name, containsPattern, "\\") ||
+                EF.Functions.TrigramsSimilarity(topic.Name, searchTerm) >= similarityThreshold));
     }
 
     var filterScope = CreateProductFilterScope(
@@ -191,7 +229,81 @@ app.MapGet("/api/products", async (
 
     var anchorUtc = decodedCursor?.AnchorUtc ?? DateTime.UtcNow;
     List<ProductResponse> rows;
-    if (normalizedSort == "trending")
+    if (normalizedSort == "relevance")
+    {
+        var term = searchTerm!;
+        var escapedTerm = EscapeLikePattern(term);
+        var containsPattern = $"%{escapedTerm}%";
+        var prefixPattern = $"{escapedTerm}%";
+        var matches = await query
+            .Select(product => new
+            {
+                product.Id,
+                ExactName = EF.Functions.ILike(product.Name, escapedTerm, "\\"),
+                NamePrefix = EF.Functions.ILike(product.Name, prefixPattern, "\\"),
+                FullTextRank = EF.Property<NpgsqlTsVector>(product, "SearchVector")
+                    .Rank(EF.Functions.WebSearchToTsQuery("simple", term)),
+                NameSimilarity = EF.Functions.TrigramsSimilarity(product.Name, term),
+                TaglineSimilarity = EF.Functions.TrigramsSimilarity(product.Tagline, term),
+                DescriptionSimilarity = EF.Functions.TrigramsSimilarity(product.Description, term),
+                TopicMatch = product.Topics.Any(topic =>
+                    EF.Functions.ILike(topic.Name, containsPattern, "\\") ||
+                    EF.Functions.TrigramsSimilarity(topic.Name, term) >= (term.Length <= 3 ? 0.12 : 0.20))
+            })
+            .OrderByDescending(match => match.ExactName)
+            .ThenByDescending(match => match.NamePrefix)
+            .ThenByDescending(match => match.FullTextRank)
+            .ThenByDescending(match => match.NameSimilarity)
+            .Take(2_000)
+            .ToListAsync(context.RequestAborted);
+
+        var ids = matches.Select(match => match.Id).ToList();
+        var productsById = await db.Products
+            .AsNoTracking()
+            .Where(product => ids.Contains(product.Id))
+            .ProjectToResponse()
+            .ToDictionaryAsync(product => product.Id, context.RequestAborted);
+
+        var ordered = matches
+            .Where(match => productsById.ContainsKey(match.Id))
+            .Select(match =>
+            {
+                var product = productsById[match.Id];
+                var searchScore =
+                    (match.ExactName ? 6d : 0d) +
+                    (match.NamePrefix ? 3d : 0d) +
+                    (match.FullTextRank * 4d) +
+                    (match.NameSimilarity * 3d) +
+                    (match.TaglineSimilarity * 2d) +
+                    match.DescriptionSimilarity +
+                    (match.TopicMatch ? 1.5d : 0d);
+                var matchType = match.ExactName
+                    ? "exact"
+                    : match.NamePrefix
+                        ? "prefix"
+                        : match.FullTextRank > 0
+                            ? "full_text"
+                            : match.TopicMatch
+                                ? "topic"
+                                : "typo";
+                return product with
+                {
+                    SearchScore = Math.Round(searchScore, 3),
+                    MatchType = matchType,
+                    TrendScore = CalculateTrendScore(product, anchorUtc)
+                };
+            })
+            .OrderByDescending(product => product.SearchScore)
+            .ThenByDescending(product => product.PublishedAt)
+            .ThenByDescending(product => product.Id);
+
+        rows = (decodedCursor is { } relevanceCursor
+                ? ordered.Where(product => IsAfterCursor(product, product.SearchScore, relevanceCursor))
+                : ordered)
+            .Take(requestedPageSize + 1)
+            .ToList();
+    }
+    else if (normalizedSort == "trending")
     {
         var candidates = await query
             .OrderByDescending(product => product.PublishedAt)
@@ -279,6 +391,12 @@ app.MapGet("/api/products", async (
             filterScope)
         : null;
 
+    if (!string.IsNullOrWhiteSpace(searchTerm) && decodedCursor is null)
+    {
+        eventPublisher.EnqueueSearchPerformed(searchTerm, items.Count, context.User.GetUserId());
+        await db.SaveChangesAsync(context.RequestAborted);
+    }
+
     return Results.Ok(new CursorPage<ProductResponse>(items, nextCursor, hasMore));
 })
 .WithName("GetProducts")
@@ -295,6 +413,167 @@ app.MapGet("/api/topics", async (ProductDbContext db) =>
 })
 .WithName("GetTopics")
 .WithOpenApi();
+
+app.MapGet("/api/products/sitemap", async (ProductDbContext db, HttpContext context) =>
+{
+    var products = await db.Products
+        .AsNoTracking()
+        .Where(product => product.Status == ProductStatus.Published)
+        .OrderByDescending(product => product.PublishedAt)
+        .Select(product => new { product.Slug, product.PublishedAt })
+        .ToListAsync(context.RequestAborted);
+    return Results.Ok(products);
+})
+.WithName("GetProductSitemap")
+.WithOpenApi();
+
+app.MapGet("/api/topics/following", async (HttpContext context, ProductDbContext db) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
+    var followedTopics = await (
+        from follow in db.TopicFollows.AsNoTracking()
+        join topic in db.Topics.AsNoTracking() on follow.TopicId equals topic.Id
+        where follow.UserId == userId.Value
+        orderby topic.Name
+        select new TopicResponse(topic.Id, topic.Name, topic.Slug))
+        .ToListAsync(context.RequestAborted);
+    return Results.Ok(followedTopics);
+})
+.WithName("GetFollowedTopics")
+.RequireAuthorization();
+
+app.MapPut("/api/topics/{topicId:guid}/follow", async (Guid topicId, HttpContext context, ProductDbContext db) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+    if (!await db.Topics.AnyAsync(topic => topic.Id == topicId, context.RequestAborted))
+        return Results.NotFound();
+
+    var exists = await db.TopicFollows.AnyAsync(
+        follow => follow.UserId == userId.Value && follow.TopicId == topicId,
+        context.RequestAborted);
+    if (!exists)
+    {
+        db.TopicFollows.Add(TopicFollow.Create(userId.Value, topicId, DateTime.UtcNow));
+        await db.SaveChangesAsync(context.RequestAborted);
+    }
+    return Results.Ok(new { Following = true });
+})
+.WithName("FollowTopic")
+.RequireAuthorization();
+
+app.MapDelete("/api/topics/{topicId:guid}/follow", async (Guid topicId, HttpContext context, ProductDbContext db) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+    var follow = await db.TopicFollows.FirstOrDefaultAsync(
+        item => item.UserId == userId.Value && item.TopicId == topicId,
+        context.RequestAborted);
+    if (follow is not null)
+    {
+        db.TopicFollows.Remove(follow);
+        await db.SaveChangesAsync(context.RequestAborted);
+    }
+    return Results.Ok(new { Following = false });
+})
+.WithName("UnfollowTopic")
+.RequireAuthorization();
+
+app.MapGet("/api/products/saved-searches", async (HttpContext context, ProductDbContext db) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+    var searches = await db.SavedSearches
+        .AsNoTracking()
+        .Where(search => search.UserId == userId.Value)
+        .OrderByDescending(search => search.CreatedAtUtc)
+        .ToListAsync(context.RequestAborted);
+    return Results.Ok(searches.Select(ToSavedSearchResponse));
+})
+.WithName("GetSavedSearches")
+.RequireAuthorization();
+
+app.MapPost("/api/products/saved-searches", async (
+    [FromBody] SaveProductSearchRequest request,
+    HttpContext context,
+    ProductDbContext db) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+    var name = request.Name?.Trim() ?? string.Empty;
+    if (name.Length is < 2 or > 60)
+        return ApiProblemResults.BadRequest("Saved search name must be between 2 and 60 characters.", "saved_search.name_invalid");
+    if (request.Query?.Trim().Length > 100)
+        return ApiProblemResults.BadRequest("Search query cannot exceed 100 characters.", "saved_search.query_too_long");
+    if (request.MinUpvotes is < 0 || request.MinComments is < 0 || request.MinViews is < 0)
+        return ApiProblemResults.BadRequest("Metric filters cannot be negative.", "saved_search.metric_invalid");
+    if (request.PublishedFrom is { } from && request.PublishedTo is { } to && from > to)
+        return ApiProblemResults.BadRequest("Published from cannot be later than published to.", "saved_search.date_invalid");
+    var normalizedSort = request.Sort?.Trim().ToLowerInvariant() ?? "newest";
+    if (normalizedSort is not ("relevance" or "newest" or "trending" or "most_voted" or "most_commented" or "most_viewed"))
+        return ApiProblemResults.BadRequest("Saved search sort is invalid.", "saved_search.sort_invalid");
+    if (normalizedSort == "relevance" && string.IsNullOrWhiteSpace(request.Query))
+        return ApiProblemResults.BadRequest("Relevance sort requires a search query.", "saved_search.relevance_requires_query");
+
+    var currentCount = await db.SavedSearches.CountAsync(search => search.UserId == userId.Value, context.RequestAborted);
+    if (currentCount >= 20)
+        return ApiProblemResults.BadRequest("You can save at most 20 searches.", "saved_search.limit_reached");
+    if (await db.SavedSearches.AnyAsync(
+            search => search.UserId == userId.Value && search.Name.ToLower() == name.ToLower(),
+            context.RequestAborted))
+        return Results.Conflict(new { Message = "A saved search with this name already exists." });
+
+    var requestedTopics = (request.Topics ?? Array.Empty<string>())
+        .Select(value => value.Trim().ToLowerInvariant())
+        .Where(value => value.Length > 0)
+        .Distinct(StringComparer.Ordinal)
+        .Take(20)
+        .ToList();
+    var validTopics = await db.Topics
+        .AsNoTracking()
+        .Where(topic => requestedTopics.Contains(topic.Slug))
+        .Select(topic => topic.Slug)
+        .ToListAsync(context.RequestAborted);
+
+    var savedSearch = SavedSearch.Create(
+        userId.Value,
+        name,
+        request.Query,
+        validTopics,
+        request.MinUpvotes,
+        request.MinComments,
+        request.MinViews,
+        request.PublishedFrom,
+        request.PublishedTo,
+        normalizedSort,
+        request.NotifyOnNewMatches,
+        DateTime.UtcNow);
+    db.SavedSearches.Add(savedSearch);
+    await db.SaveChangesAsync(context.RequestAborted);
+    return Results.Created($"/api/products/saved-searches/{savedSearch.Id}", ToSavedSearchResponse(savedSearch));
+})
+.WithName("SaveProductSearch")
+.RequireAuthorization();
+
+app.MapDelete("/api/products/saved-searches/{savedSearchId:guid}", async (
+    Guid savedSearchId,
+    HttpContext context,
+    ProductDbContext db) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+    var savedSearch = await db.SavedSearches.FirstOrDefaultAsync(
+        search => search.Id == savedSearchId && search.UserId == userId.Value,
+        context.RequestAborted);
+    if (savedSearch is null) return Results.NotFound();
+    db.SavedSearches.Remove(savedSearch);
+    await db.SaveChangesAsync(context.RequestAborted);
+    return Results.NoContent();
+})
+.WithName("DeleteSavedSearch")
+.RequireAuthorization();
 
 app.MapGet("/api/products/trending", async (
     string? period,
@@ -347,9 +626,11 @@ app.MapGet("/api/products/{slug}", async (
     ProductDbContext db,
     ProductEventPublisher eventPublisher) =>
 {
+    var requestedProductId = Guid.TryParse(slug, out var parsedProductId) ? parsedProductId : Guid.Empty;
     var product = await db.Products
         .AsNoTracking()
-        .Where(p => p.Status == Vitrin.Product.Domain.Entities.ProductStatus.Published && p.Slug == slug)
+        .Where(p => p.Status == Vitrin.Product.Domain.Entities.ProductStatus.Published &&
+            (p.Slug == slug || (requestedProductId != Guid.Empty && p.Id == requestedProductId)))
         .ProjectToResponse()
         .FirstOrDefaultAsync();
 
@@ -518,9 +799,13 @@ app.MapGet("/api/products/admin/pending", async (ProductDbContext db) =>
 .WithOpenApi()
 .RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
-app.MapPost("/api/products/admin/{id}/approve", async (Guid id, HttpContext context, ProductDbContext db, ProductEventPublisher eventPublisher, IAuditLogger auditLogger) =>
+app.MapPost("/api/products/admin/{id}/approve", async (Guid id, HttpContext context, ProductDbContext db, ProductEventPublisher eventPublisher, ProductDiscoveryNotifier discoveryNotifier, IAuditLogger auditLogger) =>
 {
-    var product = await db.Products.FindAsync(id);
+    var product = await db.Products
+        .Include(item => item.Topics)
+        .Include(item => item.Upvotes)
+        .Include(item => item.Launches)
+        .FirstOrDefaultAsync(item => item.Id == id, context.RequestAborted);
     if (product == null) return Results.NotFound();
 
     var now = DateTime.UtcNow;
@@ -536,6 +821,7 @@ app.MapPost("/api/products/admin/{id}/approve", async (Guid id, HttpContext cont
             ProductName = product.Name,
             ProductSlug = product.Slug
         });
+        await discoveryNotifier.EnqueueNewProductAlertsAsync(product, context.RequestAborted);
     }
 
     eventPublisher.EnqueueProductApprovedNotification(
@@ -569,7 +855,9 @@ app.MapPost("/api/products/admin/{id}/approve", async (Guid id, HttpContext cont
 
 app.MapPost("/api/products/admin/{id}/reject", async (Guid id, [FromBody] RejectProductRequest request, HttpContext context, ProductDbContext db, ProductEventPublisher eventPublisher, IAuditLogger auditLogger) =>
 {
-    var product = await db.Products.FindAsync(id);
+    var product = await db.Products
+        .Include(item => item.Launches)
+        .FirstOrDefaultAsync(item => item.Id == id, context.RequestAborted);
     if (product == null) return Results.NotFound();
     
     var result = product.Reject(request.Reason);
@@ -694,6 +982,7 @@ app.MapPost("/api/products/{id:guid}/schedule", async (
 
     var product = await db.Products
         .Include(item => item.TeamMembers)
+        .Include(item => item.Launches)
         .FirstOrDefaultAsync(item => item.Id == id, context.RequestAborted);
     if (product is null) return Results.NotFound();
     if (!product.CanEdit(userId.Value) && !context.User.IsInRole("Admin")) return Results.Forbid();
@@ -1514,6 +1803,7 @@ static bool IsAfterCursor(ProductResponse product, double value, SortedKeysetCur
 
 static double GetSortValue(ProductResponse product, string sort) => sort switch
 {
+    "relevance" => product.SearchScore,
     "trending" => product.TrendScore,
     "most_voted" => product.Upvotes,
     "most_commented" => product.CommentCount,
@@ -1578,6 +1868,22 @@ static string EscapeLikePattern(string value) => value
     .Replace("%", "\\%", StringComparison.Ordinal)
     .Replace("_", "\\_", StringComparison.Ordinal);
 
+static object ToSavedSearchResponse(SavedSearch search) => new
+{
+    search.Id,
+    search.Name,
+    Query = search.Query,
+    Topics = search.GetTopicSlugs(),
+    search.MinUpvotes,
+    search.MinComments,
+    search.MinViews,
+    search.PublishedFrom,
+    search.PublishedTo,
+    search.Sort,
+    search.NotifyOnNewMatches,
+    search.CreatedAtUtc
+};
+
 public record CreateProductRequest(
     string Name,
     string Tagline,
@@ -1586,7 +1892,12 @@ public record CreateProductRequest(
     List<string> Topics,
     string? ThumbnailUrl,
     List<string>? GalleryUrls,
-    bool SaveAsDraft = false);
+    bool SaveAsDraft = false,
+    string? WebsiteUrl = null,
+    List<string>? Categories = null,
+    string? LaunchVersionLabel = null,
+    string? LaunchTagline = null,
+    DateTime? ScheduledLaunchAt = null);
 
 public record RejectProductRequest(string? Reason);
 
@@ -1624,3 +1935,15 @@ public record CreateCollectionRequest(
 public record UpdateCollectionVisibilityRequest(CollectionVisibility Visibility);
 
 public record CollectionCollaboratorRequest(Guid UserId, CollectionCollaboratorRole Role);
+
+public record SaveProductSearchRequest(
+    string Name,
+    string? Query,
+    IReadOnlyCollection<string>? Topics,
+    int? MinUpvotes,
+    int? MinComments,
+    int? MinViews,
+    DateTime? PublishedFrom,
+    DateTime? PublishedTo,
+    string? Sort,
+    bool NotifyOnNewMatches = true);

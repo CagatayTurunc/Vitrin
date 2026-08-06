@@ -41,9 +41,16 @@ public class User : AggregateRoot
     public IReadOnlyCollection<UserBadge> Badges => _badges.AsReadOnly();
 
     public DateTime CreatedAt { get; private set; }
+    public DateTime? EmailConfirmedAtUtc { get; private set; }
+    public bool IsEmailConfirmed => EmailConfirmedAtUtc.HasValue;
     public Guid? ActiveBanId { get; private set; }
     public DateTime? SuspendedUntilUtc { get; private set; }
     public string? SuspensionReason { get; private set; }
+
+    // KVKK — soft delete / anonymization
+    public DateTime? DeleteRequestedAtUtc { get; private set; }
+    public DateTime? AnonymizedAtUtc { get; private set; }
+    public bool IsAnonymized => AnonymizedAtUtc.HasValue;
 
     // Constructor for EF Core
     protected User() { }
@@ -61,6 +68,7 @@ public class User : AggregateRoot
         GithubId = githubId;
         Role = UserRole.Member; // Default role
         CreatedAt = DateTime.UtcNow;
+        EmailConfirmedAtUtc = provider == AuthProvider.Local ? null : CreatedAt;
     }
 
     public void UpdateRole(UserRole newRole)
@@ -93,6 +101,19 @@ public class User : AggregateRoot
     public static User CreateWithGithub(string email, string username, string fullName, string avatarUrl, string githubId)
     {
         return new User(Guid.NewGuid(), email, username, fullName, avatarUrl, AuthProvider.Github, null, null, githubId);
+    }
+
+    public void ConfirmEmail(DateTime utcNow)
+    {
+        EmailConfirmedAtUtc ??= utcNow;
+    }
+
+    public void ChangePassword(string passwordHash)
+    {
+        if (Provider != AuthProvider.Local)
+            throw new InvalidOperationException("Only local accounts can change their password.");
+
+        PasswordHash = passwordHash;
     }
 
     public void RecordVoteActivity()
@@ -147,6 +168,44 @@ public class User : AggregateRoot
         ActiveBanId = null;
         SuspensionReason = null;
         SuspendedUntilUtc = null;
+    }
+
+    /// <summary>
+    /// KVKK m.11 — hesap silme talebi başlatır.
+    /// 30 gün sonra RetentionCleanupWorker tarafından anonim hale getirilir.
+    /// </summary>
+    public void RequestDeletion(DateTime utcNow)
+    {
+        if (DeleteRequestedAtUtc.HasValue) return; // zaten talep edilmiş
+        DeleteRequestedAtUtc = utcNow;
+    }
+
+    public void CancelDeletion()
+    {
+        DeleteRequestedAtUtc = null;
+    }
+
+    /// <summary>
+    /// KVKK retention süresi dolduğunda kullanıcı verisini anonimleştirir.
+    /// Kişisel tanımlayıcılar silinir; istatistiksel veriler (oylar, yorumlar) korunur.
+    /// </summary>
+    public void Anonymize(DateTime utcNow)
+    {
+        var anonymizedId = Id.ToString("N")[..8];
+        Email = $"deleted_{anonymizedId}@vitrin.deleted";
+        Username = $"deleted_{anonymizedId}";
+        FullName = "Silinmiş Kullanıcı";
+        AvatarUrl = string.Empty;
+        Headline = null;
+        About = null;
+        WebsiteUrl = null;
+        GithubUrl = null;
+        LinkedInUrl = null;
+        PasswordHash = null;
+        EmailConfirmedAtUtc = null;
+        GoogleId = null;
+        GithubId = null;
+        AnonymizedAtUtc = utcNow;
     }
 }
 

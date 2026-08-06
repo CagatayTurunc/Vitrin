@@ -5,6 +5,27 @@
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 
+# Host üzerinde çalışan dotnet watch ve Next.js süreçleri kök .env dosyasını
+# kendiliğinden okumaz. Değerleri yalnızca bu başlatıcı sürecine aktar.
+$dotenvPath = Join-Path $root ".env"
+if (Test-Path $dotenvPath) {
+    foreach ($line in Get-Content -LiteralPath $dotenvPath) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed -or $trimmed.StartsWith("#") -or -not $trimmed.Contains("=")) { continue }
+
+        $parts = $trimmed.Split("=", 2)
+        $name = $parts[0].Trim()
+        $value = $parts[1].Trim().Trim('"').Trim("'")
+        if ($name) { [Environment]::SetEnvironmentVariable($name, $value, "Process") }
+    }
+}
+
+if ($env:JWT_SECRET) { $env:Jwt__Secret = $env:JWT_SECRET }
+if ($env:RESEND_API_KEY) { $env:Email__Resend__ApiKey = $env:RESEND_API_KEY }
+if ($env:EMAIL_FROM) { $env:Email__From = $env:EMAIL_FROM }
+if ($env:EMAIL_TOKEN_SECRET) { $env:Email__TokenSecret = $env:EMAIL_TOKEN_SECRET }
+if ($env:EMAIL_APP_BASE_URL) { $env:Email__AppBaseUrl = $env:EMAIL_APP_BASE_URL }
+
 function Test-PortInUse {
     param([int]$Port)
 
@@ -29,7 +50,9 @@ $appContainers = @(
 )
 
 Write-Host "[1/4] Docker uygulama container'lari durduruluyor..." -ForegroundColor Yellow
+$existingAppContainers = @(docker ps -a --format "{{.Names}}" 2>$null)
 foreach ($container in $appContainers) {
+    if ($existingAppContainers -notcontains $container) { continue }
     docker stop $container 2>$null | Out-Null
 }
 
@@ -42,7 +65,12 @@ if ($LASTEXITCODE -ne 0) {
 # Kafka hazirsa hemen devam et; en fazla 30 saniye bekle.
 $kafkaReady = $false
 for ($attempt = 1; $attempt -le 15; $attempt++) {
-    docker exec vitrin-kafka kafka-topics --bootstrap-server localhost:9092 --list 2>$null | Out-Null
+    try {
+        docker exec vitrin-kafka kafka-topics --bootstrap-server localhost:9092 --list 2>&1 | Out-Null
+    }
+    catch {
+        # Kafka container'i ayakta olsa da broker birkac saniye daha hazirlaniyor olabilir.
+    }
     if ($LASTEXITCODE -eq 0) {
         $kafkaReady = $true
         break

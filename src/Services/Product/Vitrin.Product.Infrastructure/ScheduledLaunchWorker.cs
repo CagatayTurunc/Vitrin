@@ -40,9 +40,13 @@ public sealed class ScheduledLaunchWorker(
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ProductDbContext>();
         var eventPublisher = scope.ServiceProvider.GetRequiredService<ProductEventPublisher>();
+        var discoveryNotifier = scope.ServiceProvider.GetRequiredService<ProductDiscoveryNotifier>();
         var now = timeProvider.GetUtcNow().UtcDateTime;
 
         var dueProducts = await db.Products
+            .Include(product => product.Topics)
+            .Include(product => product.Upvotes)
+            .Include(product => product.Launches)
             .Where(product =>
                 product.Status == ProductStatus.Scheduled &&
                 product.ScheduledLaunchAt != null &&
@@ -76,6 +80,7 @@ public sealed class ScheduledLaunchWorker(
                 ProductSlug = product.Slug
             });
             eventPublisher.EnqueueScheduledProductPublishedNotification(product.MakerId, product.Name, product.Id);
+            await discoveryNotifier.EnqueueNewProductAlertsAsync(product, cancellationToken);
         }
 
         if (dueProducts.Count > 0)

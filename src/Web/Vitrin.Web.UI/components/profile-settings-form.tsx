@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Loader2, CheckCircle2, UserCircle2, ShieldCheck, Globe, Search, Bell } from "lucide-react";
 import Image from "next/image";
 import type { UserSummary } from "@/core/domain/user.types";
+import type { ProductApiModel } from "@/core/domain/product.types";
 import { getErrorMessage } from "@/lib/errors";
 
 interface ProfileSettingsFormProps {
@@ -40,7 +42,9 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [followers, setFollowers] = useState<UserSummary[]>([]);
   const [following, setFollowing] = useState<UserSummary[]>([]);
-  const [isFollowDataLoading, setIsFollowDataLoading] = useState(false);
+  const [followedProducts, setFollowedProducts] = useState<ProductApiModel[]>([]);
+  const [productSearch, setProductSearch] = useState("");
+  const [isFollowDataLoading, setIsFollowDataLoading] = useState(true);
 
   useEffect(() => {
     if (activeTab === "followers") {
@@ -57,6 +61,27 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
         .finally(() => setIsFollowDataLoading(false));
     }
   }, [activeTab, initialData.username]);
+
+  useEffect(() => {
+    if (activeTab !== "followedProducts" || !session?.accessToken) return;
+    let active = true;
+    void fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/products/following`, {
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    }).then(async (response) => response.ok ? await response.json() as ProductApiModel[] : [])
+      .then((products) => { if (active) setFollowedProducts(products); })
+      .catch((error) => console.error(error))
+      .finally(() => { if (active) setIsFollowDataLoading(false); });
+    return () => { active = false; };
+  }, [activeTab, session?.accessToken]);
+
+  const unfollowProduct = async (productId: string) => {
+    if (!session?.accessToken) return;
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}/follow`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    });
+    if (response.ok) setFollowedProducts((current) => current.filter((product) => product.id !== productId));
+  };
 
   const [formData, setFormData] = useState({
     fullName: initialData.fullName || "",
@@ -387,55 +412,11 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
               <h2 className="text-[26px] font-bold tracking-tight">Takip Edilen Ürünler</h2>
               <div className="relative max-w-sm w-full sm:w-[300px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Search" className="pl-9 bg-transparent border-border/60 focus-visible:ring-1 focus-visible:ring-border h-10" />
+                <Input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Ürün ara" className="pl-9 bg-transparent border-border/60 focus-visible:ring-1 focus-visible:ring-border h-10" />
               </div>
             </div>
 
-            <div className="flex flex-col space-y-6">
-              {/* Sample Product Row */}
-              <div className="flex items-center justify-between gap-4 py-2 border-b border-border/20 pb-6">
-                <div className="flex items-center gap-4 flex-1">
-                  <div className="w-14 h-14 rounded-full border border-border/40 bg-muted flex items-center justify-center shrink-0">
-                    <span className="text-xl font-bold text-muted-foreground">P</span>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-[17px] font-bold leading-tight flex items-center flex-wrap gap-1">
-                      Perfai Security <span className="text-muted-foreground font-normal mx-1">—</span> <span className="text-muted-foreground font-normal text-[15px]">Find & fix live vulnerabilities in Vibe Apps with 1-prompt.</span>
-                    </h3>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 shrink-0">
-                  <button className="text-muted-foreground hover:text-foreground transition-colors p-2 rounded-full hover:bg-muted/50">
-                    <Bell className="w-5 h-5" />
-                  </button>
-                  <Button variant="default" className="bg-green-500 hover:bg-green-600 text-white rounded-full font-semibold px-5 h-10">
-                    Following
-                  </Button>
-                </div>
-              </div>
-
-              {/* Sample Product Row 2 */}
-              <div className="flex items-center justify-between gap-4 py-2 border-b border-border/20 pb-6">
-                <div className="flex items-center gap-4 flex-1">
-                  <div className="w-14 h-14 rounded-full border border-border/40 bg-muted flex items-center justify-center shrink-0">
-                    <span className="text-xl font-bold text-muted-foreground">V</span>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-[17px] font-bold leading-tight flex items-center flex-wrap gap-1">
-                      Vitrin App <span className="text-muted-foreground font-normal mx-1">—</span> <span className="text-muted-foreground font-normal text-[15px]">The best way to showcase and discover new products daily.</span>
-                    </h3>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 shrink-0">
-                  <button className="text-muted-foreground hover:text-foreground transition-colors p-2 rounded-full hover:bg-muted/50">
-                    <Bell className="w-5 h-5" />
-                  </button>
-                  <Button variant="default" className="bg-green-500 hover:bg-green-600 text-white rounded-full font-semibold px-5 h-10">
-                    Following
-                  </Button>
-                </div>
-              </div>
-            </div>
+            {isFollowDataLoading ? <div className="flex justify-center py-14"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div> : followedProducts.length === 0 ? <div className="rounded-3xl border border-dashed bg-muted/20 px-4 py-14 text-center"><Bell className="mx-auto h-8 w-8 text-muted-foreground" /><h3 className="mt-3 text-lg font-bold">Henüz ürün takip etmiyorsun</h3><p className="mt-1 text-sm text-muted-foreground">Ürün sayfalarındaki “Ürünü takip et” düğmesiyle gelişmeleri burada toplayabilirsin.</p><Button asChild variant="outline" className="mt-5 rounded-full"><Link href="/discover">Ürünleri keşfet</Link></Button></div> : <div className="flex flex-col divide-y">{followedProducts.filter((product) => `${product.name} ${product.tagline ?? ""}`.toLocaleLowerCase("tr-TR").includes(productSearch.toLocaleLowerCase("tr-TR"))).map((product) => <div key={product.id} className="flex flex-col justify-between gap-4 py-5 sm:flex-row sm:items-center"><Link href={`/product/${product.slug}`} className="flex min-w-0 items-center gap-4"><div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border bg-muted">{product.thumbnailUrl ? <Image src={product.thumbnailUrl} alt={product.name} fill sizes="56px" className="object-cover" /> : <span className="text-lg font-bold text-muted-foreground">{product.name.slice(0, 2).toUpperCase()}</span>}</div><div className="min-w-0"><h3 className="truncate text-[17px] font-bold">{product.name}</h3><p className="line-clamp-1 text-sm text-muted-foreground">{product.tagline}</p></div></Link><Button variant="outline" className="shrink-0 rounded-full" onClick={() => void unfollowProduct(product.id)}><Bell className="mr-2 h-4 w-4 fill-current" />Takip ediliyor</Button></div>)}</div>}
           </div>
         )}
 

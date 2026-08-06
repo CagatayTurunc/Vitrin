@@ -6,6 +6,7 @@ const footerLinks = {
     { title: "Hakkımızda", href: "/about" },
     { title: "Kariyer", href: "/careers" },
     { title: "Blog", href: "/blog" },
+    { title: "Bülten", href: "/newsletter" },
     { title: "İletişim", href: "/contact" },
   ],
   products: [
@@ -19,6 +20,7 @@ const footerLinks = {
     { title: "Liderlik Tablosu", href: "/leaderboard" },
     { title: "Tartışmalar", href: "/discussions" },
     { title: "Topluluk Kuralları", href: "/rules" },
+    { title: "Sıralama Sistemi", href: "/ranking" },
     { title: "Etkinlikler", href: "/events" },
   ],
   legal: [

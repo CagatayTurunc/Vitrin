@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Vitrin.Notification.Application.Commands;
 using Vitrin.Notification.Domain.Entities;
 using Vitrin.Notification.Infrastructure.Data;
@@ -17,6 +18,13 @@ public class NotificationRepository : INotificationRepository
     {
         await _context.Notifications.AddAsync(notification, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task<NotificationPreference?> GetPreferenceAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        return _context.NotificationPreferences
+            .AsNoTracking()
+            .FirstOrDefaultAsync(preference => preference.UserId == userId, cancellationToken);
     }
 
     public async Task<NotificationItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken)

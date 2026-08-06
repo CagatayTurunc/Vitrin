@@ -7,17 +7,22 @@ public record RegisterCommand(
     string Email,
     string Username,
     string FullName,
-    string Password) : IRequest<Result<string>>; // Returns JWT Token
+    string Password) : IRequest<Result<string>>;
 
 public record RegisterCommandHandler : IRequestHandler<RegisterCommand, Result<string>>
 {
     private readonly Interfaces.IUserRepository _userRepository;
-    private readonly Interfaces.IJwtProvider _jwtProvider;
+    private readonly Interfaces.IAccountActionTokenService _actionTokenService;
+    private readonly Interfaces.IAccountEmailService _emailService;
 
-    public RegisterCommandHandler(Interfaces.IUserRepository userRepository, Interfaces.IJwtProvider jwtProvider)
+    public RegisterCommandHandler(
+        Interfaces.IUserRepository userRepository,
+        Interfaces.IAccountActionTokenService actionTokenService,
+        Interfaces.IAccountEmailService emailService)
     {
         _userRepository = userRepository;
-        _jwtProvider = jwtProvider;
+        _actionTokenService = actionTokenService;
+        _emailService = emailService;
     }
 
     public async Task<Result<string>> Handle(RegisterCommand request, CancellationToken cancellationToken)
@@ -43,7 +48,12 @@ public record RegisterCommandHandler : IRequestHandler<RegisterCommand, Result<s
             return Result<string>.Failure("E-posta adresi veya kullanıcı adı eşzamanlı başka bir istek tarafından alındı.");
         }
 
-        var token = _jwtProvider.Generate(user);
-        return Result<string>.Success(token);
+        var confirmationToken = _actionTokenService.Generate(
+            user,
+            Interfaces.AccountActionPurpose.ConfirmEmail,
+            TimeSpan.FromHours(24));
+        await _emailService.SendEmailConfirmationAsync(user, confirmationToken, cancellationToken);
+
+        return Result<string>.Success("Kaydın tamamlandı. E-posta adresini doğrulamak için gelen kutunu kontrol et.");
     }
 }

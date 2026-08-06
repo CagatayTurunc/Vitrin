@@ -7,12 +7,25 @@ using Vitrin.Voting.Infrastructure.Data;
 using Vitrin.Shared.Infrastructure.Auth;
 using Vitrin.Shared.Infrastructure.Api;
 using Vitrin.Shared.Infrastructure.Migrations;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
+
+if (builder.Environment.IsDevelopment())
+{
+    var dataProtectionPath = Path.Combine(builder.Environment.ContentRootPath, ".data-protection");
+    Directory.CreateDirectory(dataProtectionPath);
+
+    builder.Services
+        .AddDataProtection()
+        .SetApplicationName("Vitrin.Voting")
+        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath));
+}
+
 builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 builder.Services.AddVitrinApiErrors();
 
@@ -115,6 +128,71 @@ app.MapGet("/api/votes/count/{productId:guid}", async (Guid productId, VoteDbCon
 })
 .WithName("GetVoteCount")
 .WithOpenApi();
+
+app.MapGet("/api/votes/admin/fraud-signals", async (int? hours, VoteDbContext db, HttpContext context) =>
+{
+    var requestedHours = Math.Clamp(hours ?? 24, 1, 168);
+    var now = DateTime.UtcNow;
+    var windowStart = now.AddHours(-requestedHours);
+    var burstStart = now.AddMinutes(-15);
+
+    var rapidVoters = await db.Votes
+        .AsNoTracking()
+        .Where(vote => vote.CreatedAt >= windowStart)
+        .GroupBy(vote => vote.UserId)
+        .Select(group => new
+        {
+            UserId = group.Key,
+            VoteCount = group.Count(),
+            ProductCount = group.Select(vote => vote.ProductId).Distinct().Count(),
+            FirstVoteAtUtc = group.Min(vote => vote.CreatedAt),
+            LastVoteAtUtc = group.Max(vote => vote.CreatedAt)
+        })
+        .Where(signal => signal.VoteCount >= 20)
+        .OrderByDescending(signal => signal.VoteCount)
+        .Take(100)
+        .ToListAsync(context.RequestAborted);
+
+    var productBursts = await db.Votes
+        .AsNoTracking()
+        .Where(vote => vote.CreatedAt >= burstStart)
+        .GroupBy(vote => vote.ProductId)
+        .Select(group => new
+        {
+            ProductId = group.Key,
+            VoteCount = group.Count(),
+            UniqueUserCount = group.Select(vote => vote.UserId).Distinct().Count(),
+            FirstVoteAtUtc = group.Min(vote => vote.CreatedAt),
+            LastVoteAtUtc = group.Max(vote => vote.CreatedAt)
+        })
+        .Where(signal => signal.VoteCount >= 10)
+        .OrderByDescending(signal => signal.VoteCount)
+        .Take(100)
+        .ToListAsync(context.RequestAborted);
+
+    return Results.Ok(new
+    {
+        GeneratedAtUtc = now,
+        WindowHours = requestedHours,
+        Rules = new
+        {
+            RapidVoter = "20 veya daha fazla oy / seçilen dönem",
+            ProductBurst = "15 dakikada 10 veya daha fazla oy",
+            UniqueVoteConstraint = true
+        },
+        Summary = new
+        {
+            RapidVoterCount = rapidVoters.Count,
+            ProductBurstCount = productBursts.Count,
+            TotalSignals = rapidVoters.Count + productBursts.Count
+        },
+        RapidVoters = rapidVoters,
+        ProductBursts = productBursts
+    });
+})
+.WithName("GetVoteFraudSignals")
+.WithOpenApi()
+.RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
 app.Run();
 

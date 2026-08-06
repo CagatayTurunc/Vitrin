@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Bookmark, Calendar, Globe2, Loader2, Lock, Settings2, Trash2, UserPlus, Users } from 'lucide-react'
+import { Bell, BellOff, Bookmark, Calendar, Globe2, Loader2, Lock, Settings2, Trash2, UserPlus, Users } from 'lucide-react'
 import { ProductRow } from '@/components/product-row'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -54,6 +54,7 @@ export default function CollectionDetailPage() {
   const [memberUsername, setMemberUsername] = useState('')
   const [memberRole, setMemberRole] = useState(CollectionCollaboratorRole.Editor)
   const [isSaving, setIsSaving] = useState(false)
+  const [followStatus, setFollowStatus] = useState({ isFollowing: false, count: 0 })
 
   const fetchCollection = useCallback(async () => {
     if (!slug) return
@@ -68,6 +69,10 @@ export default function CollectionDetailPage() {
       }
       const data = await response.json() as CollectionDetail
       setCollection(data)
+      if (data.visibility === CollectionVisibility.Public) {
+        const followResponse = await fetch(`${apiUrl}/api/collections/${data.id}/follow`, { headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined })
+        if (followResponse.ok) setFollowStatus(await followResponse.json())
+      }
       setProducts((data.products ?? []).map((product, index) => mapProduct(product, index + 1)))
 
       const userIds = [data.userId, ...(data.collaborators ?? []).map(member => member.userId)]
@@ -139,6 +144,12 @@ export default function CollectionDetailPage() {
 
   if (!collection) return <div className="flex min-h-[60vh] flex-col items-center justify-center text-center"><Bookmark className="mb-4 h-16 w-16 opacity-20" /><h1 className="mb-2 text-3xl font-bold">Koleksiyona erişilemiyor</h1><p className="text-muted-foreground">Koleksiyon özel olabilir veya artık mevcut olmayabilir.</p></div>
 
+  const toggleFollow = async () => {
+    if (!accessToken) return
+    const response = await fetch(`${apiUrl}/api/collections/${collection.id}/follow`, { method: followStatus.isFollowing ? 'DELETE' : 'PUT', headers: { Authorization: `Bearer ${accessToken}` } })
+    if (response.ok) setFollowStatus(await response.json())
+  }
+
   const meta = visibilityMeta[collection.visibility]
   const VisibilityIcon = meta.icon
   const owner = profiles[collection.userId]
@@ -158,7 +169,10 @@ export default function CollectionDetailPage() {
               <span>{products.length} ürün</span><span>{collection.collaborators?.length ?? 0} ortak</span>
             </div>
           </div>
-          {collection.isOwner && <Button variant="outline" onClick={() => setIsManageOpen(true)}><Settings2 className="mr-2 h-4 w-4" /> Koleksiyonu yönet</Button>}
+          <div className="flex gap-2">
+            {collection.visibility === CollectionVisibility.Public && <Button variant={followStatus.isFollowing ? 'secondary' : 'outline'} onClick={toggleFollow} disabled={!accessToken}>{followStatus.isFollowing ? <BellOff className="mr-2 h-4 w-4" /> : <Bell className="mr-2 h-4 w-4" />}{followStatus.isFollowing ? 'Takip ediliyor' : 'Takip et'} ({followStatus.count})</Button>}
+            {collection.isOwner && <Button variant="outline" onClick={() => setIsManageOpen(true)}><Settings2 className="mr-2 h-4 w-4" /> Koleksiyonu yönet</Button>}
+          </div>
         </div>
       </section>
 

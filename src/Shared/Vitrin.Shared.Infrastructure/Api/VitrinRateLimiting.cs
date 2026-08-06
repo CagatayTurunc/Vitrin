@@ -14,6 +14,11 @@ public static class VitrinRateLimitPolicies
     public const string Registration = "auth-registration";
     public const string ExternalLogin = "auth-external-login";
     public const string AiAnalysis = "ai-analysis";
+    public const string ApiWrite = "api-write";
+    public const string SocialWrite = "social-write";
+    public const string SearchQuery = "search-query";
+    public const string AnalyticsEvent = "analytics-event";
+    public const string AnalyticsQuery = "analytics-query";
 }
 
 public static class VitrinRateLimitingExtensions
@@ -56,9 +61,24 @@ public static class VitrinRateLimitingExtensions
 
             options.AddPolicy(VitrinRateLimitPolicies.AiAnalysis, context =>
                 FixedWindow(
-                    context.User.GetUserId()?.ToString() ?? ClientIp(context),
+                    UserOrIp(context),
                     5,
                     TimeSpan.FromMinutes(1)));
+
+            options.AddPolicy(VitrinRateLimitPolicies.ApiWrite, context =>
+                FixedWindow(UserOrIp(context), 60, TimeSpan.FromMinutes(1)));
+
+            options.AddPolicy(VitrinRateLimitPolicies.SocialWrite, context =>
+                FixedWindow(UserOrIp(context), 30, TimeSpan.FromMinutes(1)));
+
+            options.AddPolicy(VitrinRateLimitPolicies.SearchQuery, context =>
+                FixedWindow(UserOrIp(context), 90, TimeSpan.FromMinutes(1)));
+
+            options.AddPolicy(VitrinRateLimitPolicies.AnalyticsEvent, context =>
+                FixedWindow(UserOrIp(context), 30, TimeSpan.FromMinutes(1)));
+
+            options.AddPolicy(VitrinRateLimitPolicies.AnalyticsQuery, context =>
+                FixedWindow(UserOrIp(context), 45, TimeSpan.FromMinutes(1)));
         });
 
         return services;
@@ -80,4 +100,7 @@ public static class VitrinRateLimitingExtensions
 
     private static string ClientIp(HttpContext context) =>
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+    private static string UserOrIp(HttpContext context) =>
+        context.User.GetUserId()?.ToString() ?? ClientIp(context);
 }

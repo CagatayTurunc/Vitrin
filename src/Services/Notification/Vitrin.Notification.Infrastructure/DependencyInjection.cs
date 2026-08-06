@@ -7,6 +7,9 @@ using Vitrin.Notification.Infrastructure.Data;
 using Vitrin.Notification.Infrastructure.Kafka;
 using Vitrin.Notification.Infrastructure.Repositories;
 using Vitrin.Shared.Infrastructure.Kafka;
+using Vitrin.Notification.Application.Notifications;
+using Vitrin.Notification.Infrastructure.Email;
+using Vitrin.Notification.Infrastructure.Realtime;
 
 namespace Vitrin.Notification.Infrastructure;
 
@@ -25,9 +28,19 @@ public static class DependencyInjection
         // Repository
         services.AddScoped<INotificationRepository, NotificationRepository>();
         services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<NotificationStreamBroker>();
+        services.AddSingleton<INotificationRealtimePublisher>(provider =>
+            provider.GetRequiredService<NotificationStreamBroker>());
+        services.AddScoped<NotificationDigestDispatcher>();
+        services.AddHttpClient<INotificationEmailSender, NotificationEmailSender>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.resend.com/");
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
 
         // Kafka Consumer — BackgroundService
         services.AddHostedService<NotificationKafkaConsumer>();
+        services.AddHostedService<NotificationDigestWorker>();
 
         return services;
     }

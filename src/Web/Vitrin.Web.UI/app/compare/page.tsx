@@ -4,9 +4,10 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, Eye, Flame, GitCompareArrows, Loader2, MessageCircle, Plus, Search, Trash2, Trophy } from 'lucide-react'
+import { Check, Eye, Flame, GitCompareArrows, Loader2, MessageCircle, Plus, Search, Trash2, Trophy, DollarSign, MonitorSmartphone, Languages, ShieldCheck, Star, Users, Copy, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { CorrectionRequestDialog } from '@/components/compare/correction-request-dialog'
 import type { ProductApiModel } from '@/core/domain/product.types'
 import { cn } from '@/lib/utils'
 
@@ -89,7 +90,16 @@ function CompareContent() {
             <h1 className="text-3xl font-black tracking-tight sm:text-5xl">Karar vermeden önce yan yana gör</h1>
             <p className="mt-3 text-muted-foreground">En fazla dört ürünü; etkileşim, trend, kategori ve yayın bilgileriyle tek ekranda karşılaştır.</p>
           </div>
-          <span className="w-fit rounded-2xl border border-border bg-background/70 px-4 py-2 text-sm font-bold">{visibleProducts.length} / 4 ürün seçildi</span>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <span className="w-fit rounded-2xl border border-border bg-background/70 px-4 py-2 text-sm font-bold">{visibleProducts.length} / 4 ürün seçildi</span>
+            <Button variant="outline" className="rounded-2xl" onClick={() => {
+              navigator.clipboard.writeText(window.location.href);
+              alert("Karşılaştırma linki kopyalandı!");
+            }}>
+              <Copy className="mr-2 h-4 w-4" /> Linki Kopyala
+            </Button>
+          </div>
         </div>
       </section>
 
@@ -146,6 +156,25 @@ function CompareContent() {
               )
             })}
 
+            {/* Yeni Eklenen Detaylı Özellik Satırları */}
+            {[
+              { label: 'Fiyat Modeli', icon: DollarSign, value: (p: ProductApiModel) => p.pricingModel || 'Bilinmiyor' },
+              { label: 'Platformlar', icon: MonitorSmartphone, value: (p: ProductApiModel) => p.platforms?.join(', ') || 'Web' },
+              { label: 'Türkçe Desteği', icon: Languages, value: (p: ProductApiModel) => p.hasTrSupport ? 'Var' : 'Yok' },
+              { label: 'KVKK Uyumu', icon: ShieldCheck, value: (p: ProductApiModel) => p.hasKvkk ? 'Uyumlu' : 'Bilinmiyor' },
+              { label: 'Review Puanı', icon: Star, value: (p: ProductApiModel) => p.reviewScore ? `${p.reviewScore} / 5` : 'Henüz yok' },
+              { label: 'Kullanan Kişiler', icon: Users, value: (p: ProductApiModel) => p.verifiedUsersCount ? `${p.verifiedUsersCount} kişi` : 'Bilinmiyor' },
+            ].map(row => (
+              <div key={row.label} className="grid border-b border-border" style={{ gridTemplateColumns: `180px repeat(${visibleProducts.length}, minmax(180px, 1fr))` }}>
+                <div className="flex items-center gap-2 p-5 text-sm font-semibold text-muted-foreground"><row.icon className="h-4 w-4" />{row.label}</div>
+                {visibleProducts.map(product => (
+                  <div key={product.id} className="flex items-center justify-center border-l border-border p-5 text-sm font-medium">
+                    {row.value(product)}
+                  </div>
+                ))}
+              </div>
+            ))}
+
             <div className="grid border-b border-border" style={{ gridTemplateColumns: `180px repeat(${visibleProducts.length}, minmax(180px, 1fr))` }}>
               <div className="p-5 text-sm font-semibold text-muted-foreground">Kategoriler</div>
               {visibleProducts.map(product => <div key={product.id} className="flex flex-wrap items-center justify-center gap-1.5 border-l border-border p-5">{product.topics?.length ? product.topics.map(topic => <span key={topic.id} className="rounded-full bg-secondary px-2 py-1 text-xs font-semibold">{topic.name}</span>) : <span className="text-sm text-muted-foreground">Etiket yok</span>}</div>)}
@@ -154,6 +183,14 @@ function CompareContent() {
             <div className="grid" style={{ gridTemplateColumns: `180px repeat(${visibleProducts.length}, minmax(180px, 1fr))` }}>
               <div className="p-5 text-sm font-semibold text-muted-foreground">Yayın tarihi</div>
               {visibleProducts.map(product => <div key={product.id} className="border-l border-border p-5 text-center text-sm font-semibold">{product.publishedAt ? new Date(product.publishedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</div>)}
+            </div>
+            <div className="grid border-t border-border bg-muted/5" style={{ gridTemplateColumns: `180px repeat(${visibleProducts.length}, minmax(180px, 1fr))` }}>
+              <div className="p-5 text-sm font-semibold text-muted-foreground"></div>
+              {visibleProducts.map(product => (
+                <div key={product.id} className="border-l border-border p-5 text-center flex items-center justify-center">
+                  <CorrectionRequestDialog productId={product.id} productName={product.name} />
+                </div>
+              ))}
             </div>
           </div>
         </div>

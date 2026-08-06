@@ -19,14 +19,16 @@ public sealed class CommentNotificationPublisher(
         Guid recipientUserId,
         string message,
         string notificationType,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Guid? relatedProductId = null)
     {
         ct.ThrowIfCancellationRequested();
         var @event = new SendNotificationEvent
         {
             RecipientUserId = recipientUserId,
             Message = message,
-            NotificationType = notificationType
+            NotificationType = notificationType,
+            RelatedEntityId = relatedProductId
         };
 
         dbContext.OutboxMessages.Add(

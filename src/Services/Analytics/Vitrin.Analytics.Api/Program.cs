@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Vitrin.Analytics.Application.Commands;
 using Vitrin.Analytics.Application.Queries;
+using Vitrin.Analytics.Domain.Repositories;
 using Vitrin.Analytics.Infrastructure;
 using Vitrin.Analytics.Infrastructure.Data;
 using Vitrin.Shared.Infrastructure.Auth;
@@ -137,6 +138,81 @@ app.MapGet("/api/analytics/platform/summary", async (IMediator mediator) =>
 .WithOpenApi()
 .RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
+// ─── Maker Dashboard Queries ────────────────────────────────────────────────
+
+// Bir maker'ın tüm ürünleri için özet (productId listesi alır, gateway üzerinden çağrılır)
+app.MapPost("/api/analytics/maker/products", async (
+    [FromBody] MakerProductsRequest request,
+    IAnalyticsRepository repository,
+    HttpContext context) =>
+{
+    if (request.ProductIds is null || request.ProductIds.Count == 0)
+        return Results.Ok(Array.Empty<object>());
+    if (request.ProductIds.Count > 50)
+        return ApiProblemResults.BadRequest("En fazla 50 ürün sorgulanabilir.", "analytics.too_many_products");
+
+    var stats = await repository.GetMakerProductStatsAsync(request.ProductIds, context.RequestAborted);
+    return Results.Ok(stats);
+})
+.WithName("GetMakerProductStats")
+.RequireAuthorization();
+
+// Günlük time-series: views, upvotes, comments
+app.MapGet("/api/analytics/product/{productId:guid}/timeseries", async (
+    Guid productId,
+    [FromQuery] string? metric,
+    [FromQuery] int? days,
+    IAnalyticsRepository repository,
+    HttpContext context) =>
+{
+    var d = Math.Clamp(days ?? 30, 1, 90);
+    var from = DateTime.UtcNow.AddDays(-d);
+    var to = DateTime.UtcNow;
+
+    var eventType = (metric?.ToLowerInvariant() ?? "views") switch
+    {
+        "upvotes" => "ProductUpvote",
+        "comments" => "Comment",
+        _ => "ProductView"
+    };
+
+    var series = await repository.GetDailyTimeSeriesAsync(productId, eventType, from, to, context.RequestAborted);
+    return Results.Ok(new { ProductId = productId, Metric = metric ?? "views", Days = d, Series = series });
+})
+.WithName("GetProductTimeSeries")
+.RequireAuthorization();
+
+// Referrer istatistikleri
+app.MapGet("/api/analytics/product/{productId:guid}/referrers", async (
+    Guid productId,
+    [FromQuery] int? days,
+    IAnalyticsRepository repository,
+    HttpContext context) =>
+{
+    var d = Math.Clamp(days ?? 30, 1, 90);
+    var from = DateTime.UtcNow.AddDays(-d);
+    var stats = await repository.GetReferrerStatsAsync(productId, from, context.RequestAborted);
+    return Results.Ok(new { ProductId = productId, Days = d, Referrers = stats });
+})
+.WithName("GetProductReferrers")
+.RequireAuthorization();
+
+// Retention istatistikleri
+app.MapGet("/api/analytics/product/{productId:guid}/retention", async (
+    Guid productId,
+    [FromQuery] int? days,
+    IAnalyticsRepository repository,
+    HttpContext context) =>
+{
+    var d = Math.Clamp(days ?? 30, 1, 90);
+    var from = DateTime.UtcNow.AddDays(-d);
+    var stats = await repository.GetRetentionStatsAsync(productId, from, context.RequestAborted);
+    return Results.Ok(new { ProductId = productId, Days = d, Retention = stats });
+})
+.WithName("GetProductRetention")
+.RequireAuthorization();
+
 app.Run();
 
 public record TrackEventRequest(string EventType, string EventData, Guid? ProductId = null);
+public record MakerProductsRequest(List<Guid> ProductIds);

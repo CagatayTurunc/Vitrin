@@ -27,6 +27,11 @@ public class InMemoryProductRepository : IProductRepository
     {
         return Task.FromResult<Topic?>(null);
     }
+
+    public Task<ProductCategory?> GetCategoryBySlugAsync(string slug, CancellationToken cancellationToken)
+    {
+        return Task.FromResult<ProductCategory?>(null);
+    }
     
     public Task UpdateAsync(ProductItem product, CancellationToken cancellationToken)
     {

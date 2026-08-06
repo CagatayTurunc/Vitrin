@@ -29,6 +29,10 @@ export interface CollectionSummary {
   collaboratorCount: number;
   isOwner: boolean;
   canEdit: boolean;
+  isEditorial?: boolean;
+  coverImageUrl?: string;
+  followerCount?: number;
+  isFollowing?: boolean;
 }
 
 export interface CollectionDetail {

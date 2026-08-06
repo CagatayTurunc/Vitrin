@@ -22,6 +22,8 @@ public class Collection : AggregateRoot
     public string Description { get; private set; } = string.Empty;
     public Guid UserId { get; private set; }
     public CollectionVisibility Visibility { get; private set; }
+    public bool IsEditorial { get; private set; }
+    public string CoverImageUrl { get; private set; } = string.Empty;
     public DateTime CreatedAt { get; private set; }
     
     private readonly List<ProductItem> _products = new();
@@ -61,6 +63,12 @@ public class Collection : AggregateRoot
             member.UserId == userId && member.Role == CollectionCollaboratorRole.Editor);
 
     public void SetVisibility(CollectionVisibility visibility) => Visibility = visibility;
+
+    public void SetEditorial(bool isEditorial, string? coverImageUrl)
+    {
+        IsEditorial = isEditorial;
+        CoverImageUrl = coverImageUrl?.Trim() ?? string.Empty;
+    }
 
     public void AddOrUpdateCollaborator(Guid userId, CollectionCollaboratorRole role)
     {

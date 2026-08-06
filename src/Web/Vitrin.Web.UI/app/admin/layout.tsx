@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Package, Users, Settings, LogOut, Search, ShieldAlert } from "lucide-react";
+import { LayoutDashboard, Package, Users, Settings, LogOut, Search, ShieldAlert, Flag, ShieldCheck, ListChecks, ScanSearch } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -11,9 +11,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const navigation = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Ürünler", href: "/admin/products", icon: Package },
+    { name: "Curation", href: "/admin/curation", icon: ListChecks },
+    { name: "Fraud Sinyalleri", href: "/admin/fraud", icon: ScanSearch },
     { name: "Maker Başvuruları", href: "/admin/maker-requests", icon: Users },
     { name: "Kullanıcılar", href: "/admin/users", icon: Users },
     { name: "Moderasyon", href: "/admin/moderation", icon: ShieldAlert },
+    { name: "Feature Flags", href: "/admin/feature-flags", icon: Flag },
+    { name: "KVKK Yönetimi", href: "/admin/kvkk", icon: ShieldCheck },
     { name: "Ayarlar", href: "/admin/settings", icon: Settings },
   ];
 

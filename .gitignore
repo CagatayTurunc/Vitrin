@@ -54,5 +54,6 @@ src/Web/Vitrin.Web.UI/query*.sql
 Thumbs.db
 .idea/
 .vscode/
+.data-protection/
 *.swp
 *.swo

@@ -36,7 +36,7 @@ public interface ICommentRepository
 /// </summary>
 public interface ICommentNotificationPublisher
 {
-    Task NotifyAsync(Guid recipientUserId, string message, string notificationType, CancellationToken ct = default);
+    Task NotifyAsync(Guid recipientUserId, string message, string notificationType, CancellationToken ct = default, Guid? relatedProductId = null);
     Task RecordEngagementAsync(
         Guid productId,
         Guid commentId,
@@ -81,7 +81,8 @@ public class AddCommentCommandHandler : IRequestHandler<AddCommentCommand, Resul
                 mention.UserId,
                 $"@{request.UserName} bir yorumda sizden bahsetti.",
                 "comment_mention",
-                cancellationToken);
+                cancellationToken,
+                request.ProductId);
         }
 
         await _notificationPublisher.RecordEngagementAsync(
@@ -101,7 +102,8 @@ public class AddCommentCommandHandler : IRequestHandler<AddCommentCommand, Resul
                     parent.UserId,
                     $"@{request.UserName} yorumunuza cevap verdi.",
                     "comment_reply",
-                    cancellationToken);
+                    cancellationToken,
+                    request.ProductId);
             }
         }
 
@@ -112,7 +114,8 @@ public class AddCommentCommandHandler : IRequestHandler<AddCommentCommand, Resul
                 request.ProductMakerId.Value,
                 $"@{request.UserName} ürününüze yorum yaptı.",
                 "comment_on_product",
-                cancellationToken);
+                cancellationToken,
+                request.ProductId);
         }
 
         await _repository.SaveChangesAsync(cancellationToken);

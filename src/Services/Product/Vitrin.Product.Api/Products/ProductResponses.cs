@@ -3,6 +3,17 @@ using Vitrin.Product.Domain.Entities;
 namespace Vitrin.Product.Api.Products;
 
 public sealed record TopicResponse(Guid Id, string Name, string Slug);
+public sealed record CategoryResponse(Guid Id, string Name, string Slug, Guid? ParentId);
+public sealed record LaunchSummaryResponse(
+    Guid Id,
+    int SequenceNumber,
+    string VersionLabel,
+    ProductLaunchStatus Status,
+    DateTime? ScheduledAtUtc,
+    DateTime? PublishedAtUtc,
+    bool IsFeatured,
+    int? FinalRank,
+    double? FinalScore);
 
 public sealed record ProductResponse(
     Guid Id,
@@ -20,6 +31,9 @@ public sealed record ProductResponse(
     int Upvotes,
     int ViewCount,
     int CommentCount,
+    string? WebsiteUrl,
+    IReadOnlyList<CategoryResponse> Categories,
+    LaunchSummaryResponse? ActiveLaunch,
     double TrendScore = 0,
     double SearchScore = 0,
     string? MatchType = null);
@@ -78,6 +92,28 @@ public static class ProductQueryExtensions
             product.Upvotes.Count,
             product.ViewCount,
             product.CommentCount,
+            product.Links
+                .Where(link => link.Title == "Website")
+                .Select(link => link.Url)
+                .FirstOrDefault(),
+            product.Categories
+                .OrderBy(category => category.SortOrder)
+                .ThenBy(category => category.Name)
+                .Select(category => new CategoryResponse(category.Id, category.Name, category.Slug, category.ParentId))
+                .ToList(),
+            product.Launches
+                .OrderByDescending(launch => launch.SequenceNumber)
+                .Select(launch => new LaunchSummaryResponse(
+                    launch.Id,
+                    launch.SequenceNumber,
+                    launch.VersionLabel,
+                    launch.Status,
+                    launch.ScheduledAtUtc,
+                    launch.PublishedAtUtc,
+                    launch.IsFeatured,
+                    launch.FinalRank,
+                    launch.FinalScore))
+                .FirstOrDefault(),
             0,
             0,
             null));
@@ -112,6 +148,28 @@ public static class ProductQueryExtensions
                 product.Upvotes.Count,
                 product.ViewCount,
                 product.CommentCount,
+                product.Links
+                    .Where(link => link.Title == "Website")
+                    .Select(link => link.Url)
+                    .FirstOrDefault(),
+                product.Categories
+                    .OrderBy(category => category.SortOrder)
+                    .ThenBy(category => category.Name)
+                    .Select(category => new CategoryResponse(category.Id, category.Name, category.Slug, category.ParentId))
+                    .ToList(),
+                product.Launches
+                    .OrderByDescending(launch => launch.SequenceNumber)
+                    .Select(launch => new LaunchSummaryResponse(
+                        launch.Id,
+                        launch.SequenceNumber,
+                        launch.VersionLabel,
+                        launch.Status,
+                        launch.ScheduledAtUtc,
+                        launch.PublishedAtUtc,
+                        launch.IsFeatured,
+                        launch.FinalRank,
+                        launch.FinalScore))
+                    .FirstOrDefault(),
                 0,
                 0,
                 null)).ToList(),

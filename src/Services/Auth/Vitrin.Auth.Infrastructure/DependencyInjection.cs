@@ -10,6 +10,7 @@ using Vitrin.Auth.Infrastructure.Services;
 using Vitrin.Shared.Infrastructure.Kafka;
 using Vitrin.Shared.Infrastructure.Audit;
 using Vitrin.Shared.Infrastructure.Outbox;
+using Microsoft.Extensions.Hosting;
 
 namespace Vitrin.Auth.Infrastructure;
 
@@ -28,6 +29,12 @@ public static class DependencyInjection
 
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IJwtProvider, JwtProvider>();
+        services.AddSingleton<IAccountActionTokenService, AccountActionTokenService>();
+        services.AddHttpClient<IAccountEmailService, ResendAccountEmailService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.resend.com/");
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
         services.AddSingleton<IExternalIdentityVerifier>(_ =>
             new ExternalIdentityVerifier(
                 configuration,
@@ -38,6 +45,9 @@ public static class DependencyInjection
         services.AddScoped<IAuthNotificationPublisher, AuthNotificationPublisher>();
         services.AddScoped<IAuditLogger, AuthAuditLogger>();
         services.AddVitrinOutbox<AuthDbContext>(configuration);
+
+        // KVKK — her gün 30 günü dolan silme taleplerini anonimleştirir
+        services.AddHostedService<RetentionCleanupWorker>();
 
         return services;
     }
