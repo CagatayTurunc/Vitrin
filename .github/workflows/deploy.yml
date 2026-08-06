@@ -73,13 +73,13 @@ jobs:
             mkdir -p data/voting data/notification data/analytics data/ai
 
             # Imajlari build et ve baslat
-            docker compose build
-            docker compose up -d --remove-orphans
+            docker-compose build
+            docker-compose up -d --remove-orphans
 
             # Eski imajlari temizle
             docker image prune -f
 
             echo "Deploy tamamlandi!"
-            docker compose ps
+            docker-compose ps
         env:
           ENV_FILE: ${{ secrets.ENV_FILE }}
