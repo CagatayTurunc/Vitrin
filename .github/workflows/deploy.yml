@@ -73,7 +73,7 @@ jobs:
             mkdir -p data/voting data/notification data/analytics data/ai
 
             # Imajlari build et ve baslat
-            docker compose build --parallel
+            docker compose build
             docker compose up -d --remove-orphans
 
             # Eski imajlari temizle
