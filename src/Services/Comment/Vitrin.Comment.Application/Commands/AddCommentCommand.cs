@@ -36,7 +36,9 @@ public interface ICommentRepository
 /// </summary>
 public interface ICommentNotificationPublisher
 {
-    Task NotifyAsync(Guid recipientUserId, string message, string notificationType, CancellationToken ct = default, Guid? relatedProductId = null);
+    Task NotifyAsync(Guid recipientUserId, string message, string notificationType, CancellationToken ct, Guid? relatedProductId);
+    Task NotifyAsync(Guid recipientUserId, string message, string notificationType, CancellationToken ct)
+        => NotifyAsync(recipientUserId, message, notificationType, ct, null);
     Task RecordEngagementAsync(
         Guid productId,
         Guid commentId,
