@@ -64,6 +64,7 @@ jobs:
             dockerfile: src/Gateways/Vitrin.Gateway/Dockerfile
           - name: web
             dockerfile: src/Web/Vitrin.Web.UI/Dockerfile
+            context: src/Web/Vitrin.Web.UI
     steps:
       - uses: actions/checkout@v4
 
@@ -84,7 +85,7 @@ jobs:
       - name: Build & Push ${{ matrix.service.name }}
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ${{ matrix.service.context || '.' }}
           file: ${{ matrix.service.dockerfile }}
           push: true
           tags: ghcr.io/${{ steps.owner.outputs.name }}/vitrin-${{ matrix.service.name }}:latest
