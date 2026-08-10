@@ -292,7 +292,6 @@ export function NotificationPreferences({ initialEmail }: { initialEmail?: strin
               );
             })}
           </div>
-          </div>
         </div>
 
         <div>

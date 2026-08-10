@@ -90,7 +90,6 @@ function CompareContent() {
             <h1 className="text-3xl font-black tracking-tight sm:text-5xl">Karar vermeden önce yan yana gör</h1>
             <p className="mt-3 text-muted-foreground">En fazla dört ürünü; etkileşim, trend, kategori ve yayın bilgileriyle tek ekranda karşılaştır.</p>
           </div>
-          </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <span className="w-fit rounded-2xl border border-border bg-background/70 px-4 py-2 text-sm font-bold">{visibleProducts.length} / 4 ürün seçildi</span>
             <Button variant="outline" className="rounded-2xl" onClick={() => {
