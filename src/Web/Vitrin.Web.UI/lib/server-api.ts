@@ -8,15 +8,20 @@ export async function serverApiFetch<T>(
   path: string,
   options: { revalidate?: number; tags?: string[]; cache?: RequestCache } = {},
 ): Promise<T | null> {
-  const response = await fetch(`${getServerApiUrl()}/api${path}`, {
-    headers: { Accept: "application/json" },
-    cache: options.cache,
-    next: options.cache === "no-store" ? undefined : {
-      revalidate: options.revalidate ?? 60,
-      tags: options.tags,
-    },
-  });
+  try {
+    const response = await fetch(`${getServerApiUrl()}/api${path}`, {
+      headers: { Accept: "application/json" },
+      cache: options.cache,
+      next: options.cache === "no-store" ? undefined : {
+        revalidate: options.revalidate ?? 60,
+        tags: options.tags,
+      },
+    });
 
-  if (!response.ok) return null;
-  return response.json() as Promise<T>;
+    if (!response.ok) return null;
+    return response.json() as Promise<T>;
+  } catch {
+    // API build zamanında erişilemez olabilir (prerender); null döndür
+    return null;
+  }
 }

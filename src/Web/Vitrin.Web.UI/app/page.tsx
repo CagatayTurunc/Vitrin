@@ -6,6 +6,9 @@ import { TrendingProducts } from '@/components/trending-products'
 import { DailyLaunchFeed } from '@/components/daily-launch-feed'
 import Link from 'next/link'
 
+// API'ye bağımlı server component'ler build sırasında prerender edilemez
+export const dynamic = 'force-dynamic'
+
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-background">
