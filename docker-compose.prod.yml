@@ -1,0 +1,39 @@
+# Production override - GHCR imajlarini kullanir, local build yapmaz
+# Kullanim: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  vitrin-auth:
+    image: ghcr.io/cagatayturunc/vitrin-auth:latest
+    build: !reset null
+
+  vitrin-product:
+    image: ghcr.io/cagatayturunc/vitrin-product:latest
+    build: !reset null
+
+  vitrin-voting:
+    image: ghcr.io/cagatayturunc/vitrin-voting:latest
+    build: !reset null
+
+  vitrin-comment:
+    image: ghcr.io/cagatayturunc/vitrin-comment:latest
+    build: !reset null
+
+  vitrin-notification:
+    image: ghcr.io/cagatayturunc/vitrin-notification:latest
+    build: !reset null
+
+  vitrin-analytics:
+    image: ghcr.io/cagatayturunc/vitrin-analytics:latest
+    build: !reset null
+
+  vitrin-ai:
+    image: ghcr.io/cagatayturunc/vitrin-ai:latest
+    build: !reset null
+
+  vitrin-gateway:
+    image: ghcr.io/cagatayturunc/vitrin-gateway:latest
+    build: !reset null
+
+  vitrin-web:
+    image: ghcr.io/cagatayturunc/vitrin-web:latest
+    build: !reset null

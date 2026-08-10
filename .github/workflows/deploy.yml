@@ -5,6 +5,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+
 jobs:
   # ============================================================
   # 1. TEST
@@ -30,24 +34,74 @@ jobs:
         run: dotnet test Vitrin.sln --no-build --configuration Release --verbosity minimal
 
   # ============================================================
-  # 2. DEPLOY
+  # 2. BUILD & PUSH IMAGES (GitHub Actions'da build edilir)
+  # ============================================================
+  build:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service:
+          - name: auth
+            dockerfile: src/Services/Auth/Vitrin.Auth.Api/Dockerfile
+          - name: product
+            dockerfile: src/Services/Product/Vitrin.Product.Api/Dockerfile
+          - name: voting
+            dockerfile: src/Services/Voting/Vitrin.Voting.Api/Dockerfile
+          - name: comment
+            dockerfile: src/Services/Comment/Vitrin.Comment.Api/Dockerfile
+          - name: notification
+            dockerfile: src/Services/Notification/Vitrin.Notification.Api/Dockerfile
+          - name: analytics
+            dockerfile: src/Services/Analytics/Vitrin.Analytics.Api/Dockerfile
+          - name: ai
+            dockerfile: src/Services/Ai/Vitrin.Ai.Api/Dockerfile
+          - name: gateway
+            dockerfile: src/Gateways/Vitrin.Gateway/Dockerfile
+          - name: web
+            dockerfile: src/Web/Vitrin.Web.UI/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: GHCR Login
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push ${{ matrix.service.name }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.service.dockerfile }}
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/vitrin-${{ matrix.service.name }}:latest
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/vitrin-${{ matrix.service.name }}:cache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/vitrin-${{ matrix.service.name }}:cache,mode=max
+
+  # ============================================================
+  # 3. DEPLOY (EC2 sadece pull & up yapar)
   # ============================================================
   deploy:
     name: Deploy to EC2
     runs-on: ubuntu-latest
-    needs: test
+    needs: build
     steps:
       - uses: actions/checkout@v4
 
-      - name: Kodu sunucuya kopyala (SCP)
+      - name: Konfigürasyon dosyalarini sunucuya kopyala
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "."
+          source: "docker-compose.yml,docker-compose.prod.yml,scripts/init-databases.sql"
           target: "/home/ec2-user/vitrin"
-          rm: false
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -55,32 +109,38 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 1800s
-          command_timeout: 1800s
+          timeout: 300s
+          command_timeout: 300s
           envs: ENV_FILE
           script: |
             set -e
             cd /home/ec2-user/vitrin
 
-            # .env dosyasini environment variable'dan yaz (ozel karakter sorunu yok)
+            # GHCR login
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # .env dosyasini yaz
             printf '%s' "$ENV_FILE" > .env
 
-            # NEXTAUTH_URL'yi sunucu IP'sine guncelle
+            # NEXTAUTH_URL ve port ayarla
             sed -i 's|NEXTAUTH_URL=http://localhost:3000|NEXTAUTH_URL=http://63.180.14.214:3002|g' .env
             sed -i 's|NEXTAUTH_URL=http://localhost:3001|NEXTAUTH_URL=http://63.180.14.214:3002|g' .env
             sed -i 's|NEXTAUTH_URL=http://localhost:3002|NEXTAUTH_URL=http://63.180.14.214:3002|g' .env
 
+            # docker-compose.yml'deki image'lari GHCR'dan kullan
+            export OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+
             # data klasorlerini olustur
             mkdir -p data/voting data/notification data/analytics data/ai
 
-            # Imajlari build et ve baslat
-            docker compose build
-            docker compose up -d --remove-orphans
+            # Imajlari cek ve baslat
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
 
             # Eski imajlari temizle
             docker image prune -f
 
             echo "Deploy tamamlandi!"
-            docker compose ps
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
         env:
           ENV_FILE: ${{ secrets.ENV_FILE }}
