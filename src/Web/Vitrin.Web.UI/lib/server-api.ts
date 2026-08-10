@@ -12,6 +12,8 @@ export async function serverApiFetch<T>(
     const response = await fetch(`${getServerApiUrl()}/api${path}`, {
       headers: { Accept: "application/json" },
       cache: options.cache,
+      // 5 saniyede cevap gelmezse iptal et — build ortamında API yoktur
+      signal: AbortSignal.timeout(5000),
       next: options.cache === "no-store" ? undefined : {
         revalidate: options.revalidate ?? 60,
         tags: options.tags,
@@ -21,7 +23,7 @@ export async function serverApiFetch<T>(
     if (!response.ok) return null;
     return response.json() as Promise<T>;
   } catch {
-    // API build zamanında erişilemez olabilir (prerender); null döndür
+    // API build zamanında erişilemez olabilir (prerender/sitemap); null döndür
     return null;
   }
 }
