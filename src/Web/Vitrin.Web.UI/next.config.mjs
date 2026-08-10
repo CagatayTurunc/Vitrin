@@ -16,13 +16,12 @@ const nextConfig = {
     unoptimized: true,
   },
   // Browser'dan gelen /api/* isteklerini sunucu üzerinden gateway'e yönlendir.
-  // Böylece NEXT_PUBLIC_API_URL build'e gömülmek zorunda kalmaz;
-  // client kodunda fetch('/api/...') veya NEXT_PUBLIC_API_URL='' kullanılır.
+  // /api/auth/* NextAuth'un kendi route'u olduğu için hariç tutulur.
   async rewrites() {
     return [
       {
-        source: '/api/:path*',
-        destination: `${internalApiUrl}/api/:path*`,
+        source: '/api/((?!auth/).*)',
+        destination: `${internalApiUrl}/api/$1`,
       },
     ]
   },
