@@ -5,6 +5,8 @@ import { ArrowLeft, CalendarClock, Clock3, Rocket } from "lucide-react";
 import type { UpcomingLaunches } from "@/core/domain/product.types";
 import { serverApiFetch } from "@/lib/server-api";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "Yaklaşan Lansmanlar — Vitrin",
   description: "Önümüzdeki 30 gün içinde Vitrin'de yayınlanacak Türkiye merkezli ürünleri keşfet.",

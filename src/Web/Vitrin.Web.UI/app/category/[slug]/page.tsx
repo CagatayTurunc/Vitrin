@@ -5,6 +5,8 @@ import { ArrowLeft, ArrowUp, Eye, MessageSquare } from "lucide-react";
 import type { ProductApiModel, ProductCategory } from "@/core/domain/product.types";
 import { serverApiFetch } from "@/lib/server-api";
 
+export const dynamic = 'force-dynamic';
+
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ period?: string }> };
 const periods = [{ value: "today", label: "Bugün" }, { value: "week", label: "Bu hafta" }, { value: "month", label: "Bu ay" }, { value: "all", label: "Tüm zamanlar" }];
 

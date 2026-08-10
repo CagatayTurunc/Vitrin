@@ -4,6 +4,8 @@ import { ArrowRight, Boxes, FolderTree } from "lucide-react";
 import type { ProductCategory } from "@/core/domain/product.types";
 import { serverApiFetch } from "@/lib/server-api";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "Ürün Kategorileri — Vitrin",
   description: "Türkiye'nin teknoloji ürünlerini çözdükleri probleme ve kullanım alanına göre keşfet.",

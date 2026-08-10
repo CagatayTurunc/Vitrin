@@ -4,6 +4,8 @@ import type { ProductDetailApiModel } from "@/core/domain/product.types";
 import { ProductDetailClient } from "@/components/product-detail-client";
 import { serverApiFetch } from "@/lib/server-api";
 
+export const dynamic = 'force-dynamic';
+
 type Props = { params: Promise<{ slug: string }> };
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3001";
 

@@ -5,6 +5,8 @@ import type { DailyLaunches, LaunchArchive } from "@/core/domain/product.types";
 import { LaunchRankingList } from "@/components/launch-ranking-list";
 import { serverApiFetch } from "@/lib/server-api";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "Lansman Arşivi — Vitrin",
   description: "Türkiye teknoloji ekosisteminin günlük ürün lansmanlarını, sıralamalarını ve geçmiş kazananlarını keşfet.",
