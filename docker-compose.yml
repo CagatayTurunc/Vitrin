@@ -335,10 +335,12 @@ services:
 
   vitrin-web:
     build:
-      context: src/Web/Vitrin.Web.UI
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: src/Web/Vitrin.Web.UI/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5000}
+        # Boş bırakılır — client fetch'leri relative /api/* path'i kullanır,
+        # next.config.mjs rewrites bunları INTERNAL_API_URL'ye yönlendirir.
+        NEXT_PUBLIC_API_URL: ""
         NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:-}
         NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET:-}
     container_name: vitrin-web

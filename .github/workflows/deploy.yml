@@ -89,6 +89,8 @@ jobs:
           file: ${{ matrix.service.dockerfile }}
           push: true
           tags: ghcr.io/${{ steps.owner.outputs.name }}/vitrin-${{ matrix.service.name }}:latest
+          build-args: |
+            NEXT_PUBLIC_API_URL=
 
   # ============================================================
   # 3. DEPLOY (EC2 sadece pull & up yapar)
