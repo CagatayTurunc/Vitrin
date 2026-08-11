@@ -13,16 +13,27 @@ builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
 // CORS Policy for Next.js Frontend
+// Allowed origins appsettings "Cors:AllowedOrigins" dizisinden okunur.
+// Boş/tanımsız ise varsayılan localhost değerleri kullanılır.
+var configuredOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>();
+
+var allowedOrigins = (configuredOrigins != null && configuredOrigins.Length > 0)
+    ? configuredOrigins
+    : new[]
+    {
+        "http://localhost:3000",    // local dev (docker)
+        "http://localhost:3001",    // local dev (native)
+        "http://localhost:3002",    // local dev (fallback)
+        "http://vitrin-web:3000"    // docker iç ağ
+    };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:3000",    // local dev (docker)
-                "http://localhost:3001",    // local dev (native)
-                "http://localhost:3002",    // local dev (fallback)
-                "http://vitrin-web:3000"    // docker iç ağ
-              )
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
