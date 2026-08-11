@@ -65,6 +65,7 @@ jobs:
           - name: web
             dockerfile: src/Web/Vitrin.Web.UI/Dockerfile
             context: src/Web/Vitrin.Web.UI
+            build_args: "NEXT_PUBLIC_API_URL=http://63.180.14.214:5000"
     steps:
       - uses: actions/checkout@v4
 
@@ -89,8 +90,7 @@ jobs:
           file: ${{ matrix.service.dockerfile }}
           push: true
           tags: ghcr.io/${{ steps.owner.outputs.name }}/vitrin-${{ matrix.service.name }}:latest
-          build-args: |
-            NEXT_PUBLIC_API_URL=
+          build-args: ${{ matrix.service.build_args || '' }}
 
   # ============================================================
   # 3. DEPLOY (EC2 sadece pull & up yapar)
