@@ -65,7 +65,7 @@ jobs:
           - name: web
             dockerfile: src/Web/Vitrin.Web.UI/Dockerfile
             context: src/Web/Vitrin.Web.UI
-            build_args: "NEXT_PUBLIC_API_URL=https://vitrin.it.com"
+            build_args: "NEXT_PUBLIC_API_URL=https://vitrin.it.com\nINTERNAL_API_URL=http://vitrin-gateway:8080"
     steps:
       - uses: actions/checkout@v4
 
@@ -140,7 +140,13 @@ jobs:
             mkdir -p data/voting data/notification data/analytics data/ai
 
             # SSL sertifikasi daha once alinmis mi?
-            SSL_EXISTS=$(docker volume inspect vitrin_certbot_ssl 2>/dev/null | grep -c '"Name"' || echo "0")
+            if docker volume inspect vitrin_certbot_ssl > /dev/null 2>&1 && \
+               docker run --rm -v vitrin_certbot_ssl:/etc/letsencrypt alpine \
+               test -f /etc/letsencrypt/live/vitrin.it.com/fullchain.pem > /dev/null 2>&1; then
+              SSL_EXISTS="1"
+            else
+              SSL_EXISTS="0"
+            fi
 
             if [ "$SSL_EXISTS" -eq "0" ]; then
               echo ">>> SSL yok - HTTP moduyla baslayip sertifika alinacak"
@@ -154,8 +160,8 @@ jobs:
               # Servisleri HTTP moduyla baslat (network olusur, nginx ayaga kalkar)
               docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
 
-              echo ">>> nginx ayaga kalkiyor, 20 saniye bekleniyor..."
-              sleep 20
+              echo ">>> Servisler baslatildi, kafka ve nginx ayaga kalkiyor (30 saniye)..."
+              sleep 30
 
               # nginx saglik kontrolu
               docker ps | grep vitrin-nginx || (echo "HATA: nginx baslayamadi!" && exit 1)
@@ -193,6 +199,7 @@ jobs:
               # Imajlari cek ve guncelle
               docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
               docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
+
             fi
 
             # Eski imajlari temizle
