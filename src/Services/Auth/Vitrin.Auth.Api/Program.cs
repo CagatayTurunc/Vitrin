@@ -139,14 +139,14 @@ app.MapPost("/api/auth/reset-password", async (
     CancellationToken cancellationToken) =>
 {
     var passwordIsValid = !string.IsNullOrEmpty(request.Password) &&
-                          request.Password.Length is >= 12 and <= 128 &&
+                          request.Password.Length is >= 8 and <= 128 &&
                           request.Password.Any(char.IsUpper) &&
                           request.Password.Any(char.IsLower) &&
                           request.Password.Any(char.IsDigit) &&
                           request.Password.Any(character => !char.IsLetterOrDigit(character));
     if (!passwordIsValid)
         return ApiProblemResults.BadRequest(
-            "Şifre 12-128 karakter olmalı; büyük harf, küçük harf, rakam ve özel karakter içermelidir.",
+            "Şifre 8-128 karakter olmalı; büyük harf, küçük harf, rakam ve özel karakter içermelidir.",
             "auth.password_weak");
 
     if (!tokenService.TryValidate(
