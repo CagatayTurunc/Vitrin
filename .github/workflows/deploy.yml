@@ -130,39 +130,40 @@ jobs:
             # .env dosyasini yaz
             printf '%s' "$ENV_FILE" > .env
 
-            # NEXTAUTH_URL ve domain ayarla
+            # NEXTAUTH_URL'yi domain'e ayarla
             sed -i 's|NEXTAUTH_URL=http://localhost:3000|NEXTAUTH_URL=https://vitrin.it.com|g' .env
             sed -i 's|NEXTAUTH_URL=http://localhost:3001|NEXTAUTH_URL=https://vitrin.it.com|g' .env
             sed -i 's|NEXTAUTH_URL=http://localhost:3002|NEXTAUTH_URL=https://vitrin.it.com|g' .env
             sed -i 's|NEXTAUTH_URL=http://63.180.14.214:3002|NEXTAUTH_URL=https://vitrin.it.com|g' .env
 
-            # docker-compose.yml'deki image'lari GHCR'dan kullan
-            export OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-
-            # data klasorlerini olustur
+            # data ve nginx klasorlerini olustur
             mkdir -p data/voting data/notification data/analytics data/ai
-            mkdir -p nginx/ssl nginx/certbot
 
-            # SSL sertifikasi var mi kontrol et
-            SSL_EXISTS=$(docker volume inspect vitrin_certbot_ssl 2>/dev/null | grep -c '"Name"' || true)
+            # SSL sertifikasi daha once alinmis mi?
+            SSL_EXISTS=$(docker volume inspect vitrin_certbot_ssl 2>/dev/null | grep -c '"Name"' || echo "0")
 
             if [ "$SSL_EXISTS" -eq "0" ]; then
-              echo "SSL sertifikasi bulunamadi, ilk kurulum basliyor..."
+              echo ">>> SSL yok - HTTP moduyla baslayip sertifika alinacak"
 
-              # Once gecici HTTP config ile baslat (SSL olmadan nginx ayaga kalkar)
-              cp nginx/vitrin-http.conf nginx/vitrin-active.conf
-              # Gecici olarak http config kullan
-              docker run -d --name vitrin-nginx-temp \
-                -p 80:80 \
-                -v $(pwd)/nginx/vitrin-http.conf:/etc/nginx/conf.d/default.conf:ro \
-                -v vitrin_certbot_www:/var/www/certbot \
-                --network vitrin-network \
-                nginx:alpine || true
+              # HTTP config'i aktiflestir
+              cp nginx/vitrin-http.conf nginx/vitrin.conf
 
-              sleep 5
+              # Imajlari cek
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
 
-              # Sertifika al
+              # Servisleri HTTP moduyla baslat (network olusur, nginx ayaga kalkar)
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
+
+              echo ">>> nginx ayaga kalkiyor, 20 saniye bekleniyor..."
+              sleep 20
+
+              # nginx saglik kontrolu
+              docker ps | grep vitrin-nginx || (echo "HATA: nginx baslayamadi!" && exit 1)
+
+              # Certbot ile sertifika al (nginx network'u uzerinden)
+              echo ">>> Let's Encrypt sertifikasi aliniyor..."
               docker run --rm \
+                --network vitrin-network \
                 -v vitrin_certbot_ssl:/etc/letsencrypt \
                 -v vitrin_certbot_www:/var/www/certbot \
                 certbot/certbot certonly --webroot \
@@ -171,22 +172,33 @@ jobs:
                 --email ${CERTBOT_EMAIL:-admin@vitrin.it.com} \
                 --agree-tos --non-interactive --no-eff-email
 
-              # Gecici nginx'i durdur
-              docker stop vitrin-nginx-temp && docker rm vitrin-nginx-temp || true
+              echo ">>> Sertifika alindi! HTTPS config'e geciliyor..."
 
-              echo "SSL sertifikasi basariyla alindi!"
+              # HTTPS config'i aktiflestir ve nginx'i yeniden yukle
+              cp nginx/vitrin-https.conf nginx/vitrin.conf
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T nginx nginx -s reload
+
+              echo ">>> HTTPS aktif!"
+
             else
-              echo "SSL sertifikasi mevcut, yenileme kontrolu yapilacak."
-            fi
+              echo ">>> SSL mevcut - normal deploy"
 
-            # Imajlari cek ve baslat
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
+              # HTTPS config aktif mi kontrol et, degilse aktiflestir
+              if grep -q "listen 443" nginx/vitrin.conf 2>/dev/null; then
+                echo "HTTPS config zaten aktif."
+              else
+                cp nginx/vitrin-https.conf nginx/vitrin.conf
+              fi
+
+              # Imajlari cek ve guncelle
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
+            fi
 
             # Eski imajlari temizle
             docker image prune -f
 
-            echo "Deploy tamamlandi!"
+            echo "=== Deploy tamamlandi! ==="
             docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
         env:
           ENV_FILE: ${{ secrets.ENV_FILE }}

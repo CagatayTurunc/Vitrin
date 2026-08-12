@@ -37,7 +37,7 @@ services:
   vitrin-web:
     image: ghcr.io/cagatayturunc/vitrin-web:latest
     build: !reset null
-    # Prod'da 3002 portu disari acilmaz, nginx uzerinden erisim saglanir
+    # Prod'da port disari acilmaz, nginx uzerinden erisim saglanir
     ports: !reset []
     environment:
       NEXTAUTH_URL: ${NEXTAUTH_URL:-https://vitrin.it.com}
@@ -53,8 +53,11 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/vitrin.conf:/etc/nginx/conf.d/default.conf:ro
+      # vitrin.conf deploy sirasinda HTTP veya HTTPS olarak guncellenir
+      - ./nginx/vitrin.conf:/etc/nginx/conf.d/default.conf
+      # SSL sertifikalari (certbot volume'u)
       - certbot_ssl:/etc/letsencrypt:ro
+      # Let's Encrypt challenge dosyalari
       - certbot_www:/var/www/certbot:ro
     depends_on:
       - vitrin-web
@@ -62,17 +65,20 @@ services:
       - vitrin-network
 
   # ============================================================
-  # CERTBOT (SSL sertifikasi yenileme)
+  # CERTBOT (SSL otomatik yenileme - 12 saatte bir)
   # ============================================================
   certbot:
     image: certbot/certbot:latest
     container_name: vitrin-certbot
+    restart: unless-stopped
     volumes:
       - certbot_ssl:/etc/letsencrypt
       - certbot_www:/var/www/certbot
-    # Otomatik yenileme: her 12 saatte bir kontrol eder
     entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot --webroot-path=/var/www/certbot --quiet; sleep 12h & wait $${!}; done"
 
+# ============================================================
+# VOLUMES
+# ============================================================
 volumes:
   certbot_ssl:
     name: vitrin_certbot_ssl
