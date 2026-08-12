@@ -65,7 +65,7 @@ jobs:
           - name: web
             dockerfile: src/Web/Vitrin.Web.UI/Dockerfile
             context: src/Web/Vitrin.Web.UI
-            build_args: "NEXT_PUBLIC_API_URL=http://63.180.14.214:5000"
+            build_args: "NEXT_PUBLIC_API_URL=https://vitrin.it.com"
     steps:
       - uses: actions/checkout@v4
 
@@ -108,7 +108,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.yml,docker-compose.prod.yml,scripts/init-databases.sql"
+          source: "docker-compose.yml,docker-compose.prod.yml,scripts/init-databases.sql,nginx/"
           target: "/home/ec2-user/vitrin"
 
       - name: Deploy via SSH
@@ -130,16 +130,18 @@ jobs:
             # .env dosyasini yaz
             printf '%s' "$ENV_FILE" > .env
 
-            # NEXTAUTH_URL ve port ayarla
-            sed -i 's|NEXTAUTH_URL=http://localhost:3000|NEXTAUTH_URL=http://63.180.14.214:3002|g' .env
-            sed -i 's|NEXTAUTH_URL=http://localhost:3001|NEXTAUTH_URL=http://63.180.14.214:3002|g' .env
-            sed -i 's|NEXTAUTH_URL=http://localhost:3002|NEXTAUTH_URL=http://63.180.14.214:3002|g' .env
+            # NEXTAUTH_URL ve domain ayarla
+            sed -i 's|NEXTAUTH_URL=http://localhost:3000|NEXTAUTH_URL=https://vitrin.it.com|g' .env
+            sed -i 's|NEXTAUTH_URL=http://localhost:3001|NEXTAUTH_URL=https://vitrin.it.com|g' .env
+            sed -i 's|NEXTAUTH_URL=http://localhost:3002|NEXTAUTH_URL=https://vitrin.it.com|g' .env
+            sed -i 's|NEXTAUTH_URL=http://63.180.14.214:3002|NEXTAUTH_URL=https://vitrin.it.com|g' .env
 
             # docker-compose.yml'deki image'lari GHCR'dan kullan
             export OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
 
             # data klasorlerini olustur
             mkdir -p data/voting data/notification data/analytics data/ai
+            mkdir -p nginx/ssl nginx/certbot
 
             # Imajlari cek ve baslat
             docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
