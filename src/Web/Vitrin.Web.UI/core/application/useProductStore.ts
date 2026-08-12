@@ -224,8 +224,7 @@ export const useProductStore = create<ProductStore>((set, get) => ({
       // Gamification is recorded only when a new vote is added.
       if (!hadVoted) {
         try {
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000';
-          await fetch(`${apiUrl}/api/auth/users/me/record-vote`, {
+          await fetch('/api/auth/users/me/record-vote', {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` }
           });

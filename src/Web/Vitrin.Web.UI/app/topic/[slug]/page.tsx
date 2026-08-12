@@ -6,6 +6,7 @@ import { CursorPage, Product, ProductApiModel, Topic } from "@/core/domain/produ
 import { Loader2, Hash } from "lucide-react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { getApiUrl } from "@/lib/api-url";
 
 export default function TopicPage() {
   const params = useParams();
@@ -17,7 +18,7 @@ export default function TopicPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+  const apiUrl = getApiUrl() || "http://localhost:5000";
 
   useEffect(() => {
     if (!topicSlug) return;

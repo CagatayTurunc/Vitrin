@@ -16,12 +16,14 @@ const nextConfig = {
     unoptimized: true,
   },
   // Browser'dan gelen /api/* isteklerini sunucu üzerinden gateway'e yönlendir.
-  // /api/auth/* NextAuth'un kendi route'u olduğu için hariç tutulur.
+  // Next.js, rewrite kurallarından önce kendi route handler'larını kontrol eder;
+  // bu sayede /api/auth/[...nextauth] NextAuth tarafından handle edilirken,
+  // /api/auth/leaderboard gibi diğer /api/auth/* rotaları gateway'e proxy edilir.
   async rewrites() {
     return [
       {
-        source: '/api/((?!auth/).*)',
-        destination: `${internalApiUrl}/api/$1`,
+        source: '/api/:path*',
+        destination: `${internalApiUrl}/api/:path*`,
       },
     ]
   },

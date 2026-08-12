@@ -26,7 +26,7 @@ export function TrendingProducts() {
 
   useEffect(() => {
     let isCurrent = true;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/products/trending?period=${period}&limit=6`)
+    fetch(`/api/products/trending?period=${period}&limit=6`)
       .then(async (response) => response.ok ? await response.json() as TrendingResponse : Promise.reject(response))
       .then((payload) => {
         if (isCurrent) setItems(payload.items);

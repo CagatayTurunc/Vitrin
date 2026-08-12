@@ -11,7 +11,7 @@ export function LeaderboardWidget() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(process.env.NEXT_PUBLIC_API_URL + '/api/auth/leaderboard')
+    fetch('/api/auth/leaderboard')
       .then(res => res.json())
       .then((data: LeaderboardData) => {
         setMakers(data.topMakers || []);

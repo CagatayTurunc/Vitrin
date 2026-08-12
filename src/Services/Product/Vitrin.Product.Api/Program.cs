@@ -620,35 +620,8 @@ app.MapGet("/api/products/trending", async (
 .WithName("GetTrendingProducts")
 .WithOpenApi();
 
-app.MapGet("/api/products/{slug}", async (
-    string slug,
-    HttpContext context,
-    ProductDbContext db,
-    ProductEventPublisher eventPublisher) =>
-{
-    var requestedProductId = Guid.TryParse(slug, out var parsedProductId) ? parsedProductId : Guid.Empty;
-    var product = await db.Products
-        .AsNoTracking()
-        .Where(p => p.Status == Vitrin.Product.Domain.Entities.ProductStatus.Published &&
-            (p.Slug == slug || (requestedProductId != Guid.Empty && p.Id == requestedProductId)))
-        .ProjectToResponse()
-        .FirstOrDefaultAsync();
-
-    if (product == null) return Results.NotFound();
-
-    eventPublisher.EnqueueProductViewed(
-        product.Id,
-        product.Slug,
-        context.User.GetUserId(),
-        context.Connection.RemoteIpAddress?.ToString(),
-        context.Request.Headers.UserAgent.ToString(),
-        context.Request.Headers.Referer.ToString());
-    await db.SaveChangesAsync(context.RequestAborted);
-
-    return Results.Ok(product with { TrendScore = CalculateTrendScore(product, DateTime.UtcNow) });
-})
-.WithName("GetProductBySlug")
-.WithOpenApi();
+// NOTE: /api/products/{slug} is registered AFTER all literal sub-paths
+// (batch, compare, my-votes, upvoted, etc.) so that static segments always win.
 
 app.MapGet("/api/products/batch", async (string ids, ProductDbContext db) =>
 {
@@ -765,6 +738,40 @@ app.MapGet("/api/products/upvoted", async (HttpContext context, ProductDbContext
 .WithName("GetUpvotedProducts")
 .WithOpenApi()
 .RequireAuthorization();
+
+// NOTE: {slug} is registered here — AFTER all literal sub-paths — so that
+// "batch", "compare", "my-votes", "upvoted", etc. are never swallowed by the
+// parameterised route.  ASP.NET Minimal API prefers literal segments regardless
+// of registration order, but being explicit avoids any ambiguity across .NET versions.
+app.MapGet("/api/products/{slug}", async (
+    string slug,
+    HttpContext context,
+    ProductDbContext db,
+    ProductEventPublisher eventPublisher) =>
+{
+    var requestedProductId = Guid.TryParse(slug, out var parsedProductId) ? parsedProductId : Guid.Empty;
+    var product = await db.Products
+        .AsNoTracking()
+        .Where(p => p.Status == Vitrin.Product.Domain.Entities.ProductStatus.Published &&
+            (p.Slug == slug || (requestedProductId != Guid.Empty && p.Id == requestedProductId)))
+        .ProjectToResponse()
+        .FirstOrDefaultAsync();
+
+    if (product == null) return Results.NotFound();
+
+    eventPublisher.EnqueueProductViewed(
+        product.Id,
+        product.Slug,
+        context.User.GetUserId(),
+        context.Connection.RemoteIpAddress?.ToString(),
+        context.Request.Headers.UserAgent.ToString(),
+        context.Request.Headers.Referer.ToString());
+    await db.SaveChangesAsync(context.RequestAborted);
+
+    return Results.Ok(product with { TrendScore = CalculateTrendScore(product, DateTime.UtcNow) });
+})
+.WithName("GetProductBySlug")
+.WithOpenApi();
 
 app.MapGet("/api/products/maker/{makerId}", async (Guid makerId, ProductDbContext db) =>
 {

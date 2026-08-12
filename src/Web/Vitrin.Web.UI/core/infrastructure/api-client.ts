@@ -1,8 +1,9 @@
 import axios from 'axios';
+import { getApiUrl } from '@/lib/api-url';
 
 // YARP Gateway is running on Port 5000
 const apiClient = axios.create({
-  baseURL: `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000'}/api`,
+  baseURL: `${getApiUrl() || 'http://localhost:5000'}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
