@@ -6,7 +6,12 @@ import { CursorPage, Product, ProductApiModel, Topic } from "@/core/domain/produ
 import { Loader2, Hash } from "lucide-react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { getApiUrl } from "@/lib/api-url";
+
+// Production'da NEXT_PUBLIC_API_URL boş string olarak gelir
+const getApiUrl = () => {
+  const env = process.env.NEXT_PUBLIC_API_URL;
+  return (!env || env === '') ? '' : env;
+};
 
 export default function TopicPage() {
   const params = useParams();

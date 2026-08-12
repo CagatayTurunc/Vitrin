@@ -10,9 +10,8 @@ import { Input } from '@/components/ui/input'
 import { CorrectionRequestDialog } from '@/components/compare/correction-request-dialog'
 import type { ProductApiModel } from '@/core/domain/product.types'
 import { cn } from '@/lib/utils'
-import { getApiUrl } from '@/lib/api-url'
 
-const apiUrl = getApiUrl() || 'http://localhost:5000'
+const apiUrl = '/api'
 
 interface CompareResponse {
   items: ProductApiModel[]
