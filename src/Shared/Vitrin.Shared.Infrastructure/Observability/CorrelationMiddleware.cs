@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Builder;
 using System.Diagnostics;
 
 namespace Vitrin.Shared.Infrastructure.Observability;
