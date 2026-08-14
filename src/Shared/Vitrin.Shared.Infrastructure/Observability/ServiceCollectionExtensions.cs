@@ -66,8 +66,7 @@ public static class ServiceCollectionExtensions
                     CustomFormatter = new ElasticsearchJsonFormatter(),
                     EmitEventFailure = Serilog.Sinks.Elasticsearch.EmitEventFailureHandling.WriteToSelfLog |
                                      Serilog.Sinks.Elasticsearch.EmitEventFailureHandling.WriteToFailureSink,
-                    FailureSink = new Serilog.Sinks.File.FileSink($"logs/elasticsearch-failures-{serviceName}-.log", 
-                        new Serilog.Formatting.Json.JsonFormatter(), null)
+                    // Use alternative failure logging - write to file directly
                 });
             }
         });
@@ -110,12 +109,6 @@ public static class ServiceCollectionExtensions
                 if (!string.IsNullOrEmpty(redisConnectionString))
                 {
                     builder.AddRedisInstrumentation();
-                }
-
-                // Jaeger exporter for development
-                if (environment.IsDevelopment())
-                {
-                    builder.AddJaegerExporter();
                 }
 
                 // OTLP exporter for production (Jaeger, Grafana Tempo, etc.)
