@@ -1,0 +1,161 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Vitrin - Business Metrics",
+    "tags": ["vitrin", "business", "kpi"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Daily User Registrations",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "increase(vitrin_user_registrations_total[24h])",
+            "legendFormat": "New Users (24h)"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Count"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Product Submissions",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(vitrin_product_submissions_total[1h])",
+            "legendFormat": "Products/hour"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Submissions/hour"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Voting Activity",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(vitrin_votes_total[5m])) by (vote_type)",
+            "legendFormat": "{{vote_type}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Votes/sec"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 4,
+        "title": "Active Users",
+        "type": "singlestat",
+        "targets": [
+          {
+            "expr": "vitrin_active_users",
+            "legendFormat": "Current Active"
+          }
+        ],
+        "valueName": "current",
+        "colorBackground": true,
+        "thresholds": [
+          {
+            "value": 0,
+            "color": "red"
+          },
+          {
+            "value": 100,
+            "color": "yellow"
+          },
+          {
+            "value": 500,
+            "color": "green"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 12,
+          "y": 8
+        }
+      },
+      {
+        "id": 5,
+        "title": "Authentication Success Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(vitrin_auth_attempts_total{success=\"true\"}[5m]) / rate(vitrin_auth_attempts_total[5m]) * 100",
+            "legendFormat": "Success Rate %"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Percentage",
+            "max": 100,
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        }
+      },
+      {
+        "id": 6,
+        "title": "Comments Per Hour",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(vitrin_comments_total[1h])",
+            "legendFormat": "Comments/hour"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Comments/hour"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        }
+      }
+    ],
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "refresh": "1m"
+  }
+}

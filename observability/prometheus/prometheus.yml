@@ -1,0 +1,79 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Prometheus kendisini scrape etmesi
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+
+  # Vitrin servisleri
+  - job_name: 'vitrin-auth'
+    static_configs:
+      - targets: ['vitrin-auth:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'vitrin-product'
+    static_configs:
+      - targets: ['vitrin-product:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'vitrin-voting'
+    static_configs:
+      - targets: ['vitrin-voting:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'vitrin-comment'
+    static_configs:
+      - targets: ['vitrin-comment:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'vitrin-notification'
+    static_configs:
+      - targets: ['vitrin-notification:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'vitrin-analytics'
+    static_configs:
+      - targets: ['vitrin-analytics:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'vitrin-ai'
+    static_configs:
+      - targets: ['vitrin-ai:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'vitrin-gateway'
+    static_configs:
+      - targets: ['vitrin-gateway:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Altyapı servisleri
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 30s
+
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s
+
+  - job_name: 'kafka-exporter'
+    static_configs:
+      - targets: ['kafka-exporter:9308']
+    scrape_interval: 30s

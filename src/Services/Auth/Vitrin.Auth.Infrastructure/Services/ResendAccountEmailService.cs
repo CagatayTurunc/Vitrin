@@ -20,15 +20,15 @@ public sealed class ResendAccountEmailService(
         var url = BuildAppUrl("/confirm-email", token);
         return SendAsync(
             user.Email,
-            "Vitrin e-posta adresini doğrula",
+            "🚀 Vitrin hesabını aktifleştir",
             EmailLayout(
                 user.FullName,
-                "E-posta adresini doğrula",
-                "Vitrin hesabını kullanmaya başlamak için e-posta adresini doğrula.",
-                "E-postamı doğrula",
+                "Hoş geldin! Hesabını aktifleştir",
+                "Vitrin topluluğuna katılmak için e-posta adresini doğrulaman gerekiyor. Tek tıkla aktifleştir!",
+                "✅ Hesabımı Aktifleştir",
                 url,
-                "Bu bağlantı 24 saat geçerlidir."),
-            $"Vitrin hesabını doğrulamak için bağlantıyı aç: {url}",
+                "Bu doğrulama bağlantısı 24 saat geçerlidir. Güvenlik için hemen aktifleştirmenizi öneriyoruz."),
+            $"Vitrin hesabını aktifleştirmek için bu linke tıkla: {url} Bu bağlantı 24 saat geçerlidir.",
             url,
             cancellationToken);
     }
@@ -38,15 +38,15 @@ public sealed class ResendAccountEmailService(
         var url = BuildAppUrl("/reset-password", token);
         return SendAsync(
             user.Email,
-            "Vitrin şifreni yenile",
+            "🔑 Vitrin şifreni yenile",
             EmailLayout(
                 user.FullName,
-                "Şifreni yenile",
-                "Vitrin hesabın için bir şifre yenileme isteği aldık.",
-                "Yeni şifre belirle",
+                "Şifre yenileme isteği",
+                "Vitrin hesabın için şifre yenileme isteği aldık. Güvenli bir şekilde yeni şifre belirleyebilirsin.",
+                "🔒 Yeni Şifre Belirle",
                 url,
-                "Bu bağlantı 1 saat geçerlidir. İsteği sen yapmadıysan bu e-postayı yok sayabilirsin."),
-            $"Vitrin şifreni yenilemek için bağlantıyı aç: {url}",
+                "Bu şifre yenileme bağlantısı 1 saat geçerlidir. İsteği sen yapmadıysan bu e-postayı güvenle silebilirsin."),
+            $"Vitrin şifreni yenilemek için bu linke tıkla: {url} Bu bağlantı 1 saat geçerlidir. İsteği sen yapmadıysan bu maili sil.",
             url,
             cancellationToken);
     }

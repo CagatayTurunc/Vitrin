@@ -8,12 +8,28 @@ using Vitrin.Shared.Infrastructure.Api;
 using Vitrin.Shared.Infrastructure.Audit;
 using Vitrin.Shared.Infrastructure.Auth;
 using Vitrin.Shared.Infrastructure.Migrations;
+// Observability imports
+using Vitrin.Shared.Infrastructure.Observability;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// *** OBSERVABILITY CONFIGURATION ***
+// Serilog ve OpenTelemetry entegrasyonunu ekle
+builder.Services.AddVitrinObservability(
+    builder.Configuration, 
+    builder.Environment, 
+    "Auth");
+
+// Business metrics collector'ı ekle
+builder.Services.AddSingleton<MetricsCollector>(provider => 
+    new MetricsCollector("Auth", provider.GetRequiredService<ILogger<MetricsCollector>>()));
+
+// Enhanced health checks
+builder.Services.AddVitrinHealthChecks(builder.Configuration);
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddHealthChecks();
 builder.Services.AddVitrinApiErrors();
 builder.Services.AddVitrinAuditLogging();
 
@@ -23,6 +39,13 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
+
+// *** OBSERVABILITY MIDDLEWARE ***
+// Correlation middleware'i en başta ekle
+app.UseVitrinCorrelation();
+
+// Prometheus metrics endpoint'i ekle
+app.UseOpenTelemetryPrometheusScrapingEndpoint();
 
 app.UseVitrinApiErrors();
 
