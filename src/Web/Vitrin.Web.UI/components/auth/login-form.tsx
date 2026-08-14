@@ -5,13 +5,20 @@ import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getErrorMessage } from "@/lib/errors";
 import Link from "next/link";
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, Shield } from "lucide-react";
 
+const ERROR_MESSAGES: Record<string, string> = {
+  CredentialsSignin: "Giriş bilgileri hatalı. E-posta ve şifrenizi kontrol edin.",
+  OAuthAccountNotLinked: "Bu hesap daha önce farklı bir yöntemle kaydolmuş. Lütfen orijinal giriş yönteminizi kullanın.",
+  default: "Giriş yapılırken bir hata oluştu."
+};
+
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,7 +32,13 @@ export function LoginForm() {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    
+    // URL'den error parametresini oku
+    const urlError = searchParams.get("error");
+    if (urlError) {
+      setError(ERROR_MESSAGES[urlError] || ERROR_MESSAGES.default);
+    }
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
