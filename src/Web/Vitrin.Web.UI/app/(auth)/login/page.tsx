@@ -1,4 +1,5 @@
-import { Metadata, Suspense } from "next";
+import { Metadata } from "next";
+import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/login-form";
 import { AuthBrandPanel } from "@/components/auth-brand-panel";
 
