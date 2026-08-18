@@ -20,9 +20,14 @@ function ConfirmationCard() {
   useEffect(() => {
     if (!token) return;
 
-    void fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/confirm-email`, {
+    // Next.js rewrites kullan - production'da /api/* otomatik yönlendiriliyor
+    const fullUrl = '/api/auth/confirm-email';
+
+    void fetch(fullUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({ token }),
     }).then(async (response) => {
       const data = await response.json() as { message?: string; detail?: string };

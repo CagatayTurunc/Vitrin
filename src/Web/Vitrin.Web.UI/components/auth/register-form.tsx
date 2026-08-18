@@ -59,9 +59,14 @@ export function RegisterForm() {
   const resendConfirmation = async () => {
     setResendStatus("Gönderiliyor...");
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/resend-confirmation`, {
+      // Next.js rewrites kullan - production'da /api/* otomatik yönlendiriliyor
+      const fullUrl = '/api/auth/resend-confirmation';
+      
+      await fetch(fullUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({ email: formData.email }),
       });
       setResendStatus("Yeni doğrulama e-postası gönderildi.");
