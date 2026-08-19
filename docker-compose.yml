@@ -122,7 +122,7 @@ services:
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-VitrinGrafanaAdmin2024!}
       GF_INSTALL_PLUGINS: grafana-piechart-panel
     depends_on:
       prometheus:
