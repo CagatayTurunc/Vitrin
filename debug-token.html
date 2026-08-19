@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        textarea { width: 100%; min-height: 100px; margin: 10px 0; }
+        button { padding: 10px 20px; background: #007A52; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .result { background: #f5f5f5; padding: 10px; margin-top: 20px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>E-posta Token Debug</h1>
+    
+    <div>
+        <label>Token (URL'den kopyala):</label>
+        <textarea id="tokenInput" placeholder="Token'ı buraya yapıştır..."></textarea>
+        <button onclick="debugToken()">Token'ı Debug Et</button>
+        <button onclick="confirmEmail()">E-postayı Doğrula</button>
+        <button onclick="testCors()" style="background: #dc3545;">CORS Test</button>
+    </div>
+    
+    <div id="result" class="result" style="display: none;"></div>
+
+    <script>
+        async function debugToken() {
+            const token = document.getElementById('tokenInput').value.trim();
+            if (!token) {
+                alert('Token girin!');
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:5000/api/auth/debug-token', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Origin': 'http://localhost:3003'
+                    },
+                    body: JSON.stringify({ token })
+                });
+                
+                const data = await response.json();
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('result').innerHTML = `
+                    <h3>Debug Sonucu:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('result').innerHTML = `
+                    <h3>Hata:</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+
+        async function confirmEmail() {
+            const token = document.getElementById('tokenInput').value.trim();
+            if (!token) {
+                alert('Token girin!');
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:5000/api/auth/confirm-email', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Origin': 'http://localhost:3003'
+                    },
+                    body: JSON.stringify({ token })
+                });
+                
+                const data = await response.json();
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('result').innerHTML = `
+                    <h3>Doğrulama Sonucu:</h3>
+                    <p><strong>Durum:</strong> ${response.ok ? 'Başarılı ✅' : 'Başarısız ❌'}</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('result').innerHTML = `
+                    <h3>Hata:</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+
+        // HIZLI TEST - Gateway CORS durumunu kontrol et
+        async function testCors() {
+            try {
+                const response = await fetch('http://localhost:5000/health', {
+                    method: 'GET',
+                    headers: { 'Origin': 'http://localhost:3003' }
+                });
+                
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('result').innerHTML = `
+                    <h3>CORS Test:</h3>
+                    <p><strong>Gateway Health:</strong> ${response.ok ? 'OK ✅' : 'FAIL ❌'}</p>
+                    <p><strong>Response:</strong> ${await response.text()}</p>
+                `;
+            } catch (error) {
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('result').innerHTML = `
+                    <h3>CORS Test Hatası:</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
+</html>

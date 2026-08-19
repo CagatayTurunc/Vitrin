@@ -1,0 +1,262 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zookeeper
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: zookeeper
+    app.kubernetes.io/component: coordination
+    app.kubernetes.io/part-of: vitrin-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zookeeper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zookeeper
+        app.kubernetes.io/component: coordination
+        app.kubernetes.io/part-of: vitrin-platform
+    spec:
+      containers:
+      - name: zookeeper
+        image: confluentinc/cp-zookeeper:7.4.0
+        ports:
+        - containerPort: 2181
+          name: client
+        - containerPort: 2888
+          name: follower
+        - containerPort: 3888
+          name: leader
+        env:
+        - name: ZOOKEEPER_CLIENT_PORT
+          value: "2181"
+        - name: ZOOKEEPER_TICK_TIME
+          value: "2000"
+        - name: ZOOKEEPER_INIT_LIMIT
+          value: "10"
+        - name: ZOOKEEPER_SYNC_LIMIT
+          value: "5"
+        - name: ZOOKEEPER_MAX_CLIENT_CNXNS
+          value: "60"
+        - name: ZOOKEEPER_AUTOPURGE_SNAP_RETAIN_COUNT
+          value: "3"
+        - name: ZOOKEEPER_AUTOPURGE_PURGE_INTERVAL
+          value: "24"
+        volumeMounts:
+        - name: zookeeper-data
+          mountPath: /var/lib/zookeeper/data
+        - name: zookeeper-logs
+          mountPath: /var/lib/zookeeper/log
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          tcpSocket:
+            port: 2181
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command: ["/bin/bash", "-c", "echo ruok | nc localhost 2181 | grep imok"]
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: zookeeper-data
+        persistentVolumeClaim:
+          claimName: zookeeper-pvc
+      - name: zookeeper-logs
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper-service
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: zookeeper-service
+    app.kubernetes.io/component: coordination-service
+    app.kubernetes.io/part-of: vitrin-platform
+spec:
+  selector:
+    app.kubernetes.io/name: zookeeper
+  ports:
+  - name: client
+    port: 2181
+    targetPort: 2181
+  type: ClusterIP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/component: message-queue
+    app.kubernetes.io/part-of: vitrin-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka
+        app.kubernetes.io/component: message-queue
+        app.kubernetes.io/part-of: vitrin-platform
+    spec:
+      containers:
+      - name: kafka
+        image: confluentinc/cp-kafka:7.4.0
+        ports:
+        - containerPort: 9092
+          name: plaintext
+        - containerPort: 9093
+          name: ssl
+        env:
+        - name: KAFKA_BROKER_ID
+          value: "1"
+        - name: KAFKA_ZOOKEEPER_CONNECT
+          value: "zookeeper-service.vitrin.svc.cluster.local:2181"
+        - name: KAFKA_ADVERTISED_LISTENERS
+          value: "PLAINTEXT://kafka-service.vitrin.svc.cluster.local:9092"
+        - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+          value: "PLAINTEXT:PLAINTEXT"
+        - name: KAFKA_INTER_BROKER_LISTENER_NAME
+          value: "PLAINTEXT"
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+          value: "1"
+        - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+          value: "0"
+        - name: KAFKA_JMX_PORT
+          value: "9999"
+        - name: KAFKA_JMX_HOSTNAME
+          value: "kafka-service.vitrin.svc.cluster.local"
+        - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+          value: "true"
+        - name: KAFKA_NUM_PARTITIONS
+          value: "3"
+        - name: KAFKA_DEFAULT_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_LOG_RETENTION_HOURS
+          value: "168"
+        - name: KAFKA_LOG_RETENTION_BYTES
+          value: "1073741824"
+        - name: KAFKA_LOG_SEGMENT_BYTES
+          value: "1073741824"
+        - name: KAFKA_MESSAGE_MAX_BYTES
+          value: "1000000"
+        volumeMounts:
+        - name: kafka-data
+          mountPath: /var/lib/kafka/data
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        livenessProbe:
+          tcpSocket:
+            port: 9092
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 9092
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: kafka-data
+        persistentVolumeClaim:
+          claimName: kafka-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-service
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: kafka-service
+    app.kubernetes.io/component: message-queue-service
+    app.kubernetes.io/part-of: vitrin-platform
+spec:
+  selector:
+    app.kubernetes.io/name: kafka
+  ports:
+  - name: plaintext
+    port: 9092
+    targetPort: 9092
+  - name: jmx
+    port: 9999
+    targetPort: 9999
+  type: ClusterIP
+
+---
+# Kafka Topic Initializer Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-topics-init
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: kafka-topics-init
+    app.kubernetes.io/component: message-queue-init
+    app.kubernetes.io/part-of: vitrin-platform
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka-topics-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: kafka-topics
+        image: confluentinc/cp-kafka:7.4.0
+        command:
+        - /bin/bash
+        - -c
+        - |
+          # Wait for Kafka to be ready
+          until kafka-topics --bootstrap-server kafka-service:9092 --list; do
+            echo "Waiting for Kafka to be ready..."
+            sleep 5
+          done
+          
+          # Create Vitrin topics
+          kafka-topics --bootstrap-server kafka-service:9092 --create --if-not-exists \
+            --topic vitrin.user.events --partitions 3 --replication-factor 1
+            
+          kafka-topics --bootstrap-server kafka-service:9092 --create --if-not-exists \
+            --topic vitrin.product.events --partitions 3 --replication-factor 1
+            
+          kafka-topics --bootstrap-server kafka-service:9092 --create --if-not-exists \
+            --topic vitrin.vote.events --partitions 3 --replication-factor 1
+            
+          kafka-topics --bootstrap-server kafka-service:9092 --create --if-not-exists \
+            --topic vitrin.comment.events --partitions 3 --replication-factor 1
+            
+          kafka-topics --bootstrap-server kafka-service:9092 --create --if-not-exists \
+            --topic vitrin.notification.events --partitions 3 --replication-factor 1
+            
+          kafka-topics --bootstrap-server kafka-service:9092 --create --if-not-exists \
+            --topic vitrin.analytics.events --partitions 3 --replication-factor 1
+            
+          kafka-topics --bootstrap-server kafka-service:9092 --create --if-not-exists \
+            --topic vitrin.ai.events --partitions 3 --replication-factor 1
+          
+          echo "All Vitrin topics created successfully!"

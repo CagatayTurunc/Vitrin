@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vitrin-config
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: vitrin-config
+    app.kubernetes.io/component: configuration
+    app.kubernetes.io/part-of: vitrin-platform
+data:
+  # Database Configuration
+  ConnectionStrings__DefaultConnection: "Host=postgres-service.vitrin.svc.cluster.local;Port=5432;Database=vitrin_db;Username=postgres"
+  ConnectionStrings__RedisConnection: "redis-service.vitrin.svc.cluster.local:6379"
+  
+  # Message Queue Configuration
+  Kafka__BootstrapServers: "kafka-service.vitrin.svc.cluster.local:9092"
+  Kafka__GroupId: "vitrin-consumer-group"
+  Kafka__AutoOffsetReset: "Earliest"
+  
+  # Application Settings
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_URLS: "http://+:8080"
+  
+  # Logging Configuration
+  Logging__LogLevel__Default: "Information"
+  Logging__LogLevel__Microsoft: "Warning"
+  Logging__LogLevel__Microsoft.Hosting.Lifetime: "Information"
+  
+  # Health Check Configuration
+  HealthChecks__TimeoutSeconds: "30"
+  HealthChecks__DetailedErrors: "false"
+  
+  # OpenTelemetry Configuration
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector.vitrin-monitoring.svc.cluster.local:14268"
+  OTEL_SERVICE_NAME: "vitrin-service"
+  OTEL_RESOURCE_ATTRIBUTES: "service.version=1.0.0,deployment.environment=production"
+  
+  # Service Discovery
+  Services__Auth__BaseUrl: "http://auth-service.vitrin.svc.cluster.local"
+  Services__Product__BaseUrl: "http://product-service.vitrin.svc.cluster.local"
+  Services__Voting__BaseUrl: "http://voting-service.vitrin.svc.cluster.local"
+  Services__Comment__BaseUrl: "http://comment-service.vitrin.svc.cluster.local"
+  Services__Notification__BaseUrl: "http://notification-service.vitrin.svc.cluster.local"
+  Services__Analytics__BaseUrl: "http://analytics-service.vitrin.svc.cluster.local"
+  Services__AI__BaseUrl: "http://ai-service.vitrin.svc.cluster.local"
+  
+  # Rate Limiting
+  RateLimiting__Global__Enabled: "true"
+  RateLimiting__Global__RequestsPerMinute: "1000"
+  RateLimiting__PerUser__Enabled: "true"
+  RateLimiting__PerUser__RequestsPerMinute: "100"
+  
+  # CORS Configuration
+  CORS__AllowedOrigins__0: "https://vitrin.com"
+  CORS__AllowedOrigins__1: "https://www.vitrin.com"
+  CORS__AllowCredentials: "true"
+  
+  # File Upload Configuration
+  FileUpload__MaxSize: "10485760"  # 10MB
+  FileUpload__AllowedExtensions: ".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx"
+  FileUpload__StoragePath: "/app/uploads"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vitrin-web-config
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: vitrin-web-config
+    app.kubernetes.io/component: web-configuration
+    app.kubernetes.io/part-of: vitrin-platform
+data:
+  # Next.js Environment Variables
+  NODE_ENV: "production"
+  NEXT_PUBLIC_API_URL: "https://api.vitrin.com"
+  NEXT_PUBLIC_SITE_URL: "https://vitrin.com"
+  NEXT_PUBLIC_SITE_NAME: "Vitrin - Ürün Keşif Platformu"
+  
+  # API Configuration
+  API_TIMEOUT: "30000"
+  API_RETRY_COUNT: "3"
+  
+  # Feature Flags
+  FEATURE_ANALYTICS: "true"
+  FEATURE_REAL_TIME_NOTIFICATIONS: "true"
+  FEATURE_AI_RECOMMENDATIONS: "true"
+  FEATURE_SOCIAL_LOGIN: "true"
+  
+  # Performance Configuration
+  NEXT_PUBLIC_GTM_ID: ""  # Google Tag Manager ID
+  NEXT_PUBLIC_SENTRY_DSN: ""  # Sentry DSN for error tracking
+  
+  # Cache Configuration
+  CACHE_TTL: "3600"  # 1 hour
+  STATIC_CACHE_TTL: "86400"  # 24 hours

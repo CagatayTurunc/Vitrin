@@ -1,0 +1,213 @@
+# Vitrin Production Alerting Rules
+# Professional alerting rules following SRE best practices
+
+groups:
+  - name: vitrin.golden_signals
+    interval: 30s
+    rules:
+      # RED Method - Rate
+      - alert: HighRequestRate
+        expr: sum(rate(http_requests_total{environment="production"}[5m])) > 1000
+        for: 2m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High request rate detected"
+          description: "Request rate is {{ $value }} req/s, above threshold of 1000 req/s"
+          
+      - alert: LowRequestRate
+        expr: sum(rate(http_requests_total{environment="production"}[5m])) < 10
+        for: 5m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Unusually low request rate"
+          description: "Request rate is {{ $value }} req/s, might indicate an issue"
+
+      # RED Method - Errors
+      - alert: HighErrorRate
+        expr: (sum(rate(http_requests_total{environment="production",status=~"4..|5.."}[5m])) / sum(rate(http_requests_total{environment="production"}[5m]))) * 100 > 5
+        for: 1m
+        labels:
+          severity: critical
+          category: reliability
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }}%, above threshold of 5%"
+          
+      - alert: HighClientErrorRate
+        expr: (sum(rate(http_requests_total{environment="production",status=~"4.."}[5m])) / sum(rate(http_requests_total{environment="production"}[5m]))) * 100 > 10
+        for: 2m
+        labels:
+          severity: warning
+          category: reliability
+        annotations:
+          summary: "High 4xx error rate"
+          description: "Client error rate is {{ $value }}%, above threshold of 10%"
+
+      # RED Method - Duration
+      - alert: HighLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{environment="production"}[5m])) by (le, service)) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High P95 latency detected"
+          description: "P95 latency for {{ $labels.service }} is {{ $value }}s, above threshold of 500ms"
+          
+      - alert: HighLatencyP99
+        expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{environment="production"}[5m])) by (le, service)) > 1
+        for: 2m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "Critical P99 latency detected"
+          description: "P99 latency for {{ $labels.service }} is {{ $value }}s, above threshold of 1s"
+
+  - name: vitrin.infrastructure
+    interval: 30s
+    rules:
+      # USE Method - Utilization
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total{environment="production"}[5m]) * 100 > 85
+        for: 3m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage for {{ $labels.service }} is {{ $value }}%, above threshold of 85%"
+          
+      - alert: CriticalCPUUsage
+        expr: rate(process_cpu_seconds_total{environment="production"}[5m]) * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+          category: resource
+        annotations:
+          summary: "Critical CPU usage"
+          description: "CPU usage for {{ $labels.service }} is {{ $value }}%, above critical threshold of 95%"
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{environment="production"} > 2147483648  # 2GB
+        for: 5m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage for {{ $labels.service }} is {{ $value | humanize1024 }}, above threshold of 2GB"
+
+      - alert: HighGCPressure
+        expr: rate(dotnet_gc_collection_seconds_total{environment="production"}[5m]) * 1000 > 100
+        for: 2m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High GC pressure detected"
+          description: ".NET GC duration for {{ $labels.service }} is {{ $value }}ms, indicating memory pressure"
+
+  - name: vitrin.dependencies
+    interval: 30s
+    rules:
+      # Database alerts
+      - alert: HighDatabaseConnections
+        expr: pg_stat_database_numbackends{environment="production"} / pg_settings_max_connections{environment="production"} * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "High database connection usage"
+          description: "Database {{ $labels.datname }} is using {{ $value }}% of available connections"
+          
+      - alert: CriticalDatabaseConnections
+        expr: pg_stat_database_numbackends{environment="production"} / pg_settings_max_connections{environment="production"} * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "Critical database connection usage"
+          description: "Database {{ $labels.datname }} is using {{ $value }}% of available connections, near exhaustion"
+
+      - alert: LowRedisCacheHitRate
+        expr: redis_keyspace_hits_total{environment="production"} / (redis_keyspace_hits_total{environment="production"} + redis_keyspace_misses_total{environment="production"}) * 100 < 80
+        for: 5m
+        labels:
+          severity: warning
+          category: cache
+        annotations:
+          summary: "Low Redis cache hit rate"
+          description: "Redis cache hit rate is {{ $value }}%, below optimal threshold of 80%"
+
+      - alert: HighMessageQueueDepth
+        expr: rabbitmq_queue_messages_ready{environment="production"} > 5000
+        for: 2m
+        labels:
+          severity: warning
+          category: messaging
+        annotations:
+          summary: "High message queue depth"
+          description: "Queue {{ $labels.queue }} has {{ $value }} ready messages, indicating processing delays"
+
+  - name: vitrin.availability
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        expr: up{environment="production"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Service is down"
+          description: "Service {{ $labels.service }} has been down for more than 30 seconds"
+          
+      - alert: ServiceFlapping
+        expr: changes(up{environment="production"}[5m]) > 3
+        for: 1m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Service is flapping"
+          description: "Service {{ $labels.service }} has restarted {{ $value }} times in the last 5 minutes"
+
+  - name: vitrin.business
+    interval: 1m
+    rules:
+      - alert: LowUserRegistrations
+        expr: increase(vitrin_user_registrations_total{environment="production"}[1h]) < 5
+        for: 2h
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Low user registration rate"
+          description: "Only {{ $value }} new user registrations in the last hour, below expected threshold"
+          
+      - alert: LowUserEngagement
+        expr: increase(vitrin_votes_total{environment="production"}[1h]) < 50
+        for: 1h
+        labels:
+          severity: info
+          category: business
+        annotations:
+          summary: "Low user engagement"
+          description: "Only {{ $value }} votes in the last hour, engagement might be declining"
+
+      - alert: NoRevenueGenerated
+        expr: increase(vitrin_revenue_total{environment="production"}[24h]) == 0
+        for: 12h
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "No revenue generated"
+          description: "No revenue has been generated in the last 24 hours"

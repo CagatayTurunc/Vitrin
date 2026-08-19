@@ -1,0 +1,446 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: vitrin-platform
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api-gateway
+        app.kubernetes.io/component: gateway
+        app.kubernetes.io/part-of: vitrin-platform
+        app.kubernetes.io/version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      imagePullSecrets:
+      - name: container-registry-secret
+      serviceAccountName: vitrin-service-account
+      containers:
+      - name: api-gateway
+        image: ghcr.io/YOUR_GITHUB_USERNAME/vitrin-gateway:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: vitrin-config
+              key: ASPNETCORE_ENVIRONMENT
+        - name: ASPNETCORE_URLS
+          valueFrom:
+            configMapKeyRef:
+              name: vitrin-config
+              key: ASPNETCORE_URLS
+        - name: Services__Auth__BaseUrl
+          valueFrom:
+            configMapKeyRef:
+              name: vitrin-config
+              key: Services__Auth__BaseUrl
+        - name: Services__Product__BaseUrl
+          valueFrom:
+            configMapKeyRef:
+              name: vitrin-config
+              key: Services__Product__BaseUrl
+        - name: Services__Voting__BaseUrl
+          valueFrom:
+            configMapKeyRef:
+              name: vitrin-config
+              key: Services__Voting__BaseUrl
+        - name: Services__Comment__BaseUrl
+          valueFrom:
+            configMapKeyRef:
+              name: vitrin-config
+              key: Services__Comment__BaseUrl
+        - name: Services__Notification__BaseUrl
+          valueFrom:
+            configMapKeyRef:
+              name: vitrin-config
+              key: Services__Notification__BaseUrl
+        - name: Services__Analytics__BaseUrl
+          valueFrom:
+            configMapKeyRef:
+              name: vitrin-config
+              key: Services__Analytics__BaseUrl
+        - name: Services__AI__BaseUrl
+          valueFrom:
+            configMapKeyRef:
+              name: vitrin-config
+              key: Services__AI__BaseUrl
+        - name: ConnectionStrings__RedisConnection
+          valueFrom:
+            configMapKeyRef:
+              name: vitrin-config
+              key: ConnectionStrings__RedisConnection
+        - name: RateLimiting__Global__Enabled
+          valueFrom:
+            configMapKeyRef:
+              name: vitrin-config
+              key: RateLimiting__Global__Enabled
+        - name: RateLimiting__Global__RequestsPerMinute
+          valueFrom:
+            configMapKeyRef:
+              name: vitrin-config
+              key: RateLimiting__Global__RequestsPerMinute
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: vitrin-config
+              key: OTEL_EXPORTER_OTLP_ENDPOINT
+        - name: OTEL_SERVICE_NAME
+          value: "vitrin-api-gateway"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 10
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway-service
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: api-gateway-service
+    app.kubernetes.io/component: gateway-service
+    app.kubernetes.io/part-of: vitrin-platform
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  selector:
+    app.kubernetes.io/name: api-gateway
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vitrin-api-ingress
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: vitrin-api-ingress
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: vitrin-platform
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/rate-limit: "1000"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://vitrin.com,https://www.vitrin.com"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+    # SSL/TLS Configuration (uncomment when domain is ready)
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  # TLS Configuration (uncomment when domain is ready)
+  # tls:
+  # - hosts:
+  #   - api.vitrin.com
+  #   secretName: vitrin-api-tls
+  rules:
+  # Production domain (uncomment when ready)
+  # - host: api.vitrin.com
+  #   http:
+  #     paths:
+  #     - path: /api(/|$)(.*)
+  #       pathType: Prefix
+  #       backend:
+  #         service:
+  #           name: api-gateway-service
+  #           port:
+  #             number: 80
+  
+  # Development/Local access (remove in production)
+  - http:
+      paths:
+      - path: /api(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway-service
+            port:
+              number: 80
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway-hpa
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: api-gateway-hpa
+    app.kubernetes.io/component: autoscaler
+    app.kubernetes.io/part-of: vitrin-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: api-gateway-pdb
+    app.kubernetes.io/component: disruption-budget
+    app.kubernetes.io/part-of: vitrin-platform
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  minAvailable: 1
+
+---
+# YARP Configuration ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: yarp-config
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: yarp-config
+    app.kubernetes.io/component: gateway-config
+    app.kubernetes.io/part-of: vitrin-platform
+data:
+  appsettings.Production.json: |
+    {
+      "ReverseProxy": {
+        "Routes": {
+          "auth-route": {
+            "ClusterId": "auth-cluster",
+            "Match": {
+              "Path": "/api/auth/{**catch-all}"
+            },
+            "Transforms": [
+              { "PathPattern": "/api/auth/{**catch-all}" }
+            ]
+          },
+          "product-route": {
+            "ClusterId": "product-cluster", 
+            "Match": {
+              "Path": "/api/products/{**catch-all}"
+            },
+            "Transforms": [
+              { "PathPattern": "/api/products/{**catch-all}" }
+            ]
+          },
+          "voting-route": {
+            "ClusterId": "voting-cluster",
+            "Match": {
+              "Path": "/api/votes/{**catch-all}"
+            },
+            "Transforms": [
+              { "PathPattern": "/api/votes/{**catch-all}" }
+            ]
+          },
+          "comment-route": {
+            "ClusterId": "comment-cluster",
+            "Match": {
+              "Path": "/api/comments/{**catch-all}"
+            },
+            "Transforms": [
+              { "PathPattern": "/api/comments/{**catch-all}" }
+            ]
+          },
+          "notification-route": {
+            "ClusterId": "notification-cluster",
+            "Match": {
+              "Path": "/api/notifications/{**catch-all}"
+            },
+            "Transforms": [
+              { "PathPattern": "/api/notifications/{**catch-all}" }
+            ]
+          },
+          "analytics-route": {
+            "ClusterId": "analytics-cluster",
+            "Match": {
+              "Path": "/api/analytics/{**catch-all}"
+            },
+            "Transforms": [
+              { "PathPattern": "/api/analytics/{**catch-all}" }
+            ]
+          },
+          "ai-route": {
+            "ClusterId": "ai-cluster",
+            "Match": {
+              "Path": "/api/ai/{**catch-all}"
+            },
+            "Transforms": [
+              { "PathPattern": "/api/ai/{**catch-all}" }
+            ]
+          }
+        },
+        "Clusters": {
+          "auth-cluster": {
+            "Destinations": {
+              "auth-service": {
+                "Address": "http://auth-service.vitrin.svc.cluster.local"
+              }
+            },
+            "HealthCheck": {
+              "Active": {
+                "Enabled": true,
+                "Interval": "00:00:30",
+                "Timeout": "00:00:05",
+                "Policy": "ConsecutiveFailures",
+                "Path": "/health"
+              }
+            }
+          },
+          "product-cluster": {
+            "Destinations": {
+              "product-service": {
+                "Address": "http://product-service.vitrin.svc.cluster.local"
+              }
+            },
+            "HealthCheck": {
+              "Active": {
+                "Enabled": true,
+                "Interval": "00:00:30",
+                "Timeout": "00:00:05",
+                "Policy": "ConsecutiveFailures",
+                "Path": "/health"
+              }
+            }
+          },
+          "voting-cluster": {
+            "Destinations": {
+              "voting-service": {
+                "Address": "http://voting-service.vitrin.svc.cluster.local"
+              }
+            }
+          },
+          "comment-cluster": {
+            "Destinations": {
+              "comment-service": {
+                "Address": "http://comment-service.vitrin.svc.cluster.local"
+              }
+            }
+          },
+          "notification-cluster": {
+            "Destinations": {
+              "notification-service": {
+                "Address": "http://notification-service.vitrin.svc.cluster.local"
+              }
+            }
+          },
+          "analytics-cluster": {
+            "Destinations": {
+              "analytics-service": {
+                "Address": "http://analytics-service.vitrin.svc.cluster.local"
+              }
+            }
+          },
+          "ai-cluster": {
+            "Destinations": {
+              "ai-service": {
+                "Address": "http://ai-service.vitrin.svc.cluster.local"
+              }
+            }
+          }
+        }
+      }
+    }

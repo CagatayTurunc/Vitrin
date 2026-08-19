@@ -1,0 +1,171 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "vitrin-prod-simple",
+    "title": "🚀 Vitrin Production Dashboard",
+    "description": "Production monitoring for Vitrin microservices",
+    "tags": ["vitrin", "production", "monitoring"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "🚦 Service Health Status",
+        "type": "stat",
+        "gridPos": {
+          "h": 6,
+          "w": 6,
+          "x": 0,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "up{job=~\"vitrin.*\"}",
+            "refId": "A",
+            "legendFormat": "{{job}}",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [
+              {
+                "options": {
+                  "0": { "text": "DOWN", "color": "red" },
+                  "1": { "text": "UP", "color": "green" }
+                },
+                "type": "value"
+              }
+            ],
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "green", "value": 1 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "📊 HTTP Requests/sec",
+        "type": "graph",
+        "gridPos": {
+          "h": 6,
+          "w": 9,
+          "x": 6,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "rate(microsoft_aspnetcore_hosting_total_requests[5m])",
+            "refId": "A",
+            "legendFormat": "{{job}} - RPS",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            }
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "⚡ Response Time (P95)",
+        "type": "graph",
+        "gridPos": {
+          "h": 6,
+          "w": 9,
+          "x": 15,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(microsoft_aspnetcore_hosting_http_server_request_duration_bucket[5m]))",
+            "refId": "A",
+            "legendFormat": "{{job}} - P95",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            }
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "🔥 Active Connections",
+        "type": "graph",
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 0,
+          "y": 6
+        },
+        "targets": [
+          {
+            "expr": "microsoft_aspnetcore_hosting_current_requests",
+            "refId": "A",
+            "legendFormat": "{{job}} - Active",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            }
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "💾 Memory Usage",
+        "type": "graph",
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 8,
+          "y": 6
+        },
+        "targets": [
+          {
+            "expr": "process_working_set_bytes / 1024 / 1024",
+            "refId": "A",
+            "legendFormat": "{{job}} - Memory (MB)",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            }
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "🗄️ Database Connections",
+        "type": "graph",
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 16,
+          "y": 6
+        },
+        "targets": [
+          {
+            "expr": "pg_stat_database_numbackends{datname=\"vitrin_auth\"} or pg_stat_database_numbackends{datname=\"vitrin_product\"} or pg_stat_database_numbackends{datname=\"vitrin_comment\"}",
+            "refId": "A",
+            "legendFormat": "{{datname}} - Connections",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            }
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-15m",
+      "to": "now"
+    },
+    "refresh": "10s"
+  }
+}

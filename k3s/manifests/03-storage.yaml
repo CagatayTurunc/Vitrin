@@ -1,0 +1,110 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: vitrin-fast-ssd
+  labels:
+    app.kubernetes.io/name: vitrin-storage
+    app.kubernetes.io/component: storage-class
+    app.kubernetes.io/part-of: vitrin-platform
+provisioner: rancher.io/local-path
+parameters:
+  volumeType: "local"
+  fsType: "ext4"
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# PostgreSQL Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: postgres-storage
+    app.kubernetes.io/component: database-storage
+    app.kubernetes.io/part-of: vitrin-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: vitrin-fast-ssd
+  resources:
+    requests:
+      storage: 20Gi
+
+---
+# Redis Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: redis-storage
+    app.kubernetes.io/component: cache-storage
+    app.kubernetes.io/part-of: vitrin-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: vitrin-fast-ssd
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# Kafka Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-pvc
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: kafka-storage
+    app.kubernetes.io/component: message-queue-storage
+    app.kubernetes.io/part-of: vitrin-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: vitrin-fast-ssd
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# Zookeeper Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zookeeper-pvc
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: zookeeper-storage
+    app.kubernetes.io/component: coordination-storage
+    app.kubernetes.io/part-of: vitrin-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: vitrin-fast-ssd
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+# File Upload Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: file-uploads-pvc
+  namespace: vitrin
+  labels:
+    app.kubernetes.io/name: file-storage
+    app.kubernetes.io/component: upload-storage
+    app.kubernetes.io/part-of: vitrin-platform
+spec:
+  accessModes:
+    - ReadWriteMany  # Shared across multiple pods
+  storageClassName: vitrin-fast-ssd
+  resources:
+    requests:
+      storage: 50Gi

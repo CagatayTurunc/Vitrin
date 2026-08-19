@@ -1,0 +1,66 @@
+# Prometheus Configuration
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Alerting rules
+rule_files:
+  - "vitrin-alerting-rules.yml"
+
+# Alert Manager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus'un kendi metrics'leri
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Vitrin Web API metrics
+  - job_name: 'vitrin-web-api'
+    static_configs:
+      - targets: ['localhost:5000']  # API port'unuz
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['localhost:5000']
+        labels:
+          environment: 'production'
+          service: 'vitrin-web-api'
+
+  # Vitrin Web UI metrics (eğer varsa)
+  - job_name: 'vitrin-web-ui'
+    static_configs:
+      - targets: ['localhost:3000']  # UI port'unuz
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['localhost:3000']
+        labels:
+          environment: 'production'
+          service: 'vitrin-web-ui'
+
+  # PostgreSQL metrics (postgres_exporter gerekli)
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['localhost:9187']
+    static_configs:
+      - targets: ['localhost:9187']
+        labels:
+          environment: 'production'
+          service: 'postgresql'
+
+  # Redis metrics (redis_exporter gerekli)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['localhost:9121']
+    static_configs:
+      - targets: ['localhost:9121']
+        labels:
+          environment: 'production'
+          service: 'redis'

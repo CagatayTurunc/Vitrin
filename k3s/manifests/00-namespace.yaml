@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vitrin
+  labels:
+    name: vitrin
+    app.kubernetes.io/name: vitrin
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: namespace
+    app.kubernetes.io/part-of: vitrin-platform
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vitrin-monitoring
+  labels:
+    name: vitrin-monitoring
+    app.kubernetes.io/name: vitrin-monitoring
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: vitrin-platform

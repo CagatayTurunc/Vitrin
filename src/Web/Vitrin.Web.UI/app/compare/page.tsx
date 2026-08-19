@@ -100,6 +100,136 @@ function CompareContent() {
             </Button>
           </div>
         </div>
+        
+        {/* 3D İzometrik Animasyon - Ürün Para Çevirme Makinesi */}
+        <div className="absolute right-4 top-4 hidden lg:block pointer-events-none overflow-visible">
+          <div className="relative w-80 h-80">
+            
+            {/* Ana Platform - İzometrik Grid */}
+            <div className="absolute inset-0 opacity-20">
+              <div className="w-full h-full bg-gradient-to-br from-primary/10 to-purple-500/10 rounded-3xl transform rotate-12 scale-75"></div>
+            </div>
+            
+            {/* Yukarıdan Düşen Ürünler - Animasyonlu */}
+            <div className="absolute -top-20 left-20 w-8 h-8">
+              <div className="animate-product-drop-1">
+                <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-blue-600 rounded-md shadow-lg flex items-center justify-center">
+                  <Eye className="w-3 h-3 text-white" />
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute -top-16 left-28 w-8 h-8">
+              <div className="animate-product-drop-2">
+                <div className="w-6 h-6 bg-gradient-to-br from-green-400 to-green-600 rounded-md shadow-lg flex items-center justify-center">
+                  <Trophy className="w-3 h-3 text-white" />
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute -top-24 left-24 w-8 h-8">
+              <div className="animate-product-drop-3">
+                <div className="w-6 h-6 bg-gradient-to-br from-purple-400 to-purple-600 rounded-md shadow-lg flex items-center justify-center">
+                  <MessageCircle className="w-3 h-3 text-white" />
+                </div>
+              </div>
+            </div>
+
+            {/* Çevirici Makine - Ana Platform */}
+            <div className="animate-float-slow absolute top-32 left-24 transform-gpu">
+              <div className="relative">
+                {/* Makine gövdesi */}
+                <div className="w-24 h-16 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-2xl shadow-2xl border-2 border-gray-300 dark:border-gray-600">
+                  {/* İç mekanizma */}
+                  <div className="absolute inset-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 rounded-xl">
+                    {/* Dönen çarklar */}
+                    <div className="absolute top-1 left-2 w-3 h-3 bg-gray-400 rounded-full animate-spin-slow"></div>
+                    <div className="absolute top-1 right-2 w-3 h-3 bg-gray-400 rounded-full animate-spin-slow"></div>
+                    {/* Işık çizgileri */}
+                    <div className="absolute inset-x-2 top-1/2 h-0.5 bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse"></div>
+                  </div>
+                </div>
+                
+                {/* Makine üst kapağı */}
+                <div className="absolute -top-3 inset-x-0 w-24 h-8 bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-600 dark:to-gray-700 rounded-2xl shadow-lg border-2 border-gray-300 dark:border-gray-500">
+                  {/* Giriş hunisi */}
+                  <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-6 h-4 bg-gradient-to-b from-gray-300 to-gray-400 dark:from-gray-500 dark:to-gray-600 rounded-t-lg"></div>
+                </div>
+                
+                {/* Çıkış hunisi */}
+                <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-8 h-6 bg-gradient-to-b from-yellow-400 to-yellow-600 rounded-b-xl shadow-lg">
+                  <div className="absolute inset-1 bg-gradient-to-b from-yellow-300 to-yellow-500 rounded-b-lg"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Çıkan Paralar - Animasyonlu */}
+            <div className="absolute top-52 left-28">
+              <div className="animate-coin-output-1">
+                <div className="w-4 h-4 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full shadow-lg flex items-center justify-center">
+                  <DollarSign className="w-2 h-2 text-white" />
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute top-54 left-26">
+              <div className="animate-coin-output-2">
+                <div className="w-4 h-4 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full shadow-lg flex items-center justify-center">
+                  <DollarSign className="w-2 h-2 text-white" />
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute top-56 left-30">
+              <div className="animate-coin-output-3">
+                <div className="w-4 h-4 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full shadow-lg flex items-center justify-center">
+                  <DollarSign className="w-2 h-2 text-white" />
+                </div>
+              </div>
+            </div>
+
+            {/* Şeffaf İstatistik Kartları */}
+            <div className="animate-float absolute top-8 right-8 transform-gpu">
+              <div className="w-20 h-24 bg-white/80 dark:bg-card/80 backdrop-blur-sm rounded-xl border border-white/50 shadow-xl transform rotate-12 perspective-1000">
+                <div className="p-3 space-y-2">
+                  <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></div>
+                  <div className="space-y-1">
+                    <div className="h-1 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                    <div className="h-1 bg-gray-200 dark:bg-gray-700 rounded w-3/4 animate-pulse delay-150"></div>
+                  </div>
+                  <div className="flex justify-between items-center pt-2">
+                    <Eye className="w-3 h-3 text-blue-500" />
+                    <span className="text-xs font-bold text-primary">1.2k</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Yan kart - Karşılaştırma */}
+            <div className="animate-float-delayed absolute top-4 left-4 transform-gpu">
+              <div className="w-16 h-20 bg-white/70 dark:bg-card/70 backdrop-blur-sm rounded-lg border border-white/40 shadow-lg transform -rotate-12">
+                <div className="p-2 text-center">
+                  <GitCompareArrows className="w-4 h-4 mx-auto text-primary mb-1" />
+                  <div className="text-xs font-bold text-muted-foreground">VS</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Işık Efektleri ve Parçacıklar */}
+            <div className="absolute top-0 right-12 w-32 h-32 bg-gradient-radial from-primary/20 to-transparent rounded-full animate-pulse"></div>
+            <div className="absolute bottom-8 left-8 w-24 h-24 bg-gradient-radial from-yellow-500/15 to-transparent rounded-full animate-pulse delay-1000"></div>
+
+            {/* Sihirli Işık Çizgileri */}
+            <div className="absolute top-28 left-16 w-12 h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent animate-magic-beam"></div>
+            <div className="absolute top-36 left-18 w-16 h-0.5 bg-gradient-to-r from-transparent via-purple-400 to-transparent animate-magic-beam delay-500"></div>
+
+            {/* Floating Parçacıklar */}
+            <div className="absolute top-6 left-12 w-2 h-2 bg-primary/40 rounded-full animate-ping"></div>
+            <div className="absolute top-20 right-6 w-1.5 h-1.5 bg-purple-500/50 rounded-full animate-bounce delay-500"></div>
+            <div className="absolute bottom-12 left-16 w-1 h-1 bg-yellow-500/60 rounded-full animate-pulse delay-700"></div>
+            
+          </div>
+        </div>
       </section>
 
       {ids.length < 4 && (

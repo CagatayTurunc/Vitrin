@@ -1,0 +1,29 @@
+{
+  "dashboard": {
+    "title": "Vitrin Test Dashboard",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Test Panel",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "prometheus_build_info",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      }
+    ],
+    "time": {
+      "from": "now-5m",
+      "to": "now"
+    },
+    "refresh": "5s"
+  }
+}

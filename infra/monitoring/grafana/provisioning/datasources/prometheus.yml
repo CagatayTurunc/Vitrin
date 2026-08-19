@@ -1,0 +1,21 @@
+# Prometheus Datasource Provisioning
+# Bu dosya Grafana container'ı başladığında otomatik olarak Prometheus datasource'unu ekler
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://vitrin-prometheus-new:9090
+    uid: PROMETHEUS_UID
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: GET
+      manageAlerts: true
+      prometheusType: Prometheus
+      prometheusVersion: 2.48.0
+      cacheLevel: 'High'
+      disableRecordingRules: false
+      incrementalQueryOverlapWindow: 10m

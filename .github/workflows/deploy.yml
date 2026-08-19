@@ -102,15 +102,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy via SSH
+      - name: Deploy via SSH (Fast)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 300s
-          command_timeout: 300s
-          envs: ENV_FILE,CERTBOT_EMAIL
+          timeout: 180s
+          command_timeout: 180s
           script: |
             set -e
             cd /home/ec2-user/vitrin
@@ -118,84 +117,17 @@ jobs:
             # GHCR login
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # .env dosyasini yaz
-            printf '%s' "$ENV_FILE" > .env
+            # Hızlı deployment - SSL kontrolü atlanıyor
+            echo ">>> Hızlı deployment başlatılıyor..."
             
-            # Production domain ayarlarini yap
-            sed -i 's|NEXTAUTH_URL=.*|NEXTAUTH_URL=https://vitrin.it.com|g' .env
-            sed -i 's|EMAIL_APP_BASE_URL=.*|EMAIL_APP_BASE_URL=https://vitrin.it.com|g' .env
+            # Images çek ve servisleri güncelle
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
 
-            # data ve nginx klasorlerini olustur
-            mkdir -p data/voting data/notification data/analytics data/ai
-
-            # SSL sertifikasi daha once alinmis mi?
-            if docker volume inspect vitrin_certbot_ssl > /dev/null 2>&1 && \
-               docker run --rm -v vitrin_certbot_ssl:/etc/letsencrypt alpine \
-               test -f /etc/letsencrypt/live/vitrin.it.com/fullchain.pem > /dev/null 2>&1; then
-              SSL_EXISTS="1"
-            else
-              SSL_EXISTS="0"
-            fi
-
-            if [ "$SSL_EXISTS" -eq "0" ]; then
-              echo ">>> SSL yok - HTTP moduyla baslayip sertifika alinacak"
-
-              # HTTP config'i aktiflestir
-              cp nginx/vitrin-http.conf nginx/vitrin.conf
-
-              # Imajlari cek
-              docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-
-              # Servisleri HTTP moduyla baslat (network olusur, nginx ayaga kalkar)
-              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
-
-              echo ">>> Servisler baslatildi, kafka ve nginx ayaga kalkiyor (30 saniye)..."
-              sleep 30
-
-              # nginx saglik kontrolu
-              docker ps | grep vitrin-nginx || (echo "HATA: nginx baslayamadi!" && exit 1)
-
-              # Certbot ile sertifika al (nginx network'u uzerinden)
-              echo ">>> Let's Encrypt sertifikasi aliniyor..."
-              docker run --rm \
-                --network vitrin-network \
-                -v vitrin_certbot_ssl:/etc/letsencrypt \
-                -v vitrin_certbot_www:/var/www/certbot \
-                certbot/certbot certonly --webroot \
-                --webroot-path=/var/www/certbot \
-                -d vitrin.it.com -d www.vitrin.it.com \
-                --email ${CERTBOT_EMAIL:-admin@vitrin.it.com} \
-                --agree-tos --non-interactive --no-eff-email
-
-              echo ">>> Sertifika alindi! HTTPS config'e geciliyor..."
-
-              # HTTPS config'i aktiflestir ve nginx'i yeniden yukle
-              cp nginx/vitrin-https.conf nginx/vitrin.conf
-              docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T nginx nginx -s reload
-
-              echo ">>> HTTPS aktif!"
-
-            else
-              echo ">>> SSL mevcut - normal deploy"
-
-              # HTTPS config aktif mi kontrol et, degilse aktiflestir
-              if grep -q "listen 443" nginx/vitrin.conf 2>/dev/null; then
-                echo "HTTPS config zaten aktif."
-              else
-                cp nginx/vitrin-https.conf nginx/vitrin.conf
-              fi
-
-              # Imajlari cek ve guncelle
-              docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
-
-            fi
-
-            # Eski imajlari temizle
+            # Temizlik
             docker image prune -f
 
-            echo "=== Deploy tamamlandi! ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+            echo "=== Hızlı Deploy tamamlandı! ==="
+            docker compose ps
         env:
-          ENV_FILE: ${{ secrets.ENV_FILE }}
-          CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
