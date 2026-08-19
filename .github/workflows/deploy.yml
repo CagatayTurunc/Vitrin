@@ -129,22 +129,10 @@ jobs:
 
             # .env dosyasini yaz
             printf '%s' "$ENV_FILE" > .env
-
-            # NEXTAUTH_URL'yi domain'e ayarla
-            sed -i 's|NEXTAUTH_URL=http://localhost:3000|NEXTAUTH_URL=https://vitrin.it.com|g' .env
-            sed -i 's|NEXTAUTH_URL=http://localhost:3001|NEXTAUTH_URL=https://vitrin.it.com|g' .env
-            sed -i 's|NEXTAUTH_URL=http://localhost:3002|NEXTAUTH_URL=https://vitrin.it.com|g' .env
-            sed -i 's|NEXTAUTH_URL=http://63.180.14.214:3002|NEXTAUTH_URL=https://vitrin.it.com|g' .env
             
-            # EMAIL_APP_BASE_URL'yi de domain'e ayarla
-            sed -i 's|EMAIL_APP_BASE_URL=http://localhost:3000|EMAIL_APP_BASE_URL=https://vitrin.it.com|g' .env
-            sed -i 's|EMAIL_APP_BASE_URL=http://localhost:3001|EMAIL_APP_BASE_URL=https://vitrin.it.com|g' .env
-            sed -i 's|EMAIL_APP_BASE_URL=http://localhost:3002|EMAIL_APP_BASE_URL=https://vitrin.it.com|g' .env
-            sed -i 's|EMAIL_APP_BASE_URL=http://localhost:3003|EMAIL_APP_BASE_URL=https://vitrin.it.com|g' .env
-            sed -i 's|EMAIL_APP_BASE_URL=http://63.180.14.214:3000|EMAIL_APP_BASE_URL=https://vitrin.it.com|g' .env
-            sed -i 's|EMAIL_APP_BASE_URL=http://63.180.14.214:3001|EMAIL_APP_BASE_URL=https://vitrin.it.com|g' .env
-            sed -i 's|EMAIL_APP_BASE_URL=http://63.180.14.214:3002|EMAIL_APP_BASE_URL=https://vitrin.it.com|g' .env
-            sed -i 's|EMAIL_APP_BASE_URL=http://63.180.14.214:3003|EMAIL_APP_BASE_URL=https://vitrin.it.com|g' .env
+            # Production domain ayarlarini yap
+            sed -i 's|NEXTAUTH_URL=.*|NEXTAUTH_URL=https://vitrin.it.com|g' .env
+            sed -i 's|EMAIL_APP_BASE_URL=.*|EMAIL_APP_BASE_URL=https://vitrin.it.com|g' .env
 
             # data ve nginx klasorlerini olustur
             mkdir -p data/voting data/notification data/analytics data/ai
