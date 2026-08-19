@@ -102,15 +102,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Konfigürasyon dosyalarini sunucuya kopyala
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.yml,docker-compose.prod.yml,scripts/init-databases.sql,nginx/"
-          target: "/home/ec2-user/vitrin"
-
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
