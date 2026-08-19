@@ -128,7 +128,7 @@ jobs:
           command_timeout: 120s
           script: |
             set -e
-            echo "=== Başlangıç $(date) ==="
+            echo "=== Başlangıç $(date) - Fresh Deployment ==="
             cd /home/ec2-user/vitrin || (echo "HATA: vitrin klasörü bulunamadı!" && exit 1)
             
             echo "=== Docker Login ==="
