@@ -43,6 +43,18 @@ services:
       NEXTAUTH_URL: ${NEXTAUTH_URL:-https://vitrin.it.com}
 
   # ============================================================
+  # MONITORING SERVİSLERİNİ KAPAT - PRODUCTION'DA GEREKSİZ
+  # ============================================================
+  prometheus: !reset null
+  grafana: !reset null
+  jaeger: !reset null
+  elasticsearch: !reset null
+  kibana: !reset null
+  postgres-exporter: !reset null
+  redis-exporter: !reset null
+  kafka-exporter: !reset null
+
+  # ============================================================
   # NGINX REVERSE PROXY
   # ============================================================
   nginx:
