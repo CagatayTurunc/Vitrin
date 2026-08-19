@@ -102,32 +102,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy via SSH (Fast)
+      - name: Test SSH Connection
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 180s
-          command_timeout: 180s
+          timeout: 30s
+          command_timeout: 30s
+          script: |
+            echo "=== SSH Bağlantısı Test ==="
+            whoami
+            pwd
+            uptime
+            docker --version
+            echo "=== Test Tamamlandı ==="
+
+      - name: Deploy via SSH (Super Fast)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 120s
+          command_timeout: 120s
           script: |
             set -e
-            cd /home/ec2-user/vitrin
-
-            # GHCR login
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-            # Hızlı deployment - SSL kontrolü atlanıyor
-            echo ">>> Hızlı deployment başlatılıyor..."
+            echo "=== Başlangıç $(date) ==="
+            cd /home/ec2-user/vitrin || (echo "HATA: vitrin klasörü bulunamadı!" && exit 1)
             
-            # Images çek ve servisleri güncelle
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
-
-            # Temizlik
-            docker image prune -f
-
-            echo "=== Hızlı Deploy tamamlandı! ==="
-            docker compose ps
+            echo "=== Docker Login ==="
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            echo "=== Hızlı Pull ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull vitrin-web vitrin-gateway vitrin-auth
+            
+            echo "=== Hızlı Up ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d vitrin-web vitrin-gateway vitrin-auth
+            
+            echo "=== Durum Kontrolü ==="
+            docker compose ps | grep vitrin
+            
+            echo "=== Bitiş $(date) ==="
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
