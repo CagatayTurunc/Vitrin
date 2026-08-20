@@ -139,6 +139,7 @@ jobs:
 
             echo "=== Restart ==="
             docker restart vitrin-auth vitrin-gateway vitrin-web
+            docker restart vitrin-nginx
 
             echo "=== Bitti $(date) ==="
         env:
