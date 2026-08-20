@@ -131,35 +131,21 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 120s
-          command_timeout: 120s
+          timeout: 300s
+          command_timeout: 300s
           script: |
             set -e
             echo "=== Başlangıç $(date) ==="
 
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin 2>/dev/null
 
-            echo "=== Pull latest web image ==="
-            docker pull ghcr.io/cagatayturunc/vitrin-web:latest
+            cd ~/vitrin
 
-            echo "=== Stop & remove old container ==="
-            docker stop vitrin-web 2>/dev/null || true
-            docker rm   vitrin-web 2>/dev/null || true
+            echo "=== Pull latest images ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull vitrin-auth vitrin-gateway vitrin-web
 
-            echo "=== Run new container ==="
-            docker run -d \
-              --name vitrin-web \
-              --network vitrin_vitrin-network \
-              --restart unless-stopped \
-              -p 3003:3000 \
-              -e NEXTAUTH_URL="https://vitrin.it.com" \
-              -e NEXTAUTH_SECRET="${{ secrets.NEXTAUTH_SECRET }}" \
-              -e INTERNAL_API_URL="http://vitrin-gateway:8080" \
-              -e GOOGLE_CLIENT_ID="${{ secrets.GOOGLE_CLIENT_ID }}" \
-              -e GOOGLE_CLIENT_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}" \
-              -e GITHUB_CLIENT_ID="${{ secrets.GITHUB_CLIENT_ID }}" \
-              -e GITHUB_CLIENT_SECRET="${{ secrets.GITHUB_CLIENT_SECRET }}" \
-              ghcr.io/cagatayturunc/vitrin-web:latest
+            echo "=== Restart updated services (no-deps) ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-auth vitrin-gateway vitrin-web
 
             echo "=== Nginx reload ==="
             docker exec vitrin-nginx nginx -s reload 2>/dev/null || docker restart vitrin-nginx 2>/dev/null || true
