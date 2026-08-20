@@ -149,7 +149,7 @@ jobs:
             echo "=== Run new container ==="
             docker run -d \
               --name vitrin-web \
-              --network vitrin-network \
+              --network vitrin_vitrin-network \
               --restart unless-stopped \
               -p 3003:3000 \
               -e NEXTAUTH_URL="https://vitrin.it.com" \
