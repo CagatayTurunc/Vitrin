@@ -82,15 +82,22 @@ jobs:
 
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=host
+            image=moby/buildkit:latest
 
       - name: Build & Push ${{ matrix.service.name }}
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.service.context || '.' }}
           file: ${{ matrix.service.dockerfile }}
           push: true
           tags: ghcr.io/${{ steps.owner.outputs.name }}/vitrin-${{ matrix.service.name }}:latest
           build-args: ${{ matrix.service.build_args || '' }}
+          cache-from: type=gha,scope=${{ matrix.service.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service.name }}
+          provenance: false
 
   # ============================================================
   # 3. DEPLOY (EC2 sadece pull & up yapar)
