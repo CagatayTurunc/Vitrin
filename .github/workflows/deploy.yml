@@ -129,16 +129,17 @@ jobs:
           script: |
             set -e
             echo "=== Başlangıç $(date) ==="
-            cd /home/ec2-user/vitrin || (echo "HATA: vitrin klasörü bulunamadı!" && exit 1)
 
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin 2>/dev/null
 
             echo "=== Pull ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull vitrin-auth vitrin-gateway vitrin-web
+            docker pull ghcr.io/cagatayturunc/vitrin-auth:latest
+            docker pull ghcr.io/cagatayturunc/vitrin-gateway:latest
+            docker pull ghcr.io/cagatayturunc/vitrin-web:latest
 
-            echo "=== Recreate (healthcheck beklenmeden) ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --no-wait vitrin-auth vitrin-gateway vitrin-web
+            echo "=== Restart ==="
+            docker restart vitrin-auth vitrin-gateway vitrin-web
 
-            echo "=== Başlatıldı $(date) ==="
+            echo "=== Bitti $(date) ==="
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
