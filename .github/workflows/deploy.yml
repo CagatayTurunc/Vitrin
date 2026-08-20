@@ -131,22 +131,50 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 60s
-          command_timeout: 60s
+          timeout: 120s
+          command_timeout: 120s
           script: |
             set -e
             echo "=== Başlangıç $(date) ==="
 
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin 2>/dev/null
 
-            echo "=== Pull ==="
+            echo "=== Pull latest images ==="
             docker pull ghcr.io/cagatayturunc/vitrin-auth:latest
             docker pull ghcr.io/cagatayturunc/vitrin-gateway:latest
             docker pull ghcr.io/cagatayturunc/vitrin-web:latest
 
-            echo "=== Restart ==="
-            docker restart vitrin-auth vitrin-gateway vitrin-web
-            docker restart vitrin-nginx
+            echo "=== Recreate vitrin-web with new image ==="
+            docker stop vitrin-web 2>/dev/null || true
+            docker rm   vitrin-web 2>/dev/null || true
+
+            # Mevcut .env dosyasından ortam degiskenlerini al
+            ENV_FILE=""
+            for f in /home/ubuntu/.env /home/ec2-user/.env /opt/vitrin/.env ~/vitrin/.env; do
+              [ -f "$f" ] && ENV_FILE="$f" && break
+            done
+
+            if [ -n "$ENV_FILE" ]; then
+              docker run -d \
+                --name vitrin-web \
+                --network vitrin-network \
+                --restart unless-stopped \
+                -p 3003:3000 \
+                --env-file "$ENV_FILE" \
+                -e INTERNAL_API_URL="http://vitrin-gateway:8080" \
+                ghcr.io/cagatayturunc/vitrin-web:latest
+            else
+              docker run -d \
+                --name vitrin-web \
+                --network vitrin-network \
+                --restart unless-stopped \
+                -p 3003:3000 \
+                -e INTERNAL_API_URL="http://vitrin-gateway:8080" \
+                ghcr.io/cagatayturunc/vitrin-web:latest
+            fi
+
+            echo "=== Nginx reload ==="
+            docker exec vitrin-nginx nginx -s reload 2>/dev/null || docker restart vitrin-nginx 2>/dev/null || true
 
             echo "=== Bitti $(date) ==="
         env:
