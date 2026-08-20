@@ -77,9 +77,14 @@ public sealed class AccountActionTokenService : IAccountActionTokenService
 
     private static string CreateSecurityStamp(User user, AccountActionPurpose purpose)
     {
+        // CreatedAt.Ticks yerine mikrosaniyeye yuvarlanmış değer kullanılıyor.
+        // .NET DateTime 100-ns hassasiyetinde, PostgreSQL timestamp ise yalnızca
+        // mikrosaniye sakladığından DB round-trip sonrası Ticks değeri değişiyor
+        // ve stamp uyuşmazlığına (400 Bad Request) yol açıyordu.
+        var createdAtMicros = user.CreatedAt.Ticks / 10;   // 100-ns → microsecond
         var source = purpose == AccountActionPurpose.ResetPassword
             ? $"{user.Id:N}|{user.Email}|{user.PasswordHash}"
-            : $"{user.Id:N}|{user.Email}|{user.CreatedAt.Ticks}|{user.EmailConfirmedAtUtc?.Ticks}";
+            : $"{user.Id:N}|{user.Email}|{createdAtMicros}|{user.EmailConfirmedAtUtc?.Ticks / 10}";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
     }
 
