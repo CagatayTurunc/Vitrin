@@ -124,25 +124,21 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 120s
-          command_timeout: 120s
+          timeout: 60s
+          command_timeout: 60s
           script: |
             set -e
-            echo "=== Başlangıç $(date) - Fresh Deployment ==="
+            echo "=== Başlangıç $(date) ==="
             cd /home/ec2-user/vitrin || (echo "HATA: vitrin klasörü bulunamadı!" && exit 1)
 
-            echo "=== Docker Login ==="
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin 2>/dev/null
 
-            echo "=== Image Pull ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull vitrin-web vitrin-gateway vitrin-auth
+            echo "=== Pull ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull vitrin-auth vitrin-gateway vitrin-web
 
-            echo "=== Deploy (bağımlılıklara dokunmadan) ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-auth vitrin-gateway vitrin-web
+            echo "=== Recreate (healthcheck beklenmeden) ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --no-wait vitrin-auth vitrin-gateway vitrin-web
 
-            echo "=== Durum Kontrolü ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
-
-            echo "=== Bitiş $(date) ==="
+            echo "=== Başlatıldı $(date) ==="
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
