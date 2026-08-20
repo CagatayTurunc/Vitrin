@@ -84,7 +84,7 @@ app.MapPost("/api/auth/login", async (LoginCommand command, HttpContext context,
 })
 .AddEndpointFilter<ValidationEndpointFilter<LoginCommand>>();
 
-app.MapPost("/api/auth/confirm-email", async (
+app.MapPost("/api/account/confirm-email", async (
     [Microsoft.AspNetCore.Mvc.FromBody] EmailTokenRequest request,
     Vitrin.Auth.Application.Interfaces.IAccountActionTokenService tokenService,
     Vitrin.Auth.Application.Interfaces.IUserRepository userRepository,
@@ -111,7 +111,7 @@ app.MapPost("/api/auth/confirm-email", async (
     return Results.Ok(new { Message = "E-posta adresin doğrulandı. Artık giriş yapabilirsin." });
 });
 
-app.MapPost("/api/auth/resend-confirmation", async (
+app.MapPost("/api/account/resend-confirmation", async (
     [Microsoft.AspNetCore.Mvc.FromBody] EmailAddressRequest request,
     Vitrin.Auth.Application.Interfaces.IAccountActionTokenService tokenService,
     Vitrin.Auth.Application.Interfaces.IAccountEmailService emailService,
@@ -133,7 +133,7 @@ app.MapPost("/api/auth/resend-confirmation", async (
     return Results.Ok(new { Message = "Hesap uygunsa doğrulama e-postası gönderildi." });
 });
 
-app.MapPost("/api/auth/forgot-password", async (
+app.MapPost("/api/account/forgot-password", async (
     [Microsoft.AspNetCore.Mvc.FromBody] EmailAddressRequest request,
     Vitrin.Auth.Application.Interfaces.IAccountActionTokenService tokenService,
     Vitrin.Auth.Application.Interfaces.IAccountEmailService emailService,
@@ -155,7 +155,7 @@ app.MapPost("/api/auth/forgot-password", async (
     return Results.Ok(new { Message = "Bu e-posta ile bir hesap varsa şifre yenileme bağlantısı gönderildi." });
 });
 
-app.MapPost("/api/auth/reset-password", async (
+app.MapPost("/api/account/reset-password", async (
     [Microsoft.AspNetCore.Mvc.FromBody] ResetPasswordRequest request,
     Vitrin.Auth.Application.Interfaces.IAccountActionTokenService tokenService,
     Vitrin.Auth.Application.Interfaces.IUserRepository userRepository,

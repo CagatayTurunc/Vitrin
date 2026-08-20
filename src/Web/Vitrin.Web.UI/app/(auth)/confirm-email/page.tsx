@@ -21,7 +21,7 @@ function ConfirmationCard() {
     if (!token) return;
 
     // Next.js rewrites kullan - production'da /api/* otomatik yönlendiriliyor
-    const fullUrl = '/api/auth/confirm-email';
+    const fullUrl = '/api/account/confirm-email';
 
     void fetch(fullUrl, {
       method: "POST",

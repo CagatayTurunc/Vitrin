@@ -60,7 +60,7 @@ export function RegisterForm() {
     setResendStatus("Gönderiliyor...");
     try {
       // Next.js rewrites kullan - production'da /api/* otomatik yönlendiriliyor
-      const fullUrl = '/api/auth/resend-confirmation';
+      const fullUrl = '/api/account/resend-confirmation';
       
       await fetch(fullUrl, {
         method: "POST",
