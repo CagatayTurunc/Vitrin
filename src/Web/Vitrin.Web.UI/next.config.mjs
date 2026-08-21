@@ -20,12 +20,19 @@ const nextConfig = {
   // bu sayede /api/auth/[...nextauth] NextAuth tarafından handle edilirken,
   // /api/auth/leaderboard gibi diğer /api/auth/* rotaları gateway'e proxy edilir.
   async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${internalApiUrl}/api/:path*`,
-      },
-    ]
+    return {
+      // NextAuth'un kendi handle ettiği path'ler rewrite EDILMEZ,
+      // Next.js route handler'ına (app/api/auth/[...nextauth]) gider.
+      // Bunların dışındaki /api/* istekleri gateway'e proxy edilir.
+      beforeFiles: [],
+      afterFiles: [],
+      fallback: [
+        {
+          source: '/api/:path*',
+          destination: `${internalApiUrl}/api/:path*`,
+        },
+      ],
+    }
   },
 }
 
