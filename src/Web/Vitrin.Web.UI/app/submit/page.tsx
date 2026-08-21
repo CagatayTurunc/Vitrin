@@ -95,7 +95,9 @@ function MakerApplicationForm({ accessToken }: { accessToken: string }) {
         body: JSON.stringify({ portfolioUrl, reason }),
       });
       if (!response.ok) {
-        const data: unknown = await response.json();
+        const text = await response.text();
+        let data: unknown;
+        try { data = JSON.parse(text); } catch { data = null; }
         throw new Error(getApiProblemMessage(data, "Başvuru gönderilemedi."));
       }
       setSubmitted(true);

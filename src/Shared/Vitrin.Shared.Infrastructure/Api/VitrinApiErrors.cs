@@ -31,7 +31,31 @@ public static class VitrinApiErrorExtensions
     public static IApplicationBuilder UseVitrinApiErrors(this IApplicationBuilder app)
     {
         app.UseExceptionHandler();
-        app.UseStatusCodePages();
+        app.UseStatusCodePages(async context =>
+        {
+            var response = context.HttpContext.Response;
+            response.ContentType = "application/problem+json";
+            var statusCode = response.StatusCode;
+            var (title, detail, code) = statusCode switch
+            {
+                400 => ("Bad Request", "The request could not be processed.", "request.invalid"),
+                401 => ("Unauthorized", "Authentication is required.", "auth.unauthorized"),
+                403 => ("Forbidden", "You do not have permission to perform this action.", "auth.forbidden"),
+                404 => ("Not Found", "The requested resource was not found.", "resource.not_found"),
+                405 => ("Method Not Allowed", "The HTTP method is not supported for this endpoint.", "request.method_not_allowed"),
+                429 => ("Too Many Requests", "Rate limit exceeded. Please try again later.", "rate_limit.exceeded"),
+                _ => ("Internal Server Error", "An unexpected error occurred.", "server.error")
+            };
+            await context.HttpContext.Response.WriteAsJsonAsync(new
+            {
+                status = statusCode,
+                title,
+                detail,
+                code,
+                instance = context.HttpContext.Request.Path.Value,
+                traceId = context.HttpContext.TraceIdentifier
+            });
+        });
         return app;
     }
 }
