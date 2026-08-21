@@ -128,15 +128,27 @@ jobs:
             echo "=== Pull latest images ==="
             docker compose -f docker-compose.yml -f docker-compose.prod.yml pull vitrin-auth vitrin-gateway vitrin-web
 
-            echo "=== Remove orphan containers if any ==="
-            docker stop vitrin-web vitrin-auth vitrin-gateway 2>/dev/null || true
-            docker rm   vitrin-web vitrin-auth vitrin-gateway 2>/dev/null || true
+            echo "=== Stop & remove old app containers ==="
+            docker stop vitrin-web vitrin-gateway vitrin-auth 2>/dev/null || true
+            docker rm   vitrin-web vitrin-gateway vitrin-auth 2>/dev/null || true
 
-            echo "=== Restart updated services (no-deps) ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-auth vitrin-gateway vitrin-web
+            echo "=== Start vitrin-auth ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --no-healthcheck vitrin-auth
+            echo "Waiting 20s for auth to initialize..."
+            sleep 20
+
+            echo "=== Start vitrin-gateway ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --no-healthcheck vitrin-gateway
+            sleep 5
+
+            echo "=== Start vitrin-web ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --no-healthcheck vitrin-web
 
             echo "=== Nginx reload ==="
             docker exec vitrin-nginx nginx -s reload 2>/dev/null || docker restart vitrin-nginx 2>/dev/null || true
+
+            echo "=== Container status ==="
+            docker ps --filter name=vitrin --format "table {{.Names}}\t{{.Status}}"
 
             echo "=== Bitti $(date) ==="
         env:
