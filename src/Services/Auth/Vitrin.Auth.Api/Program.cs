@@ -390,10 +390,21 @@ app.MapPost("/api/auth/admin/users/{id}/role", async (Guid id, [Microsoft.AspNet
 }).RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
 // MAKER APPLICATIONS
-app.MapPost("/api/auth/maker-applications", async (HttpContext context, [Microsoft.AspNetCore.Mvc.FromBody] MakerApplicationRequest request, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
+app.MapPost("/api/auth/maker-applications", async (HttpContext context, [Microsoft.AspNetCore.Mvc.FromBody] MakerApplicationRequest? request, Vitrin.Auth.Infrastructure.Data.AuthDbContext db) =>
 {
     var userId = context.User.GetUserId();
     if (userId is null) return Results.Unauthorized();
+
+    if (request is null || string.IsNullOrWhiteSpace(request.PortfolioUrl) || string.IsNullOrWhiteSpace(request.Reason))
+        return ApiProblemResults.BadRequest("Portfolyo bağlantısı ve başvuru nedeni zorunludur.", "maker_application.missing_fields");
+
+    if (request.Reason.Length < 30)
+        return ApiProblemResults.BadRequest("Başvuru nedeni en az 30 karakter olmalıdır.", "maker_application.reason_too_short");
+
+    var hasPendingApplication = await db.MakerApplications.AnyAsync(
+        a => a.UserId == userId.Value && a.Status == Vitrin.Auth.Domain.Entities.ApplicationStatus.Pending);
+    if (hasPendingApplication)
+        return ApiProblemResults.BadRequest("Zaten bekleyen bir başvurunuz bulunuyor.", "maker_application.duplicate");
 
     var application = Vitrin.Auth.Domain.Entities.MakerApplication.Create(userId.Value, request.PortfolioUrl, request.Reason);
     db.MakerApplications.Add(application);
