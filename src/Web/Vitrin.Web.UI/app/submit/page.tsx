@@ -98,7 +98,10 @@ function MakerApplicationForm({ accessToken }: { accessToken: string }) {
         const text = await response.text();
         let data: unknown;
         try { data = JSON.parse(text); } catch { data = null; }
-        throw new Error(getApiProblemMessage(data, "Başvuru gönderilemedi."));
+        // Debug: tam response'u console'a yaz
+        console.error("[maker-app] HTTP", response.status, "body:", text);
+        const message = getApiProblemMessage(data, `Başvuru gönderilemedi. (HTTP ${response.status})`);
+        throw new Error(message);
       }
       setSubmitted(true);
     } catch (caught) {
