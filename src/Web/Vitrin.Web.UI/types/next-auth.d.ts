@@ -3,6 +3,7 @@ import type { DefaultSession, DefaultUser } from "next-auth";
 declare module "next-auth" {
   interface Session {
     accessToken?: string;
+    error?: "TokenExpired";
     user: {
       id: string;
       username?: string;

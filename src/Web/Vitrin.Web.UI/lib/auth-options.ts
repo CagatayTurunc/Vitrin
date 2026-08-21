@@ -10,6 +10,22 @@ interface AccessTokenClaims {
   unique_name?: string;
   FullName?: string;
   AvatarUrl?: string;
+  exp?: number;
+}
+
+function isTokenExpired(accessToken: string): boolean {
+  try {
+    const payload = accessToken.split(".")[1];
+    if (!payload) return true;
+    const claims = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    ) as AccessTokenClaims;
+    if (!claims.exp) return false;
+    // 30 saniyelik tolerans
+    return Date.now() / 1000 > claims.exp - 30;
+  } catch {
+    return true;
+  }
 }
 
 function getApiUrl() {
@@ -128,6 +144,12 @@ export const authOptions: NextAuthOptions = {
       }
 
       if (typeof token.accessToken === "string") {
+        // Token süresi dolduysa temizle — bir sonraki session çağrısında
+        // accessToken undefined olacak ve frontend logout yönlendirecek
+        if (isTokenExpired(token.accessToken)) {
+          token.accessToken = undefined;
+          return token;
+        }
         const claims = decodeAccessToken(token.accessToken);
         if (claims) {
           token.role = claims.Role;
@@ -142,6 +164,10 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       session.accessToken = token.accessToken;
+      // Token süresi dolmuşsa kullanıcıyı oturumsuz say
+      if (!token.accessToken) {
+        session.error = "TokenExpired";
+      }
       session.user.id = token.id ?? "";
       session.user.role = token.role;
       session.user.username = token.username;
@@ -156,6 +182,7 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
+    maxAge: 7 * 24 * 60 * 60, // 7 gün — backend JWT ile senkron
   },
   pages: {
     signIn: "/login",

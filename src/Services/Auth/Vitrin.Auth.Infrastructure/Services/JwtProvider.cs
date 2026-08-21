@@ -49,7 +49,7 @@ public class JwtProvider : IJwtProvider
             audience,
             claims,
             null,
-            DateTime.UtcNow.AddHours(24),
+            DateTime.UtcNow.AddDays(7),
             new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256)
         );
 
