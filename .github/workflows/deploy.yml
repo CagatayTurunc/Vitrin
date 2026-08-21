@@ -109,29 +109,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Test SSH Connection
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 30s
-          command_timeout: 30s
-          script: |
-            echo "=== SSH Bağlantısı Test ==="
-            whoami
-            pwd
-            uptime
-            docker --version
-            echo "=== Test Tamamlandı ==="
-
-      - name: Deploy via SSH (Super Fast)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 300s
+          timeout: 60s
           command_timeout: 300s
           script: |
             set -e
