@@ -57,7 +57,9 @@ export function LoginForm() {
       });
 
       if (result?.error) {
-        setError("Giriş bilgileri hatalı. Lütfen kontrol edip tekrar deneyin.");
+        setError(result.error === "CredentialsSignin"
+          ? "Giriş bilgileri hatalı. Lütfen kontrol edip tekrar deneyin."
+          : (result.error || "Giriş bilgileri hatalı. Lütfen kontrol edip tekrar deneyin."));
       } else {
         router.push("/");
         router.refresh();

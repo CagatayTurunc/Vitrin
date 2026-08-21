@@ -61,7 +61,17 @@ export const authOptions: NextAuthOptions = {
             }),
           });
 
-          if (!response.ok) return null;
+          if (!response.ok) {
+            // Backend hata mesajını al ve Error olarak fırlat
+            // Bu sayede NextAuth hata sayfasına yönlendirmek yerine
+            // login form result.error'da mesajı yakalar
+            let errorMessage = "E-posta veya şifre hatalı.";
+            try {
+              const data = await response.json() as { detail?: string; title?: string };
+              if (data.detail) errorMessage = data.detail;
+            } catch { /* json parse hatası — varsayılan mesajı kullan */ }
+            throw new Error(errorMessage);
+          }
 
           const accessToken: unknown = await response.json();
           if (typeof accessToken !== "string") return null;
@@ -72,6 +82,7 @@ export const authOptions: NextAuthOptions = {
             accessToken,
           };
         } catch (error) {
+          if (error instanceof Error) throw error; // hata mesajını ilet
           console.error("Credentials login failed", error);
           return null;
         }
