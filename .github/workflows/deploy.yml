@@ -133,16 +133,16 @@ jobs:
             docker rm   vitrin-web vitrin-gateway vitrin-auth 2>/dev/null || true
 
             echo "=== Start vitrin-auth ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --no-healthcheck vitrin-auth
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-auth
             echo "Waiting 20s for auth to initialize..."
             sleep 20
 
             echo "=== Start vitrin-gateway ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --no-healthcheck vitrin-gateway
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-gateway
             sleep 5
 
             echo "=== Start vitrin-web ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --no-healthcheck vitrin-web
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-web
 
             echo "=== Nginx reload ==="
             docker exec vitrin-nginx nginx -s reload 2>/dev/null || docker restart vitrin-nginx 2>/dev/null || true

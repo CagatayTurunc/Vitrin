@@ -5,38 +5,56 @@ services:
   vitrin-auth:
     image: ghcr.io/cagatayturunc/vitrin-auth:latest
     build: !reset null
+    healthcheck:
+      disable: true
 
   vitrin-product:
     image: ghcr.io/cagatayturunc/vitrin-product:latest
     build: !reset null
+    healthcheck:
+      disable: true
 
   vitrin-voting:
     image: ghcr.io/cagatayturunc/vitrin-voting:latest
     build: !reset null
+    healthcheck:
+      disable: true
 
   vitrin-comment:
     image: ghcr.io/cagatayturunc/vitrin-comment:latest
     build: !reset null
+    healthcheck:
+      disable: true
 
   vitrin-notification:
     image: ghcr.io/cagatayturunc/vitrin-notification:latest
     build: !reset null
+    healthcheck:
+      disable: true
 
   vitrin-analytics:
     image: ghcr.io/cagatayturunc/vitrin-analytics:latest
     build: !reset null
+    healthcheck:
+      disable: true
 
   vitrin-ai:
     image: ghcr.io/cagatayturunc/vitrin-ai:latest
     build: !reset null
+    healthcheck:
+      disable: true
 
   vitrin-gateway:
     image: ghcr.io/cagatayturunc/vitrin-gateway:latest
     build: !reset null
+    healthcheck:
+      disable: true
 
   vitrin-web:
     image: ghcr.io/cagatayturunc/vitrin-web:latest
     build: !reset null
+    healthcheck:
+      disable: true
     # Prod'da port disari acilmaz, nginx uzerinden erisim saglanir
     ports: !reset []
     environment:
