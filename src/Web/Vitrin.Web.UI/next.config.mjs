@@ -20,10 +20,10 @@ const nextConfig = {
   // bu sayede /api/auth/[...nextauth] NextAuth tarafından handle edilirken,
   // /api/auth/leaderboard gibi diğer /api/auth/* rotaları gateway'e proxy edilir.
   async rewrites() {
+    // Tüm /api/* istekleri nginx tarafından doğrudan gateway'e yönlendirilir.
+    // Bu rewrite fallback, sadece SSR (server-side) fetch'ler için gereklidir
+    // (örn. getServerSideProps, Server Components, server actions).
     return {
-      // NextAuth'un kendi handle ettiği path'ler rewrite EDILMEZ,
-      // Next.js route handler'ına (app/api/auth/[...nextauth]) gider.
-      // Bunların dışındaki /api/* istekleri gateway'e proxy edilir.
       beforeFiles: [],
       afterFiles: [],
       fallback: [
