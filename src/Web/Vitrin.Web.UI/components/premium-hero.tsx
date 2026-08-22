@@ -26,7 +26,7 @@ export function PremiumHero() {
   }, []);
 
   return (
-    <section className="relative overflow-hidden px-4 py-16 sm:py-20">
+    <section className="relative overflow-hidden px-4 py-12 sm:py-16 lg:py-20">
       {/* Hero glow effect */}
       <div className="hero-glow dark:hero-glow hero-glow-light" />
       
@@ -98,11 +98,11 @@ export function PremiumHero() {
 
           {/* Right side - Ürün → Para Çevirme Makinesi Animasyonu */}
           <div 
-            className={`relative z-10 flex items-center justify-center ${
+            className={`relative z-10 hidden sm:flex items-center justify-center ${
               mounted ? "animate-slide-in-right animate-stagger-4" : "opacity-0"
             }`}
           >
-            <div className="relative w-80 h-80">
+            <div className="relative w-72 h-72 sm:w-80 sm:h-80">
 
               {/* Arka plan parıltısı */}
               <div className="absolute inset-0 bg-gradient-radial from-primary/10 to-transparent rounded-full animate-pulse" />

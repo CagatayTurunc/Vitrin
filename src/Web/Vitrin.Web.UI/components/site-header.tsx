@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Sparkles, User as UserIcon, LogOut } from 'lucide-react'
+import { Search, Sparkles, User as UserIcon, LogOut, Menu, X, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useSession, signOut } from "next-auth/react"
@@ -20,11 +20,19 @@ export function SiteHeader() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Ana sayfada search'ü otomatik genişlet
   const isHomePage = pathname === '/';
+
+  // Sayfa değiştiğinde mobil menüyü kapat
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+    setIsMobileSearchOpen(false);
+  }, [pathname]);
   
   useEffect(() => {
     if (isHomePage) {
@@ -67,7 +75,7 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-[60] w-full border-b border-border bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-4 sm:px-6">
         {/* Logo */}
         <Link href="/" className="flex shrink-0 items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/40 ring-1 ring-primary/30">
@@ -78,11 +86,11 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        {/* Main Navigation - her zaman göster */}
+        {/* Main Navigation - sadece lg ve üzeri */}
         <MainNav />
 
-        {/* Search - Always Visible but Expandable */}
-        <div className="flex-[4] flex justify-center mx-1">
+        {/* Search - Desktop: Always Visible but Expandable */}
+        <div className="hidden md:flex flex-[4] justify-center mx-1">
           <div 
             ref={searchRef} 
             className="relative z-50 w-full"
@@ -164,9 +172,8 @@ export function SiteHeader() {
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex shrink-0 items-center gap-2 ml-1">
-
+        {/* Desktop Actions */}
+        <div className="hidden md:flex shrink-0 items-center gap-2 ml-1">
           {status === 'loading' ? (
             <div className="flex items-center space-x-3">
               <ThemeToggle />
@@ -191,7 +198,7 @@ export function SiteHeader() {
                     <UserIcon className="w-4 h-4 text-muted-foreground" />
                   )}
                 </div>
-                <span className="text-sm font-medium hidden sm:inline-block">
+                <span className="text-sm font-medium hidden lg:inline-block">
                   {session.user?.name || session.user?.email}
                 </span>
               </Link>
@@ -200,7 +207,7 @@ export function SiteHeader() {
               </Button>
             </div>
           ) : (
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <ThemeToggle />
               <Link href="/login">
                 <Button 
@@ -235,13 +242,147 @@ export function SiteHeader() {
                 Ekle
               </span>
               <div className="absolute inset-0 bg-gradient-to-r from-lime-400/20 to-emerald-300/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              
-              {/* Shimmer effect */}
               <div className="absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
             </Button>
           </Link>
         </div>
+
+        {/* Mobile Right Actions */}
+        <div className="flex md:hidden items-center gap-1 ml-auto">
+          <ThemeToggle />
+          {/* Mobile Search Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              setIsMobileSearchOpen(!isMobileSearchOpen);
+              setIsMobileMenuOpen(false);
+            }}
+            aria-label="Aramayı aç"
+          >
+            <Search className="h-5 w-5" />
+          </Button>
+          {/* Mobile Submit shortcut */}
+          <Link href="/submit">
+            <Button
+              size="icon"
+              className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 rounded-xl"
+              aria-label="Ürün ekle"
+            >
+              <Plus className="h-5 w-5" />
+            </Button>
+          </Link>
+          {/* Hamburger */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              setIsMobileMenuOpen(!isMobileMenuOpen);
+              setIsMobileSearchOpen(false);
+            }}
+            aria-label={isMobileMenuOpen ? "Menüyü kapat" : "Menüyü aç"}
+          >
+            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
+        </div>
       </div>
+
+      {/* Mobile Search Bar */}
+      {isMobileSearchOpen && (
+        <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-md px-4 py-3">
+          <div ref={searchRef} className="relative">
+            <form onSubmit={(e) => { handleSearch(e); setIsMobileSearchOpen(false); }}>
+              <div className="relative bg-muted/60 border border-border/50 rounded-full overflow-hidden shadow-sm">
+                <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-primary pointer-events-none" aria-hidden="true" />
+                <Input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => setShowSuggestions(true)}
+                  placeholder="Ürün, kategori veya koleksiyon ara..."
+                  aria-label="Ara"
+                  autoFocus
+                  className="h-11 w-full rounded-full border-0 bg-transparent pl-11 pr-12 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-muted/80 flex items-center justify-center"
+                    aria-label="Temizle"
+                  >
+                    <X className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                )}
+              </div>
+            </form>
+            {showSuggestions && searchQuery && (
+              <SearchSuggestions onClose={() => {
+                setShowSuggestions(false);
+                setIsMobileSearchOpen(false);
+              }} />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Menu Drawer */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-md">
+          <nav className="px-4 py-4 space-y-1">
+            <Link href="/launches" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors">
+              En İyiler
+            </Link>
+            <Link href="/launches/upcoming" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors">
+              Lansmanlar
+            </Link>
+            <Link href="/blog" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors">
+              Haberler
+            </Link>
+            <Link href="/activity" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors">
+              Forumlar
+            </Link>
+            <Link href="/advertise" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors">
+              Reklamver
+            </Link>
+
+            <div className="pt-2 border-t border-border">
+              {status === 'loading' ? null : session ? (
+                <div className="space-y-1">
+                  <Link href="/profile" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-muted transition-colors">
+                    <div className="w-8 h-8 rounded-full overflow-hidden border border-border flex items-center justify-center bg-muted/50 shrink-0">
+                      {session.user.image ? (
+                        <Image src={session.user.image} alt={session.user.name || "Avatar"} width={32} height={32} className="w-full h-full object-cover" />
+                      ) : (
+                        <UserIcon className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </div>
+                    <span className="text-sm font-medium">{session.user?.name || session.user?.email}</span>
+                  </Link>
+                  <NotificationDropdown />
+                  <button
+                    type="button"
+                    onClick={() => { signOut(); setIsMobileMenuOpen(false); }}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Çıkış Yap
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2 pt-1">
+                  <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
+                    <Button variant="outline" className="w-full">Giriş Yap</Button>
+                  </Link>
+                  <Link href="/register" onClick={() => setIsMobileMenuOpen(false)}>
+                    <Button className="w-full">Kayıt Ol</Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </nav>
+        </div>
+      )}
     </header>
   )
 }
