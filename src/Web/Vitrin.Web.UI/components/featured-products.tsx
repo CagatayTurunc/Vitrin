@@ -1,52 +1,25 @@
 "use client";
 
 import { ArrowRight, Sparkles } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { ProductApiModel } from "@/core/domain/product.types";
 
-interface FeaturedProduct {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  number: string;
-  slug: string;
+interface Props {
+  products: ProductApiModel[];
 }
 
-// Sample data - replace with real API data
-const featuredProducts: FeaturedProduct[] = [
-  {
-    id: "1",
-    name: "Atlas",
-    description: "Ekiplerin fikirden teslimata kadar tüm başlama tek yerde tutun çalışma alanı.",
-    category: "Yapay Zekâ",
-    number: "01",
-    slug: "atlas"
-  },
-  {
-    id: "2", 
-    name: "Pixelmind",
-    description: "Yaratıcı ekipler için ürettiken yapay zeka ile görsel prototipleme aracı.",
-    category: "Yapay Zekâ",
-    number: "01",
-    slug: "pixelmind"
-  },
-  {
-    id: "3",
-    name: "Novaform",
-    description: "Müşteri geri bildirimini karar verme ürün ekipleri için net toplulara dönüştürür.",
-    category: "Yapay Zekâ", 
-    number: "01",
-    slug: "novaform"
-  }
-];
-
-export function FeaturedProducts() {
+export function FeaturedProducts({ products }: Props) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  if (products.length === 0) {
+    return null;
+  }
 
   return (
     <section id="kesfet" className="py-16 bg-background">
@@ -73,22 +46,32 @@ export function FeaturedProducts() {
 
         {/* Product Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {featuredProducts.map((product, index) => (
+          {products.map((product, index) => (
             <Link
               key={product.id}
               href={`/product/${product.slug}`}
               className={`group block ${
-                mounted ? `animate-fade-in-up animate-stagger-${index + 1}` : "opacity-0"
+                mounted ? `animate-fade-in-up animate-stagger-${Math.min(index + 1, 3)}` : "opacity-0"
               }`}
             >
               <div className="bg-card border border-border rounded-xl p-6 space-y-4 card-hover">
                 {/* Product icon area */}
                 <div className="flex items-center justify-between">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <Sparkles className="h-6 w-6 text-primary" />
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden">
+                    {product.thumbnailUrl ? (
+                      <Image
+                        src={product.thumbnailUrl}
+                        alt={product.name}
+                        width={48}
+                        height={48}
+                        className="w-full h-full object-cover rounded-xl"
+                      />
+                    ) : (
+                      <Sparkles className="h-6 w-6 text-primary" />
+                    )}
                   </div>
                   <span className="text-sm font-mono text-muted-foreground">
-                    {product.number}
+                    {String(index + 1).padStart(2, "0")}
                   </span>
                 </div>
 
@@ -99,13 +82,23 @@ export function FeaturedProducts() {
                   </h4>
                   
                   <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                    {product.description}
+                    {product.tagline || product.description}
                   </p>
                   
                   <div className="flex items-center justify-between pt-2">
-                    <span className="inline-block bg-primary/10 text-primary text-xs font-medium px-3 py-1 rounded-full">
-                      {product.category}
-                    </span>
+                    {product.topics && product.topics.length > 0 ? (
+                      <span className="inline-block bg-primary/10 text-primary text-xs font-medium px-3 py-1 rounded-full">
+                        {product.topics[0].name}
+                      </span>
+                    ) : product.categories && product.categories.length > 0 ? (
+                      <span className="inline-block bg-primary/10 text-primary text-xs font-medium px-3 py-1 rounded-full">
+                        {product.categories[0].name}
+                      </span>
+                    ) : (
+                      <span className="inline-block bg-primary/10 text-primary text-xs font-medium px-3 py-1 rounded-full">
+                        Ürün
+                      </span>
+                    )}
                     
                     <div className="flex items-center gap-1 text-sm font-medium text-primary group-hover:translate-x-1 transition-transform">
                       İncele

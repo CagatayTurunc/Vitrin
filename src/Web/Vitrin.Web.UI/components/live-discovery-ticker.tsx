@@ -2,38 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { TrendingUp } from "lucide-react";
+import type { ProductApiModel } from "@/core/domain/product.types";
 
-interface ProductPill {
-  id: string;
-  name: string;
-  votes: number;
+interface Props {
+  products: ProductApiModel[];
 }
 
-// Sample data - replace with real API data
-const sampleProducts: ProductPill[] = [
-  { id: "1", name: "Atlas", votes: 248 },
-  { id: "2", name: "FigmaFlow", votes: 196 },
-  { id: "3", name: "Novaform", votes: 174 },
-  { id: "4", name: "Briefly", votes: 162 },
-  { id: "5", name: "Pixelmind", votes: 158 },
-  { id: "6", name: "Railnote", votes: 142 },
-  { id: "7", name: "DevTools Pro", votes: 138 },
-  { id: "8", name: "DesignSpace", votes: 124 },
-];
-
-export function LiveDiscoveryTicker() {
+export function LiveDiscoveryTicker({ products }: Props) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Duplicate products for seamless loop
-  const duplicatedProducts = [...sampleProducts, ...sampleProducts];
-
-  if (!mounted) {
+  if (!mounted || products.length === 0) {
     return null;
   }
+
+  // Duplicate products for seamless loop
+  const duplicatedProducts = [...products, ...products];
 
   return (
     <section className="py-8 bg-background border-y border-border/50 relative">
@@ -68,7 +55,7 @@ export function LiveDiscoveryTicker() {
                 <div className="flex items-center gap-1 text-primary">
                   <TrendingUp className="h-3 w-3" />
                   <span className="text-sm font-semibold">
-                    {product.votes}
+                    {product.upvotes ?? 0}
                   </span>
                 </div>
               </div>

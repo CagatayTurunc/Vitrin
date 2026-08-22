@@ -2,27 +2,23 @@
 
 import { TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { ProductApiModel } from "@/core/domain/product.types";
+import Link from "next/link";
 
-interface TrendingProduct {
-  id: string;
-  name: string;
-  votes: number;
-  position: number;
+interface Props {
+  products: ProductApiModel[];
 }
 
-// Sample data - replace with real API data
-const trendingProducts: TrendingProduct[] = [
-  { id: "1", name: "FigmaFlow", votes: 248, position: 1 },
-  { id: "2", name: "Briefly", votes: 192, position: 2 },
-  { id: "3", name: "Railnote", votes: 181, position: 3 },
-];
-
-export function TrendingSection() {
+export function TrendingSection({ products }: Props) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  if (products.length === 0) {
+    return null;
+  }
 
   return (
     <section className="py-16">
@@ -58,9 +54,10 @@ export function TrendingSection() {
               {/* Right side - Ranking panel */}
               <div className={`${mounted ? "animate-slide-in-right animate-stagger-2" : "opacity-0"}`}>
                 <div className="bg-card/50 backdrop-blur-sm border border-border rounded-xl p-6 space-y-4">
-                  {trendingProducts.map((product, index) => (
-                    <div
+                  {products.map((product, index) => (
+                    <Link
                       key={product.id}
+                      href={`/product/${product.slug}`}
                       className={`flex items-center justify-between p-3 rounded-lg bg-background/50 border border-border/50 card-hover ${
                         mounted ? `animate-fade-in-up animate-stagger-${index + 3}` : "opacity-0"
                       }`}
@@ -68,7 +65,7 @@ export function TrendingSection() {
                       {/* Position and name */}
                       <div className="flex items-center gap-4">
                         <span className="text-lg font-mono font-bold text-muted-foreground w-8">
-                          {product.position.toString().padStart(2, '0')}
+                          {String(index + 1).padStart(2, "0")}
                         </span>
                         <span className="font-semibold text-foreground">
                           {product.name}
@@ -79,10 +76,10 @@ export function TrendingSection() {
                       <div className="flex items-center gap-2 text-primary">
                         <TrendingUp className="h-4 w-4" />
                         <span className="font-bold">
-                          +{product.votes}
+                          +{product.upvotes ?? 0}
                         </span>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                   
                   {/* Footer note */}
