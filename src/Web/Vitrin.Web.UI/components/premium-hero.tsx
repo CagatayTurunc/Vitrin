@@ -5,11 +5,24 @@ import { ArrowRight, Sparkles, Eye, Trophy, MessageCircle, DollarSign, GitCompar
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+function istanbulDateLabel() {
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Europe/Istanbul",
+  })
+    .format(new Date())
+    .toUpperCase();
+}
+
 export function PremiumHero() {
   const [mounted, setMounted] = useState(false);
+  const [dateLabel, setDateLabel] = useState("");
 
   useEffect(() => {
     setMounted(true);
+    setDateLabel(istanbulDateLabel());
   }, []);
 
   return (
@@ -29,7 +42,7 @@ export function PremiumHero() {
               }`}
             >
               <div className="w-2 h-2 rounded-full bg-primary animate-glow" />
-              <span>13 AĞUSTOS 2026 — BUGÜNÜN SEÇKİSİ</span>
+              <span>{dateLabel ? `${dateLabel} — BUGÜNÜN SEÇKİSİ` : "BUGÜNÜN SEÇKİSİ"}</span>
             </div>
 
             {/* Main headline */}
