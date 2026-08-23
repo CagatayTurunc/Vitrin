@@ -1,3 +1,4 @@
+using StackExchange.Redis;
 using Vitrin.Shared.Infrastructure.Auth;
 using Vitrin.Shared.Infrastructure.Api;
 
@@ -7,6 +8,13 @@ builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 builder.Services.AddHealthChecks();
 builder.Services.AddVitrinApiErrors();
 builder.Services.AddVitrinRateLimiting();
+
+// Madde 4 — Çıkışta oturumu düşür: Redis token blacklist
+// Logout olan kullanıcıların token'ları burada kontrol edilir
+var redisConnection = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
+builder.Services.AddSingleton<IConnectionMultiplexer>(
+    ConnectionMultiplexer.Connect(redisConnection));
+builder.Services.AddVitrinTokenBlacklist();
 
 // YARP konfigürasyonunu appsettings.json dosyasındaki "ReverseProxy" bölümünden alıyoruz.
 builder.Services.AddReverseProxy()
@@ -47,6 +55,28 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.Use(async (context, next) =>
 {
+    // Madde 4 — Çıkışta oturumu düşür: token blacklist kontrolü
+    // Login olmuş bir kullanıcı logout sonrasında token'ını kullanamaz
+    if (context.User.Identity?.IsAuthenticated == true)
+    {
+        var jti = context.User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
+        if (!string.IsNullOrWhiteSpace(jti))
+        {
+            var blacklist = context.RequestServices.GetRequiredService<IJwtTokenBlacklist>();
+            if (await blacklist.IsBlacklistedAsync(jti, context.RequestAborted))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    title = "Token revoked",
+                    detail = "Bu token geçersiz kılınmış. Lütfen yeniden giriş yapın.",
+                    code = "auth.token_revoked"
+                });
+                return;
+            }
+        }
+    }
+
     var isBanned = string.Equals(
         context.User.FindFirst("vitrin:banned")?.Value,
         "true",
@@ -73,7 +103,9 @@ app.Use(async (context, next) =>
 app.UseRateLimiter();
 app.UseAuthorization();
 
-app.MapHealthChecks("/health");
+// Dışarıya sadece {"status":"healthy"} döner — DB bağlantı string'i veya servis URL'si sızdırmaz.
+// /health/detail endpoint'i sadece iç ağdan erişilebilir (nginx 403 döndürür).
+app.UseVitrinHealthChecks();
 app.MapGet("/", () => "Vitrin API Gateway is running! (YARP)");
 
 // Gelen istekleri ilgili mikroservislere yönlendirecek olan YARP Middleware'i

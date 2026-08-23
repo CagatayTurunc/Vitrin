@@ -12,6 +12,10 @@ const nextConfig = {
   turbopack: {
     root: projectRoot,
   },
+  // Madde 15 — Kodu karart: Production build'de source map kapalı.
+  // Source map açık olursa saldırganlar minify edilmiş kodu orijinal haline çevirebilir.
+  // Development'ta hata ayıklamak için bu satırı kaldırabilirsiniz.
+  productionBrowserSourceMaps: false,
   images: {
     unoptimized: true,
   },

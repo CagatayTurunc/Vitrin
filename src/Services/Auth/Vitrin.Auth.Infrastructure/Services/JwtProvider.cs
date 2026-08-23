@@ -44,12 +44,19 @@ public class JwtProvider : IJwtProvider
 
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
 
+        // Token ömrü 1 saat — kısa ömürlü token daha güvenli.
+        // Kullanıcı oturumu NextAuth session (7 gün) ile yönetilir;
+        // token expire olduğunda frontend isTokenExpired() ile yakalar
+        // ve SessionProvider otomatik oturumu sonlandırır.
+        var jti = Guid.NewGuid().ToString("N"); // her token için benzersiz ID (blacklist için)
+        claims.Add(new Claim(JwtRegisteredClaimNames.Jti, jti));
+
         var token = new JwtSecurityToken(
             issuer,
             audience,
             claims,
             null,
-            DateTime.UtcNow.AddDays(7),
+            DateTime.UtcNow.AddHours(1),
             new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256)
         );
 

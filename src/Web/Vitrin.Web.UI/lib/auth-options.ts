@@ -182,7 +182,28 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 7 * 24 * 60 * 60, // 7 gün — backend JWT ile senkron
+    maxAge: 7 * 24 * 60 * 60, // 7 gün — kullanıcı oturumu (backend JWT: 1 saat)
+  },
+  // Madde 12 — Çerezi güvenli yap:
+  // NextAuth varsayılan olarak NEXTAUTH_URL https ise Secure ekler,
+  // ama açıkça tanımlamak daha güvenli — özellikle SameSite için.
+  //
+  // HttpOnly: JavaScript bu cookie'yi okuyamaz (XSS'e karşı koruma)
+  // Secure:   Cookie sadece HTTPS üzerinden gönderilir
+  // SameSite: 'lax' — cross-site POST isteğinde cookie gönderilmez (CSRF koruması)
+  // __Secure- prefix: Tarayıcı bu cookie'yi sadece HTTPS'den kabul eder
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === "production"
+        ? "__Secure-next-auth.session-token"
+        : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax" as const,
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
   },
   pages: {
     signIn: "/login",

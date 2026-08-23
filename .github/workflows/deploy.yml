@@ -34,12 +34,85 @@ jobs:
         run: dotnet test Vitrin.sln --no-build --configuration Release --verbosity minimal
 
   # ============================================================
+  # 1b. GÜVENLİK TARAMASI (Madde 19 + 23)
+  # ──────────────────────────────────────────────────────────────
+  # Neden? Açık kaynaklı kütüphanelerdeki bilinen güvenlik açıklarını
+  # (CVE) otomatik olarak tespit eder. Her deploy'dan önce çalışır.
+  # Build'i bloklamaz (continue-on-error: true) ama rapor üretir.
+  # ============================================================
+  security-scan:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '11.13.0'
+
+      # .NET NuGet paket güvenlik açığı taraması
+      # --vulnerable: bilinen CVE içeren paketleri listeler
+      # --include-transitive: dolaylı bağımlılıkları da tarar
+      - name: .NET vulnerability scan
+        run: |
+          dotnet restore Vitrin.sln
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee dotnet-vuln-report.txt
+          # Kritik/yüksek açık varsa çıkış kodunu 1 yap
+          if grep -i "Critical\|High" dotnet-vuln-report.txt; then
+            echo "⚠️  Kritik veya yüksek güvenlik açığı bulundu!"
+            exit 1
+          fi
+        continue-on-error: true  # Şimdilik uyarı, tam blok için false yapın
+
+      # npm/pnpm bağımlılık güvenlik taraması
+      - name: Frontend vulnerability scan (pnpm audit)
+        working-directory: src/Web/Vitrin.Web.UI
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm audit --audit-level=high 2>&1 | tee pnpm-audit-report.txt
+        continue-on-error: true  # Şimdilik uyarı, tam blok için false yapın
+
+      # Docker image güvenlik taraması (Trivy)
+      # Built image'ı tarar — OS paketleri ve uygulama kütüphaneleri dahil
+      - name: Docker image vulnerability scan (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'  # Şimdilik uyarı, blok için '1' yapın
+        continue-on-error: true
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-${{ github.run_number }}
+          path: |
+            dotnet-vuln-report.txt
+            pnpm-audit-report.txt
+          retention-days: 30
+
+  # ============================================================
   # 2. BUILD & PUSH IMAGES (GitHub Actions'da build edilir)
   # ============================================================
   build:
     name: Build & Push Images
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, security-scan]
     permissions:
       contents: read
       packages: write

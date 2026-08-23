@@ -62,7 +62,8 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapHealthChecks("/health");
+// Dışarıya sadece {"status":"healthy"} döner — DB bağlantı string'i sızdırmaz.
+app.UseVitrinHealthChecks();
 
 app.MapPost("/api/auth/register", async (RegisterCommand command, HttpContext context, IMediator mediator, IAuditLogger auditLogger) =>
 {
@@ -83,6 +84,31 @@ app.MapPost("/api/auth/login", async (LoginCommand command, HttpContext context,
     return result.IsSuccess ? Results.Ok(result.Value) : ApiProblemResults.BadRequest(result.Error, "auth.login_failed");
 })
 .AddEndpointFilter<ValidationEndpointFilter<LoginCommand>>();
+
+// Madde 4 — Çıkışta oturumu düşür
+// Kullanıcı logout olduğunda token JTI'si Redis blacklist'e eklenir.
+// Token süresi dolana kadar (1 saat) bu token geçersiz sayılır.
+// Frontend'deki NextAuth signOut() bu endpoint'i çağırmalı.
+app.MapPost("/api/auth/logout", async (HttpContext context, IJwtTokenBlacklist blacklist) =>
+{
+    var jti = context.User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
+    var expClaim = context.User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Exp)?.Value;
+
+    if (!string.IsNullOrWhiteSpace(jti))
+    {
+        // Token'ın kalan ömrü kadar blacklist'te tut (sonra Redis otomatik siler)
+        TimeSpan expiry = TimeSpan.FromHours(1); // fallback
+        if (long.TryParse(expClaim, out var expUnix))
+        {
+            var expiresAt = DateTimeOffset.FromUnixTimeSeconds(expUnix);
+            var remaining = expiresAt - DateTimeOffset.UtcNow;
+            if (remaining > TimeSpan.Zero) expiry = remaining;
+        }
+        await blacklist.BlacklistAsync(jti, expiry, context.RequestAborted);
+    }
+
+    return Results.Ok(new { Message = "Başarıyla çıkış yapıldı." });
+}).RequireAuthorization();
 
 app.MapPost("/api/account/confirm-email", async (
     [Microsoft.AspNetCore.Mvc.FromBody] EmailTokenRequest request,

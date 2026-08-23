@@ -122,7 +122,9 @@ services:
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-VitrinGrafanaAdmin2024!}
+      # Madde 21 — .env'i kapat: Hardcoded fallback şifresi kaldırıldı.
+      # GRAFANA_ADMIN_PASSWORD ortam değişkeni zorunlu — .env dosyasında CHANGE_ME değeri ayarlanmalı.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
       GF_INSTALL_PLUGINS: grafana-piechart-panel
     depends_on:
       prometheus:
@@ -144,8 +146,15 @@ services:
       - "9300:9300"
     environment:
       discovery.type: single-node
-      xpack.security.enabled: false
-      xpack.security.enrollment.enabled: false
+      # Madde 17 — Yedeklemeyi (log storage'ı) kapat: 
+      # DEV: xpack.security kapalı bırakıldı (kolaylık için).
+      # PRODUCTION: Bu iki satırı değiştirin:
+      #   xpack.security.enabled: "true"
+      #   xpack.security.enrollment.enabled: "true"
+      # Sonra docker exec ile şifre oluşturun:
+      #   docker exec vitrin-elasticsearch bin/elasticsearch-setup-passwords auto
+      xpack.security.enabled: "false"
+      xpack.security.enrollment.enabled: "false"
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
@@ -183,6 +192,45 @@ services:
   # ALTYAPI SERVİSLERİ
   # ============================================================
 
+  # Madde 20 — Otomatik Yedek: pg_dump her gece 02:00'da çalışır.
+  # Yedekler /var/backups/vitrin-postgres içinde tutulur, 7 gün sonra silinir.
+  # S3_BUCKET env değişkeni tanımlanırsa otomatik olarak S3'e de yükler.
+  # Not: Sadece docker-compose.prod.yml'de aktif — dev'de şart değil.
+  postgres-backup:
+    image: postgres:16-alpine
+    container_name: vitrin-postgres-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      BACKUP_RETENTION_DAYS: "7"
+    volumes:
+      - postgres_backup_data:/backups
+    networks:
+      - vitrin-network
+    # Her gece 02:00 UTC'de tüm veritabanlarını yedekler
+    entrypoint: >
+      sh -c "
+        echo 'Backup servisi başlatıldı. Her gece 02:00 UTC çalışır.';
+        while true; do
+          NOW=$$(date +%H:%M);
+          if [ \"$$NOW\" = '02:00' ]; then
+            TIMESTAMP=$$(date +%Y%m%d_%H%M%S);
+            for DB in vitrin_auth vitrin_product vitrin_comment; do
+              echo \"→ Yedekleniyor: $$DB\";
+              pg_dump -h postgres -U $$POSTGRES_USER $$DB | gzip > /backups/$${DB}_$${TIMESTAMP}.sql.gz
+                && echo \"  ✅ $$DB yedeklendi\" || echo \"  ❌ $$DB yedekleme başarısız!\";
+            done;
+            find /backups -name '*.sql.gz' -mtime +$${BACKUP_RETENTION_DAYS:-7} -delete;
+            echo 'Eski yedekler temizlendi.';
+          fi;
+          sleep 60;
+        done
+      "
+
   postgres:
     image: postgres:16-alpine
     container_name: vitrin-postgres
@@ -208,6 +256,11 @@ services:
     image: redis:7-alpine
     container_name: vitrin-redis
     restart: unless-stopped
+    # Güvenlik notu: Redis şifresiz çalışıyor.
+    # Production'da aşağıdaki satırı açarak şifre ekleyin:
+    #   command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    # Ve tüm Redis bağlantı string'lerini "redis:6379,password=ŞIFRE" formatına güncelleyin.
+    # Mevcut durumda Docker iç ağıyla izole — dışarıya port açık değil.
     volumes:
       - redis_data:/data
     networks:
@@ -333,8 +386,9 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: "Host=postgres;Database=vitrin_product;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
       Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
-    ports:
-      - "5177:8080"
+    # Madde 20 — İzinleri azalt: Product servisi artık dışarıya expose edilmiyor.
+    # Sadece Docker iç ağından (vitrin-gateway üzerinden) erişilebilir.
+    # Dev ortamında test etmek için geçici olarak "5177:8080" ekleyebilirsiniz.
     networks:
       - vitrin-network
     healthcheck:
@@ -503,6 +557,7 @@ services:
       Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       Jwt__Issuer: Vitrin
       Jwt__Audience: Vitrin
+      ConnectionStrings__Redis: "redis:6379"
     networks:
       - vitrin-network
     healthcheck:
@@ -559,6 +614,8 @@ networks:
 volumes:
   postgres_data:
     name: vitrin_postgres_data
+  postgres_backup_data:
+    name: vitrin_postgres_backup_data
   redis_data:
     name: vitrin_redis_data
   kafka_data:

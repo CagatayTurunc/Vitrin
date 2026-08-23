@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using StackExchange.Redis;
 using Vitrin.Auth.Application.Interfaces;
 using Vitrin.Auth.Infrastructure.Data;
 using Vitrin.Auth.Infrastructure.Audit;
@@ -9,6 +10,7 @@ using Vitrin.Auth.Infrastructure.Repositories;
 using Vitrin.Auth.Infrastructure.Services;
 using Vitrin.Shared.Infrastructure.Kafka;
 using Vitrin.Shared.Infrastructure.Audit;
+using Vitrin.Shared.Infrastructure.Auth;
 using Vitrin.Shared.Infrastructure.Outbox;
 using Microsoft.Extensions.Hosting;
 
@@ -26,6 +28,12 @@ public static class DependencyInjection
 
         services.AddDbContext<AuthDbContext>(options =>
             options.UseNpgsql(connectionString));
+
+        // Madde 4 — Redis token blacklist (Auth servisi de logout için kullanır)
+        var redisConnection = configuration.GetConnectionString("Redis") ?? "localhost:6379";
+        services.AddSingleton<IConnectionMultiplexer>(_ =>
+            ConnectionMultiplexer.Connect(redisConnection));
+        services.AddVitrinTokenBlacklist();
 
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IJwtProvider, JwtProvider>();
