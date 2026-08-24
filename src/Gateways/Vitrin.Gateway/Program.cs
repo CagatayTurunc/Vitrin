@@ -1,6 +1,8 @@
 using StackExchange.Redis;
+using Vitrin.Gateway.Resilience;
 using Vitrin.Shared.Infrastructure.Auth;
 using Vitrin.Shared.Infrastructure.Api;
+using Yarp.ReverseProxy.Forwarder;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,9 +18,22 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(
     ConnectionMultiplexer.Connect(redisConnection));
 builder.Services.AddVitrinTokenBlacklist();
 
+// ── Resilience: Circuit Breaker + Retry + Timeout ──────────────────────────
+// Named HttpClient'lar Polly pipeline'ı ile kayıt edilir.
+// ResilienceForwarderHttpClientFactory, YARP'ın cluster ID'sine göre
+// doğru named client'ı seçerek her servis grubuna farklı policy uygular:
+//   auth/product/comment → Critical  (8s timeout, 3 retry, CB %50)
+//   voting               → Voting    (5s timeout, 1 retry, CB %60)
+//   analytics/notif/ai   → Tolerant  (15s timeout, 2 retry, CB %70)
+builder.Services.AddVitrinResiliencePolicies(builder.Configuration);
+
 // YARP konfigürasyonunu appsettings.json dosyasındaki "ReverseProxy" bölümünden alıyoruz.
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
+
+// YARP'ın default HttpClient factory'sini resilience-aware factory ile override et.
+// Artık her YARP proxy isteği Polly pipeline'ından geçer.
+builder.Services.AddSingleton<IForwarderHttpClientFactory, ResilienceForwarderHttpClientFactory>();
 
 // CORS Policy for Next.js Frontend
 // Allowed origins appsettings "Cors:AllowedOrigins" dizisinden okunur.
