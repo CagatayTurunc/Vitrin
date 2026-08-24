@@ -17,7 +17,11 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:smoke": "playwright test --grep @smoke"
+    "test:e2e:smoke": "playwright test --grep @smoke",
+    "test:e2e:health": "playwright test --grep @health",
+    "test:e2e:auth": "playwright test --grep @auth-flow",
+    "test:e2e:report": "playwright show-report ../../../artifacts/playwright-report",
+    "test:agent": "playwright test comprehensive-crawler.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "playwright-mcp",
+      "args": ["--browser", "chromium", "--headless", "--viewport-size", "1280,800"],
+      "disabled": false,
+      "autoApprove": [
+        "browser_navigate",
+        "browser_screenshot",
+        "browser_click",
+        "browser_type",
+        "browser_hover",
+        "browser_scroll",
+        "browser_wait_for",
+        "browser_evaluate",
+        "browser_get_text",
+        "browser_network_requests",
+        "browser_console_messages",
+        "browser_close"
+      ]
+    }
+  }
+}

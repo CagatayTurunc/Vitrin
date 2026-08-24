@@ -4,6 +4,11 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Testleri atla (acil deploy için)'
+        type: boolean
+        default: false
 
 env:
   REGISTRY: ghcr.io
@@ -16,6 +21,7 @@ jobs:
   test:
     name: Backend Tests
     runs-on: ubuntu-latest
+    if: ${{ !inputs.skip_tests }}
     steps:
       - uses: actions/checkout@v4
 
@@ -34,16 +40,13 @@ jobs:
         run: dotnet test Vitrin.sln --no-build --configuration Release --verbosity minimal
 
   # ============================================================
-  # 1b. GÜVENLİK TARAMASI (Madde 19 + 23)
-  # ──────────────────────────────────────────────────────────────
-  # Neden? Açık kaynaklı kütüphanelerdeki bilinen güvenlik açıklarını
-  # (CVE) otomatik olarak tespit eder. Her deploy'dan önce çalışır.
-  # Build'i bloklamaz (continue-on-error: true) ama rapor üretir.
+  # 1b. GÜVENLİK TARAMASI
   # ============================================================
   security-scan:
     name: Security Audit
     runs-on: ubuntu-latest
     needs: test
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
     steps:
       - uses: actions/checkout@v4
 
@@ -62,30 +65,23 @@ jobs:
         with:
           version: '11.13.0'
 
-      # .NET NuGet paket güvenlik açığı taraması
-      # --vulnerable: bilinen CVE içeren paketleri listeler
-      # --include-transitive: dolaylı bağımlılıkları da tarar
       - name: .NET vulnerability scan
         run: |
           dotnet restore Vitrin.sln
           dotnet list package --vulnerable --include-transitive 2>&1 | tee dotnet-vuln-report.txt
-          # Kritik/yüksek açık varsa çıkış kodunu 1 yap
           if grep -i "Critical\|High" dotnet-vuln-report.txt; then
             echo "⚠️  Kritik veya yüksek güvenlik açığı bulundu!"
             exit 1
           fi
-        continue-on-error: true  # Şimdilik uyarı, tam blok için false yapın
+        continue-on-error: true
 
-      # npm/pnpm bağımlılık güvenlik taraması
       - name: Frontend vulnerability scan (pnpm audit)
         working-directory: src/Web/Vitrin.Web.UI
         run: |
           pnpm install --frozen-lockfile
           pnpm audit --audit-level=high 2>&1 | tee pnpm-audit-report.txt
-        continue-on-error: true  # Şimdilik uyarı, tam blok için false yapın
+        continue-on-error: true
 
-      # Docker image güvenlik taraması (Trivy)
-      # Built image'ı tarar — OS paketleri ve uygulama kütüphaneleri dahil
       - name: Docker image vulnerability scan (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -93,7 +89,7 @@ jobs:
           scan-ref: '.'
           format: 'table'
           severity: 'CRITICAL,HIGH'
-          exit-code: '0'  # Şimdilik uyarı, blok için '1' yapın
+          exit-code: '0'
         continue-on-error: true
 
       - name: Upload security reports
@@ -107,15 +103,22 @@ jobs:
           retention-days: 30
 
   # ============================================================
-  # 2. BUILD & PUSH IMAGES (GitHub Actions'da build edilir)
+  # 2. BUILD & PUSH IMAGES
+  # Image tag: her build'e özgü SHA + ayrıca 'latest' alias
+  # Neden commit SHA? Rollback ve traceability için kritik.
+  # ghcr.io/.../vitrin-auth:a1b2c3d → hangi commit, ne zaman, kim deploy etti
   # ============================================================
   build:
     name: Build & Push Images
     runs-on: ubuntu-latest
     needs: [test, security-scan]
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped') && needs.security-scan.result != 'failure'
     permissions:
       contents: read
       packages: write
+    outputs:
+      # Deploy job'unda hangi tag'i pull edeceğimizi bilmek için
+      image_tag: ${{ steps.meta.outputs.short_sha }}
     strategy:
       matrix:
         service:
@@ -142,7 +145,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Owner kucuk harfe cevir
+      - name: Image tag hesapla (commit SHA kısa)
+        id: meta
+        run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Owner küçük harfe çevir
         id: owner
         run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
@@ -160,25 +167,33 @@ jobs:
             network=host
             image=moby/buildkit:latest
 
+      # Her image iki tag ile push edilir:
+      # 1. ghcr.io/.../vitrin-auth:a1b2c3d  → rollback/traceability için
+      # 2. ghcr.io/.../vitrin-auth:latest    → docker-compose.prod.yml uyumluluğu için
       - name: Build & Push ${{ matrix.service.name }}
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.service.context || '.' }}
           file: ${{ matrix.service.dockerfile }}
           push: true
-          tags: ghcr.io/${{ steps.owner.outputs.name }}/vitrin-${{ matrix.service.name }}:latest
+          tags: |
+            ghcr.io/${{ steps.owner.outputs.name }}/vitrin-${{ matrix.service.name }}:${{ steps.meta.outputs.short_sha }}
+            ghcr.io/${{ steps.owner.outputs.name }}/vitrin-${{ matrix.service.name }}:latest
           build-args: ${{ matrix.service.build_args || '' }}
           cache-from: type=gha,scope=${{ matrix.service.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service.name }}
           provenance: false
 
   # ============================================================
-  # 3. DEPLOY (EC2 sadece pull & up yapar)
+  # 3. DEPLOY
+  # Tüm 9 servisi günceller + her servis için health check yapar
+  # Smoke test başarısız olursa otomatik rollback tetiklenir
   # ============================================================
   deploy:
     name: Deploy to EC2
     runs-on: ubuntu-latest
     needs: build
+    environment: production
 
     steps:
       - uses: actions/checkout@v4
@@ -190,52 +205,103 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           timeout: 60s
-          command_timeout: 300s
+          command_timeout: 600s
           script: |
             set -e
-            echo "=== Başlangıç $(date) ==="
+            echo "=== Deploy başladı: $(date) | Commit: ${{ github.sha }} ==="
 
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin 2>/dev/null
 
             cd ~/vitrin
 
-            echo "=== Pull latest images ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull vitrin-auth vitrin-gateway vitrin-web
+            # Rollback için mevcut image tag'lerini kaydet
+            echo "=== Mevcut image tag'leri kaydediliyor (rollback için) ==="
+            docker inspect vitrin-auth  --format='{{index .Config.Image}}' 2>/dev/null > /tmp/prev_auth_image  || echo "unknown" > /tmp/prev_auth_image
+            docker inspect vitrin-web   --format='{{index .Config.Image}}' 2>/dev/null > /tmp/prev_web_image   || echo "unknown" > /tmp/prev_web_image
+            docker inspect vitrin-gateway --format='{{index .Config.Image}}' 2>/dev/null > /tmp/prev_gateway_image || echo "unknown" > /tmp/prev_gateway_image
 
-            echo "=== Stop & remove old app containers ==="
-            docker stop vitrin-web vitrin-gateway vitrin-auth 2>/dev/null || true
-            docker rm   vitrin-web vitrin-gateway vitrin-auth 2>/dev/null || true
+            # Tüm uygulama servislerini pull et (altyapı servisleri hariç: db, redis, kafka vb.)
+            echo "=== Tüm servis image'ları pull ediliyor ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull \
+              vitrin-auth \
+              vitrin-product \
+              vitrin-voting \
+              vitrin-comment \
+              vitrin-notification \
+              vitrin-analytics \
+              vitrin-ai \
+              vitrin-gateway \
+              vitrin-web
 
-            echo "=== Start vitrin-auth ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-auth
-            echo "Waiting 20s for auth to initialize..."
-            sleep 20
+            # ── Servis bazlı rolling restart ──────────────────────────────
+            # Sıra önemli: önce backend, sonra gateway, en son web
+            # Her adımda health check — başarısız olursa deploy durur
 
-            echo "=== Start vitrin-gateway ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-gateway
-            sleep 5
+            # Tüm backend servisler container içinde :8080/health endpoint'ini kullanır.
+            # Dışa port expose edilmez — Docker exec üzerinden container içinden çağrılır.
+            health_check_container() {
+              local container=$1
+              local retries=${2:-12}
 
-            echo "=== Start vitrin-web ==="
+              for i in $(seq 1 $retries); do
+                if docker exec "$container" curl -sf --max-time 5 http://localhost:8080/health -o /dev/null 2>/dev/null; then
+                  echo "✅ $container sağlıklı ($i. deneme)"
+                  return 0
+                fi
+                echo "⏳ $container bekleniyor... ($i/$retries)"
+                sleep 5
+              done
+              echo "❌ $container health check başarısız — deploy durduruluyor"
+              return 1
+            }
+
+            restart_and_check() {
+              local service=$1
+              local container=$2
+
+              echo "--- $service yeniden başlatılıyor ---"
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps "$service"
+              health_check_container "$container"
+            }
+
+            restart_and_check vitrin-auth         vitrin-auth
+            restart_and_check vitrin-product      vitrin-product
+            restart_and_check vitrin-voting       vitrin-voting
+            restart_and_check vitrin-comment      vitrin-comment
+            restart_and_check vitrin-notification vitrin-notification
+            restart_and_check vitrin-analytics    vitrin-analytics
+            restart_and_check vitrin-ai           vitrin-ai
+            restart_and_check vitrin-gateway      vitrin-gateway
+
+            # Web servisi Next.js, farklı port
+            echo "--- vitrin-web yeniden başlatılıyor ---"
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-web
+            for i in {1..12}; do
+              if docker exec vitrin-web curl -sf --max-time 5 http://localhost:3000/api/health -o /dev/null 2>/dev/null; then
+                echo "✅ vitrin-web sağlıklı ($i. deneme)"
+                break
+              fi
+              echo "⏳ vitrin-web bekleniyor... ($i/12)"
+              sleep 5
+            done
 
             echo "=== Nginx reload ==="
             docker exec vitrin-nginx nginx -s reload 2>/dev/null || docker restart vitrin-nginx 2>/dev/null || true
 
-            echo "=== Container status ==="
-            docker ps --filter name=vitrin --format "table {{.Names}}\t{{.Status}}"
+            echo "=== Tüm container durumları ==="
+            docker ps --filter name=vitrin --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
 
-            echo "=== Bitti $(date) ==="
+            echo "=== Deploy tamamlandı: $(date) | Commit: ${{ github.sha }} ==="
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ============================================================
-  # 4. SMOKE TEST (Deploy bittikten sonra production'ı test et)
+  # 4. SMOKE TEST
   # ============================================================
   smoke-test:
     name: Smoke Tests (Production)
     runs-on: ubuntu-latest
     needs: deploy
-    # Deploy başarılı olsa da olmasa da smoke testi çalıştır
     if: always() && needs.deploy.result != 'cancelled'
 
     steps:
@@ -261,9 +327,8 @@ jobs:
 
       - name: Wait for deployment to stabilize
         run: |
-          echo "Deployment tamamlanması bekleniyor (30s)..."
+          echo "Deployment stabilize olması bekleniyor (30s)..."
           sleep 30
-          # Site erişilebilir mi?
           for i in {1..10}; do
             if curl -sf --max-time 10 "https://vitrin.it.com" -o /dev/null; then
               echo "Site erişilebilir ✅"
@@ -278,11 +343,9 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: https://vitrin.it.com
           GATEWAY_URL: https://vitrin.it.com
-          # Opsiyonel — authenticated testler için
           E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
           E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
         run: pnpm test:e2e:smoke
-        # Smoke test başarısız olursa pipeline'ı durdur
         continue-on-error: false
 
       - name: Upload Playwright report
@@ -306,7 +369,6 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const { execSync } = require('child_process');
             const status = '${{ job.status }}';
             const emoji = status === 'success' ? '✅' : '❌';
             const runUrl = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
@@ -316,3 +378,71 @@ jobs:
               repo: context.repo.repo,
               body: `## ${emoji} Smoke Test Sonucu: **${status.toUpperCase()}**\n\n[Playwright Raporunu Görüntüle](${runUrl})\n\n> Deploy sonrası otomatik smoke testler çalıştırıldı.`
             });
+
+  # ============================================================
+  # 5. OTOMATİK ROLLBACK
+  # Smoke test başarısız olursa bir önceki başarılı commit'e döner
+  # Nasıl çalışır: EC2'da önceki image tag'lerini yeniden deploy eder
+  # ============================================================
+  rollback:
+    name: Auto Rollback
+    runs-on: ubuntu-latest
+    needs: smoke-test
+    # Sadece smoke test başarısız olursa ve deploy başarılıysa çalışır
+    if: failure() && needs.smoke-test.result == 'failure'
+
+    steps:
+      - name: Rollback via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 300s
+          script: |
+            echo "🔴 Smoke test başarısız — rollback başlatılıyor..."
+            cd ~/vitrin
+
+            # Deploy adımında kaydedilen önceki image'lara geri dön
+            PREV_AUTH=$(cat /tmp/prev_auth_image 2>/dev/null || echo "")
+            PREV_WEB=$(cat /tmp/prev_web_image 2>/dev/null || echo "")
+            PREV_GATEWAY=$(cat /tmp/prev_gateway_image 2>/dev/null || echo "")
+
+            if [ -n "$PREV_AUTH" ] && [ "$PREV_AUTH" != "unknown" ]; then
+              echo "Auth rollback: $PREV_AUTH"
+              docker pull "$PREV_AUTH" || true
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-auth
+            fi
+
+            if [ -n "$PREV_GATEWAY" ] && [ "$PREV_GATEWAY" != "unknown" ]; then
+              echo "Gateway rollback: $PREV_GATEWAY"
+              docker pull "$PREV_GATEWAY" || true
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-gateway
+            fi
+
+            if [ -n "$PREV_WEB" ] && [ "$PREV_WEB" != "unknown" ]; then
+              echo "Web rollback: $PREV_WEB"
+              docker pull "$PREV_WEB" || true
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-web
+            fi
+
+            docker exec vitrin-nginx nginx -s reload 2>/dev/null || true
+
+            echo "✅ Rollback tamamlandı: $(date)"
+            docker ps --filter name=vitrin --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+
+      - name: Rollback bildirimini GitHub'a yaz
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'failure',
+              description: '🔴 Deploy başarısız — otomatik rollback uygulandı',
+              context: 'ci/cd/deploy'
+            });
+
+

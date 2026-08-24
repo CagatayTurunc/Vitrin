@@ -1,0 +1,197 @@
+name: CI - Pull Request Checks
+
+# Bu workflow SADECE PR'larda çalışır.
+# main'e direkt push → deploy.yml devralır.
+# develop'a push veya main'e PR → bu workflow devreye girer.
+#
+# Amaç: main'e broken kod gitmeden önce test + lint + build koşulsun.
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ develop ]
+
+jobs:
+  # ============================================================
+  # BACKEND: Test + Build
+  # ============================================================
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore Vitrin.sln
+
+      - name: Build (Release)
+        run: dotnet build Vitrin.sln --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test Vitrin.sln --no-build --configuration Release --verbosity minimal --collect:"XPlat Code Coverage"
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.run_number }}
+          path: '**/coverage.cobertura.xml'
+          retention-days: 7
+
+  # ============================================================
+  # FRONTEND: Type check + Lint + Build
+  # ============================================================
+  frontend:
+    name: Frontend Checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Web/Vitrin.Web.UI
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '11.13.0'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Lint
+        run: pnpm lint
+        continue-on-error: false
+
+      - name: Build (production)
+        # Gerçek build — broken import, missing env var vb. burada yakalanır
+        run: pnpm build
+        env:
+          # Build zamanı gerekli env'ler — gerçek değerler gerekmez, format doğrulaması için
+          NEXT_PUBLIC_API_URL: https://vitrin.it.com
+          NEXTAUTH_URL: https://vitrin.it.com
+          NEXTAUTH_SECRET: ci-placeholder-secret-32-chars-min
+          JWT_SECRET: ci-placeholder-jwt-secret
+          NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: placeholder
+          NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET: placeholder
+
+  # ============================================================
+  # GÜVENLİK: Hızlı vulnerability scan (sadece kritik)
+  # ============================================================
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: .NET vulnerability scan
+        run: |
+          dotnet restore Vitrin.sln
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee dotnet-vuln-report.txt
+          if grep -i "Critical" dotnet-vuln-report.txt; then
+            echo "❌ Kritik güvenlik açığı — PR bloklandı"
+            exit 1
+          fi
+          echo "✅ Kritik güvenlik açığı yok"
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'CRITICAL'
+          exit-code: '1'
+        continue-on-error: true   # PR bloklamaz ama rapor üretir
+
+      - name: Upload security report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-security-report-${{ github.run_number }}
+          path: dotnet-vuln-report.txt
+          retention-days: 7
+
+  # ============================================================
+  # PR ÖZET: Tüm check'ler bitti, PR'a sonuç yorum olarak yaz
+  # ============================================================
+  pr-summary:
+    name: PR Summary Comment
+    runs-on: ubuntu-latest
+    needs: [backend, frontend, security]
+    if: always() && github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: PR'a sonuç yorumu yaz
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const backend  = '${{ needs.backend.result }}';
+            const frontend = '${{ needs.frontend.result }}';
+            const security = '${{ needs.security.result }}';
+
+            const icon = (r) => r === 'success' ? '✅' : r === 'skipped' ? '⏭️' : '❌';
+            const allOk = [backend, frontend, security].every(r => r === 'success');
+
+            const runUrl = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const body = [
+              `## ${allOk ? '✅' : '❌'} CI Sonuçları`,
+              '',
+              '| Kontrol | Sonuç |',
+              '|---------|-------|',
+              `| ${icon(backend)}  Backend Tests    | \`${backend}\` |`,
+              `| ${icon(frontend)} Frontend Checks  | \`${frontend}\` |`,
+              `| ${icon(security)} Security Audit   | \`${security}\` |`,
+              '',
+              allOk
+                ? '> Tüm kontroller geçti. Bu PR merge edilmeye hazır.'
+                : '> ⚠️ Bazı kontroller başarısız. Lütfen detayları inceleyin.',
+              '',
+              `[Detaylı log için tıkla](${runUrl})`,
+            ].join('\n');
+
+            // Önceki bot yorumunu güncelle (birden fazla yorum oluşmasın)
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('CI Sonuçları')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
