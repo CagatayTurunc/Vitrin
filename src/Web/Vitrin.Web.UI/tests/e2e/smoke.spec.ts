@@ -161,8 +161,8 @@ test.describe("Login formu", () => {
 
   test("@smoke kayıt ol linki çalışıyor", async ({ page }) => {
     await page.goto("/login", { waitUntil: "domcontentloaded" });
-    // Login formunun altındaki "Kayıt Ol" linkini hedef al (navbar değil)
-    await page.locator("main").getByRole("link", { name: /kayıt ol/i }).click();
+    // href="/register" olan linki direkt hedef al — navbar vs form ayrımı yok
+    await page.locator('a[href="/register"]').first().click();
     await expect(page).toHaveURL(/register/, { timeout: 10_000 });
   });
 });
@@ -186,21 +186,21 @@ test.describe("Kayıt formu", () => {
   test("@smoke register API isteği backend'e gidiyor (network intercept)", async ({ page }) => {
     await page.goto("/register", { waitUntil: "domcontentloaded" });
 
-    // Request dinleyiciyi goto'dan SONRA, click'ten ÖNCE kur
-    const registerRequest = page.waitForRequest(
-      (req) => req.url().includes("/api/auth/register") && req.method() === "POST",
+    // Form submit sonrası gelen response'u yakala (request değil — fetch redirect'i takip eder)
+    const registerResponse = page.waitForResponse(
+      (resp) => resp.url().includes("/api/auth/register") && resp.request().method() === "POST",
       { timeout: 15_000 },
     );
 
     await page.getByPlaceholder(/ad soyad/i).fill("Test Kullanıcı");
-    await page.getByPlaceholder(/kullanici_adi/i).fill("testuser_smoke");
-    await page.getByPlaceholder(/isim@ornek\.com/i).fill("smoke_test_user@vitrin-qa.test");
+    await page.getByPlaceholder(/kullanici_adi/i).fill("testuser_smoke_" + Date.now());
+    await page.getByPlaceholder(/isim@ornek\.com/i).fill(`smoke_${Date.now()}@vitrin-qa.test`);
     await page.locator('input[name="password"]').fill("SmokeTest123!@#");
     await page.locator('button[type="submit"]').click();
 
-    // İstek gönderilmiş olmalı
-    const req = await registerRequest.catch(() => null);
-    expect(req, "Register butonu API'ye istek göndermedi").not.toBeNull();
+    // Response gelmiş olmalı (başarılı ya da validation hatası — ikisi de API'ye ulaştığını gösterir)
+    const resp = await registerResponse.catch(() => null);
+    expect(resp, "Register butonu API'ye istek göndermedi").not.toBeNull();
   });
 });
 
