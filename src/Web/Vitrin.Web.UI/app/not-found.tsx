@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowLeft, Compass, Home, Search, Sparkles } from "lucide-react";
+import { Compass, Home, Search, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
+import { BackButton } from "@/components/back-button";
 
 export const metadata: Metadata = {
   title: "Sayfa Bulunamadı — Vitrin",
@@ -60,15 +61,8 @@ export default function NotFound() {
         </Link>
       </div>
 
-      {/* Geri butonu */}
-      <button
-        type="button"
-        onClick={() => window.history.back()}
-        className="mt-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Önceki sayfaya dön
-      </button>
+      {/* Geri butonu — client component, onClick gerektiriyor */}
+      <BackButton className="mt-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" />
     </main>
   );
 }
