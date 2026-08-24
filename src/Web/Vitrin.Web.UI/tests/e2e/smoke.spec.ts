@@ -106,7 +106,8 @@ test.describe("Login formu", () => {
 
     await expect(page.getByLabel("E-posta")).toBeVisible();
     await expect(page.locator("#password")).toBeVisible();
-    await expect(page.getByRole("button", { name: /giriş yap/i })).toBeVisible();
+    // Form içindeki submit button'u hedef al (navbar'daki link değil)
+    await expect(page.locator('button[type="submit"]')).toBeVisible();
   });
 
   test("@smoke Google ve GitHub butonları mevcut ve tıklanabilir", async ({ page }) => {
@@ -122,7 +123,9 @@ test.describe("Login formu", () => {
   });
 
   test("@smoke yanlış kimlik bilgisiyle login hata gösteriyor", async ({ page }) => {
-    // Backend isteğini yakala
+    await page.goto("/login", { waitUntil: "domcontentloaded" });
+
+    // Backend isteğini GOTO'dan sonra kur ama click'ten önce
     const loginRequest = page.waitForResponse(
       (resp) =>
         (resp.url().includes("/api/auth/login") ||
@@ -131,10 +134,10 @@ test.describe("Login formu", () => {
       { timeout: 20_000 },
     );
 
-    await page.goto("/login", { waitUntil: "domcontentloaded" });
     await page.getByLabel("E-posta").fill("yanlis@test.com");
     await page.locator("#password").fill("YanlisS1fre!");
-    await page.getByRole("button", { name: /giriş yap/i }).click();
+    // Form içindeki submit button'u hedef al
+    await page.locator('button[type="submit"]').click();
 
     // Backend'e istek gitmiş olmalı
     const resp = await loginRequest.catch(() => null);
@@ -158,7 +161,8 @@ test.describe("Login formu", () => {
 
   test("@smoke kayıt ol linki çalışıyor", async ({ page }) => {
     await page.goto("/login", { waitUntil: "domcontentloaded" });
-    await page.getByRole("link", { name: /kayıt ol/i }).click();
+    // Login formunun altındaki "Kayıt Ol" linkini hedef al (navbar değil)
+    await page.locator("main").getByRole("link", { name: /kayıt ol/i }).click();
     await expect(page).toHaveURL(/register/, { timeout: 10_000 });
   });
 });
@@ -176,21 +180,23 @@ test.describe("Kayıt formu", () => {
     await expect(page.getByPlaceholder(/kullanici_adi/i)).toBeVisible();
     await expect(page.getByPlaceholder(/isim@ornek\.com/i)).toBeVisible();
     await expect(page.locator('input[name="password"]')).toBeVisible();
-    await expect(page.getByRole("button", { name: /kayıt ol/i })).toBeVisible();
+    await expect(page.locator('button[type="submit"]')).toBeVisible();
   });
 
   test("@smoke register API isteği backend'e gidiyor (network intercept)", async ({ page }) => {
+    await page.goto("/register", { waitUntil: "domcontentloaded" });
+
+    // Request dinleyiciyi goto'dan SONRA, click'ten ÖNCE kur
     const registerRequest = page.waitForRequest(
       (req) => req.url().includes("/api/auth/register") && req.method() === "POST",
       { timeout: 15_000 },
     );
 
-    await page.goto("/register", { waitUntil: "domcontentloaded" });
     await page.getByPlaceholder(/ad soyad/i).fill("Test Kullanıcı");
     await page.getByPlaceholder(/kullanici_adi/i).fill("testuser_smoke");
     await page.getByPlaceholder(/isim@ornek\.com/i).fill("smoke_test_user@vitrin-qa.test");
     await page.locator('input[name="password"]').fill("SmokeTest123!@#");
-    await page.getByRole("button", { name: /kayıt ol/i }).click();
+    await page.locator('button[type="submit"]').click();
 
     // İstek gönderilmiş olmalı
     const req = await registerRequest.catch(() => null);
