@@ -17,7 +17,16 @@ const nextConfig = {
   // Development'ta hata ayıklamak için bu satırı kaldırabilirsiniz.
   productionBrowserSourceMaps: false,
   images: {
-    unoptimized: true,
+    // unoptimized: true satırı kaldırıldı.
+    // Docker standalone modunda Next.js image optimization çalışır —
+    // WebP dönüşümü, responsive srcset, lazy loading hepsi aktif.
+    // Cloudinary URL'leri (res.cloudinary.com) ve GitHub/Google avatar'ları için
+    // remote pattern whitelist eklendi.
+    remotePatterns: [
+      { protocol: "https", hostname: "res.cloudinary.com" },
+      { protocol: "https", hostname: "avatars.githubusercontent.com" },
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+    ],
   },
   // Browser'dan gelen /api/* isteklerini sunucu üzerinden gateway'e yönlendir.
   // Next.js, rewrite kurallarından önce kendi route handler'larını kontrol eder;

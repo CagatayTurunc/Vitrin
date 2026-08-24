@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { ProductDetailApiModel } from "@/core/domain/product.types";
 import { ProductDetailClient } from "@/components/product-detail-client";
 import { serverApiFetch } from "@/lib/server-api";
+import { Breadcrumb } from "@/components/breadcrumb";
 
 export const dynamic = 'force-dynamic';
 
@@ -75,6 +76,14 @@ export default async function ProductPage({ params }: Props) {
 
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
+    <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
+      <Breadcrumb
+        items={[
+          { label: "Ürünler", href: "/discover" },
+          { label: product.name },
+        ]}
+      />
+    </div>
     <ProductDetailClient slug={slug} initialProduct={product} />
   </>;
 }
