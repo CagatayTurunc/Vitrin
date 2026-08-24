@@ -1,6 +1,6 @@
 # Vitrin — Sistem Tasarımı ve Mimari Belge
 
-> Son güncelleme: Ağustos 2026
+> Son güncelleme: Ağustos 2026 — Resilience layer (Polly) + Distributed Rate Limiting (Redis) eklendi
 > Bu belge projedeki mevcut sistem tasarım kararlarını, uygulanan pattern'leri ve kullanılan kavramları tek bir referans noktasında toplar.
 
 ---
@@ -113,30 +113,44 @@ Gateway, `YARP (Yet Another Reverse Proxy)` tabanlıdır ve tek dış giriş nok
 
 | # | Use Case | Durum | Detay |
 |---|---|---|---|
-| 1 | **Rate Limiting** | ✅ Var | IP bazlı, policy başına sliding window |
+| 1 | **Rate Limiting** | ✅ Var | Redis sliding window (distributed), 9 policy, `Retry-After` header |
 | 2 | **Authentication** | ✅ Var | JWT imzası, issuer, audience, algorithm kontrolü |
 | 3 | **Load Balancing** | ❌ Tek instance | Birden fazla destination tanımlanabilir ama aktif değil |
 | 4 | **Request Routing** | ✅ Var | Path-based routing, her servis için ayrı cluster |
 | 5 | **SSL Termination** | ✅ Hazır | Nginx'te HTTPS, Gateway iç ağda HTTP |
 | 6 | **Caching** | ✅ Var | Redis üzerinden response cache |
 | 7 | **Transformation** | ✅ Var | YARP transform middleware |
-| 8 | **Circuit Breaking** | ❌ Eksik | Polly ile eklenecek (bkz. Sonraki Adımlar) |
+| 8 | **Circuit Breaking** | ✅ Var | Polly v8 — cluster başına profil (Critical/Voting/Tolerant) |
 | 9 | **Logging & Metrics** | ✅ Var | OpenTelemetry, Serilog, Prometheus |
 | 10 | **API Versioning** | 🔄 Kısmi | Route-based versioning altyapısı hazır |
 
 ### Rate Limiter Policy'leri
 
+Redis sliding window algoritması (Lua script, atomik). Gateway yeniden başlasa veya ileride ikinci instance eklense sayaçlar korunur.
+
 ```
-auth-login          → 5 istek / dakika (login brute-force koruması)
-auth-registration   → 3 istek / 10 dakika (kayıt spam koruması)
-auth-external-login → login ile aynı (OAuth koruması)
-api-write           → POST/PUT/PATCH/DELETE yazma limiti
-search-query        → Arama ve ürün listeleme sorgu limiti
-social-write        → Oy, yorum, topic yazma limiti
-analytics-event     → Analitik event gönderme limiti
-analytics-query     → Analitik sorgu limiti
-ai-analysis         → AI analiz limiti (dakika + günlük kota)
+auth-login          → 5 istek / dakika    — IP bazlı (brute-force koruması)
+auth-registration   → 3 istek / 10 dakika — IP bazlı (kayıt spam koruması)
+auth-external-login → 10 istek / dakika   — IP bazlı (OAuth koruması)
+api-write           → 60 istek / dakika   — User/IP bazlı (yazma limiti)
+social-write        → 30 istek / dakika   — User/IP bazlı (oy, yorum, topic)
+search-query        → 90 istek / dakika   — User/IP bazlı (arama)
+analytics-event     → 30 istek / dakika   — User/IP bazlı
+analytics-query     → 45 istek / dakika   — User/IP bazlı
+ai-analysis         → 5 istek / dakika    — User/IP bazlı + günlük SQLite kotası
 ```
+
+**Fallback:** Redis erişilemezse fail-open (istek geçer, log yazılır) + in-memory FixedWindow devreye girer.
+
+### Circuit Breaker Profilleri
+
+```
+Critical (auth, product, comment) → 8s timeout | 3 retry | CB: %50 hata / 30s break
+Voting                            → 5s timeout | 1 retry | CB: %60 hata / 20s break
+Tolerant (analytics, notif, ai)   → 15s timeout | 2 retry | CB: %70 hata / 60s break
+```
+
+Pipeline sırası (içten dışa): `Timeout → Retry → Circuit Breaker`
 
 ### Token Blacklist
 
@@ -153,7 +167,7 @@ Logout olan kullanıcının JWT token'ı Redis'te `jti` bazlı kara listeye ekle
 | **REST** | ✅ | Tüm servisler REST; kaynak odaklı URL'ler, doğru HTTP fiilleri |
 | **Idempotency** | ✅ | Kafka Inbox'ta `EventId` bazlı — aynı event tekrar işlenmez |
 | **Pagination** | ✅ | Cursor-based pagination (offset değil, sonraki sayfa token'ı) |
-| **Rate Limits** | ✅ | Gateway'de policy bazlı, `Retry-After` header ile yanıt |
+| **Rate Limiting** | ✅ | Gateway'de Redis sliding window, 9 policy, distributed, `Retry-After` header |
 | **Versioning** | 🔄 | Altyapı hazır; `v1` path prefix planlandı |
 | **Auth** | ✅ | Bearer token (JWT), 401 = token yok/geçersiz, 403 = yetki yok |
 | **Retries** | ✅ | Kafka consumer: exponential backoff retry, son deneyde DLQ |
@@ -215,12 +229,13 @@ Kafka üzerinden event-driven akış ile çalışır. Her domain eventi publish 
 |---|---|---|
 | **Caching** | ✅ | Redis — token blacklist, response cache, session |
 | **Message Queues** | ✅ | Kafka + Zookeeper — 5 topic, at-least-once garantisi |
-| **Rate Limiting** | ✅ | Gateway'de IP bazlı, 9 farklı policy |
+| **Rate Limiting** | ✅ | Gateway'de Redis sliding window, distributed, restart'ta sayaç korunur |
 | **DB Indexing** | ✅ | Composite, partial ve GIN index'ler, `pg_trgm` full-text |
 | **Health Checks** | ✅ | `/health` (basit), `/health/detail` (sadece iç ağ) |
 | **Distributed Tracing** | ✅ | OpenTelemetry + Jaeger, correlation ID end-to-end |
 | **Structured Logging** | ✅ | Serilog → Elasticsearch → Kibana |
 | **CAP Theorem** | ✅ | CP tercihi — consistency ve partition tolerance öncelikli |
+| **Circuit Breaking** | ✅ | Polly v8 — Critical/Voting/Tolerant profilleri |
 
 ### ❌ Eksik Olanlar
 
@@ -231,7 +246,6 @@ Kafka üzerinden event-driven akış ile çalışır. Her domain eventi publish 
 | **DB Sharding** | Tek PostgreSQL node | Düşük (şu an gerekmez) |
 | **DB Replication** | Master-slave yok | Orta (production öncesi) |
 | **Consistent Hashing** | Dağıtık cache routing yok | Düşük |
-| **Circuit Breaking** | Polly eklenmemiş | Yüksek |
 
 ### Veri Sahibi Sınırları
 
@@ -498,17 +512,18 @@ Her event şu alanları taşır:
 
 ---
 
-### Öncelik 1 — Resilience ✅ Düşük maliyet, yüksek etki
+### ~~Öncelik 1 — Resilience~~ ✅ Tamamlandı
 
-Bunlar kod seviyesinde yapılır, ek altyapı gerektirmez. Tek instance'ta bile kritik çünkü
-bir downstream servis yavaşladığında Gateway thread'lerini tüketmesini engeller.
-
-| Özellik | Pattern | Araç | Neden Şimdi |
+| Özellik | Pattern | Araç | Durum |
 |---|---|---|---|
-| **Circuit Breaking** | Circuit Breaker | Polly | Domino etkisini keser; bir servis çöktüğünde diğerleri etkilenmez |
-| **Retry with backoff** | Retry Policy | Polly | Geçici hataları otomatik toparlama; Kafka consumer'da zaten var, HTTP için eksik |
-| **Timeout** | Timeout Policy | Polly | Sonsuz bekleyen istek thread'lerini serbest bırakır |
-| **Distributed Rate Limiting** | Sliding Window | Redis | Şu an in-memory — çoklu deploy veya restart'ta sayaç sıfırlanır |
+| **Circuit Breaking** | Circuit Breaker | Polly v8 | ✅ Eklendi — `ResilienceForwarderHttpClientFactory` |
+| **Retry with backoff** | Retry Policy | Polly v8 | ✅ Eklendi — exponential + jitter |
+| **Timeout** | Timeout Policy | Polly v8 | ✅ Eklendi — cluster başına farklı süre |
+| **Distributed Rate Limiting** | Redis Sliding Window | StackExchange.Redis + Lua | ✅ Eklendi — `RedisRateLimitStore` |
+
+**Commit'ler:**
+- `f75bfb2` — feat: resilience layer - Circuit Breaker, Retry, Timeout via Polly
+- `1c47188` — feat: distributed rate limiting via Redis sliding window
 
 ### Öncelik 2 — Developer Experience ✅ Düşük maliyet, orta etki
 
