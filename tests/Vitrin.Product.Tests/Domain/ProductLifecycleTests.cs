@@ -145,7 +145,7 @@ public class ProductLifecycleTests
     public void AddCategory_WhenLessThan3Categories_Should_Return_Success()
     {
         var product  = CreateDraftProduct();
-        var category = new ProductCategory { Id = Guid.NewGuid(), Name = "SaaS", Slug = "saas" };
+        var category = ProductCategory.Create("SaaS", "saas", "Software as a Service");
 
         var result = product.AddCategory(category);
 
@@ -156,8 +156,9 @@ public class ProductLifecycleTests
     [Fact]
     public void AddCategory_SameCategory_Twice_Should_Return_Success_Without_Duplicate()
     {
-        var product  = CreateDraftProduct();
-        var category = new ProductCategory { Id = Guid.NewGuid(), Name = "SaaS", Slug = "saas" };
+        var product    = CreateDraftProduct();
+        var categoryId = Guid.NewGuid();
+        var category   = ProductCategory.Create("SaaS", "saas", "Software", id: categoryId);
 
         product.AddCategory(category);
         var result = product.AddCategory(category);
@@ -170,11 +171,11 @@ public class ProductLifecycleTests
     public void AddCategory_When3AlreadyExist_Should_Return_Failure()
     {
         var product = CreateDraftProduct();
-        product.AddCategory(new ProductCategory { Id = Guid.NewGuid(), Name = "A", Slug = "a" });
-        product.AddCategory(new ProductCategory { Id = Guid.NewGuid(), Name = "B", Slug = "b" });
-        product.AddCategory(new ProductCategory { Id = Guid.NewGuid(), Name = "C", Slug = "c" });
+        product.AddCategory(ProductCategory.Create("A", "a", "A desc"));
+        product.AddCategory(ProductCategory.Create("B", "b", "B desc"));
+        product.AddCategory(ProductCategory.Create("C", "c", "C desc"));
 
-        var result = product.AddCategory(new ProductCategory { Id = Guid.NewGuid(), Name = "D", Slug = "d" });
+        var result = product.AddCategory(ProductCategory.Create("D", "d", "D desc"));
 
         result.IsFailure.Should().BeTrue();
         result.Error.Should().Contain("three");
