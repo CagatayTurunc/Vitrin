@@ -13,8 +13,8 @@ using Vitrin.Shared.Infrastructure.Migrations;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddVitrinSwagger("Vitrin AI API",
+    "Ürün analizi, etiketleme ve öneri (Gemini). Kullanıcı bazlı günlük kota uygulanır.");
 builder.Services.AddHealthChecks();
 builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 builder.Services.AddVitrinApiErrors();
@@ -44,8 +44,7 @@ if (await app.MigrateDatabaseAndExitAsync<AiDbContext>(
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseVitrinSwagger(app.Environment);
 }
 
 app.UseAuthentication();

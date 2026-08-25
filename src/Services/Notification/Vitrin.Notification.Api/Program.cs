@@ -14,8 +14,8 @@ using Vitrin.Notification.Infrastructure.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddVitrinSwagger("Vitrin Notification API",
+    "Kullanıcı bildirimleri, SSE stream, tercihler ve e-posta digest.");
 builder.Services.AddHealthChecks();
 builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 builder.Services.AddVitrinApiErrors();
@@ -37,8 +37,7 @@ if (await app.MigrateDatabaseAndExitAsync<NotificationDbContext>(
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseVitrinSwagger(app.Environment);
 }
 
 app.UseAuthentication();

@@ -28,8 +28,8 @@ builder.Services.AddSingleton<MetricsCollector>(provider =>
 // Enhanced health checks
 builder.Services.AddVitrinHealthChecks(builder.Configuration);
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddVitrinSwagger("Vitrin Auth API",
+    "Kimlik doğrulama, kullanıcı profili, rol yönetimi, takip sistemi, rozetler ve moderasyon.");
 builder.Services.AddVitrinApiErrors();
 builder.Services.AddVitrinAuditLogging();
 
@@ -55,8 +55,7 @@ if (await app.MigrateDatabaseAndExitAsync<Vitrin.Auth.Infrastructure.Data.AuthDb
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseVitrinSwagger(app.Environment);
 }
 
 app.UseAuthentication();

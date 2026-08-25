@@ -20,8 +20,8 @@ using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddVitrinSwagger("Vitrin Product API",
+    "Ürün kataloğu, konular, launch akışı, koleksiyonlar, topluluk ve keşif.");
 builder.Services.AddHealthChecks();
 
 if (builder.Environment.IsDevelopment())
@@ -56,8 +56,7 @@ if (await app.MigrateDatabaseAndExitAsync<ProductDbContext>(
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseVitrinSwagger(app.Environment);
 }
 
 app.UseAuthentication();

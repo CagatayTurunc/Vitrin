@@ -11,8 +11,8 @@ using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddVitrinSwagger("Vitrin Voting API",
+    "Oy ekleme, geri alma ve fraud signal raporlama. Oyların tek authoritative write kaynağı.");
 builder.Services.AddHealthChecks();
 
 if (builder.Environment.IsDevelopment())
@@ -46,8 +46,7 @@ if (await app.MigrateDatabaseAndExitAsync<VoteDbContext>(
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseVitrinSwagger(app.Environment);
 }
 
 app.UseAuthentication();

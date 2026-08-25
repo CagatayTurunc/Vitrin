@@ -12,8 +12,8 @@ using Vitrin.Shared.Infrastructure.Migrations;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddVitrinSwagger("Vitrin Analytics API",
+    "Event ingestion, ürün ve platform analitik sorguları, maker dashboard istatistikleri.");
 builder.Services.AddHealthChecks();
 builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
 builder.Services.AddVitrinApiErrors();
@@ -38,8 +38,7 @@ if (await app.MigrateDatabaseAndExitAsync<AnalyticsDbContext>(
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseVitrinSwagger(app.Environment);
 }
 
 app.UseAuthentication();
