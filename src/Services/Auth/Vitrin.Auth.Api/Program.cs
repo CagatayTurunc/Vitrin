@@ -74,7 +74,7 @@ if (await app.MigrateDatabaseAndExitAsync<Vitrin.Auth.Infrastructure.Data.AuthDb
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c => { c.SwaggerEndpoint("/swagger/v1/swagger.json", "v1"); c.EnableFilter(); c.DisplayRequestDuration = true; });
+    app.UseSwaggerUI(c => { c.SwaggerEndpoint("/swagger/v1/swagger.json", "v1"); c.EnableFilter(); c.DisplayRequestDuration(); });
 }
 
 app.UseAuthentication();
