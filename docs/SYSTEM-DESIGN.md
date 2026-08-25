@@ -568,17 +568,26 @@ Mevcut Kafka akışı stream processing yapıyor. Aşağıdaki batch job'lar ekl
 
 **Commit:** `(sonraki commit)` — feat: batch processing workers
 
-### Öncelik 4 — Production Altyapısı ✅ Orta maliyet, zorunlu
+### ~~Öncelik 4 — Production Altyapısı~~ 🔄 Kısmen Tamamlandı
 
-Bunlar mevcut tek-sunucu kurulumuna uygun, ölçek gerektirmeyen production gereksinimleri.
-
-| Özellik | Araç | Not |
+| Özellik | Durum | Not |
 |---|---|---|
-| **CDN + DDoS koruması** | Cloudflare (ücretsiz katman) | DNS önüne eklemek 10 dakika; SSL + CDN + DDoS ücretsiz |
-| **Secret Manager** | AWS Secrets Manager / Vault | `.env` dosyası production'da riskli |
-| **IaC** | Terraform | Altyapı tekrarlanabilirliği için |
-| **Container Scan** | Trivy (CI'da) | CVE tespiti; CI pipeline'a eklenir |
-| **SBOM** | Syft | Artifact üretimi |
+| **CDN + DDoS koruması** | ❌ Manual | Cloudflare DNS ayarı — kod değil, domain erişimi gerekiyor |
+| **Secret Manager** | ❌ Planlandı | AWS Secrets Manager entegrasyonu |
+| **IaC** | ❌ Planlandı | Terraform |
+| **Container Scan (Trivy)** | ✅ Eklendi | deploy.yml'e `image-scan` job'ı — gateway/auth/web image'ları taranır |
+| **SBOM (Syft)** | ✅ Eklendi | CycloneDX JSON format, 90 gün artifact olarak saklanır |
+
+**Eklenen `image-scan` job'ı — deploy.yml:**
+- Trivy ile gateway, auth, web image'larını CRITICAL/HIGH seviyesinde tarar
+- SARIF format → GitHub Security tab'ında görünür
+- Syft ile CycloneDX SBOM üretir (hangi paket, sürüm, lisans)
+- `continue-on-error: true` — scan'ler deploy'u bloklamaz, rapor üretir
+- Artifact 90 gün saklanır
+
+**Pipeline sırası:** `check-deploy → test → security-scan → build → image-scan → deploy → smoke-test → rollback`
+
+**Commit:** `(sonraki commit)` — feat: container image scan (Trivy) + SBOM (Syft) in deploy pipeline
 
 ---
 
