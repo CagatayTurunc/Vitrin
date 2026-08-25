@@ -122,7 +122,7 @@ Gateway, `YARP (Yet Another Reverse Proxy)` tabanlıdır ve tek dış giriş nok
 | 7 | **Transformation** | ✅ Var | YARP transform middleware |
 | 8 | **Circuit Breaking** | ✅ Var | Polly v8 — cluster başına profil (Critical/Voting/Tolerant) |
 | 9 | **Logging & Metrics** | ✅ Var | OpenTelemetry, Serilog, Prometheus |
-| 10 | **API Versioning** | 🔄 Kısmi | Route-based versioning altyapısı hazır |
+| 10 | **API Versioning** | ✅ Var | Gateway'de YARP path rewrite — `/api/v1/*` → `/api/*`, servisler değişmez |
 
 ### Rate Limiter Policy'leri
 
@@ -525,13 +525,23 @@ Her event şu alanları taşır:
 - `f75bfb2` — feat: resilience layer - Circuit Breaker, Retry, Timeout via Polly
 - `1c47188` — feat: distributed rate limiting via Redis sliding window
 
-### Öncelik 2 — Developer Experience ✅ Düşük maliyet, orta etki
+### ~~Öncelik 2 — Developer Experience~~ ✅ Tamamlandı
 
-| Özellik | Araç | Not |
+| Özellik | Araç | Durum |
 |---|---|---|
-| **API Versioning** | ASP.NET API Versioning paketi | Altyapı hazır, `v1` prefix eklenmesi yeterli |
-| **OpenAPI / Swagger geliştirme** | Swashbuckle, Redoc | Mevcut Swagger'ı zenginleştir |
-| **TypeScript SDK üretimi** | OpenAPI Generator | CI'da otomatik; frontend ile contract uyumu |
+| **API Versioning** | YARP `PathRemovePrefix` transform | ✅ Eklendi — `/api/v1/*` → `/api/*`, 38 v1 route |
+| **OpenAPI / Swagger geliştirme** | Swashbuckle, Redoc | 🔄 Planlandı |
+| **TypeScript SDK üretimi** | OpenAPI Generator | 🔄 Planlandı |
+
+**Nasıl çalışır:**
+```
+İstemci:  GET /api/v1/products
+Gateway:  PathRemovePrefix: /v1  →  /api/products
+Servis:   /api/products'ı dinler, değişmez
+```
+Geriye uyumlu — mevcut `/api/` path'leri çalışmaya devam eder.
+
+**Commit:** `a1333ee` — feat: API versioning - /api/v1/* prefix via YARP path rewrite
 
 ### Öncelik 3 — Batch Processing ✅ Düşük maliyet, orta etki
 
