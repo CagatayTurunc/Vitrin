@@ -95,6 +95,8 @@ services:
     volumes:
       - prometheus_data:/prometheus
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/vitrin-slo-rules.yml:/etc/prometheus/vitrin-slo-rules.yml:ro
+      - ./vitrin-alerting-rules.yml:/etc/prometheus/vitrin-alerting-rules.yml:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'

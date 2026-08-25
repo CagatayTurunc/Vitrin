@@ -305,9 +305,29 @@ vitrin_errors_total{error_type="validation"}
 | Metrik | Eşik | Aksiyon |
 |---|---|---|
 | Hata oranı | > %5 (5 dakika) | Alarm |
-| p95 yanıt süresi | > 2 saniye | Alarm |
+| p95 yanıt süresi | > 1 saniye | Alarm |
+| p99 yanıt süresi | > 2 saniye | Kritik alarm |
 | Cache hit rate | < %80 | Uyarı |
 | DB bağlantı havuzu | > %80 | Uyarı |
+| Kafka consumer lag | > 1000 mesaj | Uyarı |
+| Kafka consumer lag | > 5000 mesaj | Kritik alarm |
+| Kafka DLQ büyüme | Herhangi bir artış | Uyarı |
+
+### SLO Tanımları
+
+| Servis | Metrik | Hedef |
+|---|---|---|
+| Public read API | Availability | %99.5 |
+| Vote command | Başarı oranı | %99.0 |
+| Auth | Başarı oranı | %98.0 |
+| Tüm servisler | p95 yanıt süresi | < 1000ms |
+| Tüm servisler | p99 yanıt süresi | < 2000ms |
+
+**SLO Recording Rules** (`vitrin-slo-rules.yml`):
+- `vitrin:request_success_rate5m` / `1h` / `24h` — availability penceresi
+- `vitrin:request_duration_p50/p95/p99` — latency penceresi
+- `vitrin:kafka_consumer_lag_by_group` — consumer lag penceresi
+- Prometheus `rule_files` aktif — alerting rules ve SLO rules yükleniyor
 
 ### Golden Signals (RED Method)
 

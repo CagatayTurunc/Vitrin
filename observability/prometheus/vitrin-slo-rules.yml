@@ -1,0 +1,186 @@
+# Vitrin — SLO Recording Rules & Kafka Consumer Lag Alerts
+#
+# SLO Tanımları (Single-Server EC2 t3.medium için gerçekçi hedefler):
+#   Public read API availability : %99.5  (≤43.8 dk/ay downtime)
+#   Vote command success rate    : %99.0
+#   Auth success rate            : %98.0
+#   p95 response time            : < 1000ms
+#
+# Recording rules: sık sorgulanan metrikleri önceden hesapla, Grafana hızlanır.
+# Kafka consumer lag: Outbox dispatcher'ın gerisinde kalıp kalmadığını izle.
+
+groups:
+
+  # ── SLO: Availability Recording Rules ────────────────────────────────────
+  - name: vitrin.slo.availability
+    interval: 30s
+    rules:
+      # Son 5 dakikada başarılı istek oranı (5xx hariç)
+      - record: vitrin:request_success_rate5m
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{job=~"vitrin-.*",http_response_status_code!~"5.."}[5m]))
+          /
+          sum(rate(http_server_request_duration_seconds_count{job=~"vitrin-.*"}[5m]))
+
+      # Son 1 saatteki başarı oranı (SLO window)
+      - record: vitrin:request_success_rate1h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{job=~"vitrin-.*",http_response_status_code!~"5.."}[1h]))
+          /
+          sum(rate(http_server_request_duration_seconds_count{job=~"vitrin-.*"}[1h]))
+
+      # Son 24 saatteki başarı oranı
+      - record: vitrin:request_success_rate24h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{job=~"vitrin-.*",http_response_status_code!~"5.."}[24h]))
+          /
+          sum(rate(http_server_request_duration_seconds_count{job=~"vitrin-.*"}[24h]))
+
+      # Servis bazlı başarı oranı
+      - record: vitrin:request_success_rate_by_service5m
+        expr: |
+          sum by (job) (rate(http_server_request_duration_seconds_count{job=~"vitrin-.*",http_response_status_code!~"5.."}[5m]))
+          /
+          sum by (job) (rate(http_server_request_duration_seconds_count{job=~"vitrin-.*"}[5m]))
+
+  # ── SLO: Latency Recording Rules ─────────────────────────────────────────
+  - name: vitrin.slo.latency
+    interval: 30s
+    rules:
+      # p50, p95, p99 latency (tüm servisler)
+      - record: vitrin:request_duration_p50
+        expr: histogram_quantile(0.50, sum(rate(http_server_request_duration_seconds_bucket{job=~"vitrin-.*"}[5m])) by (le))
+
+      - record: vitrin:request_duration_p95
+        expr: histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket{job=~"vitrin-.*"}[5m])) by (le))
+
+      - record: vitrin:request_duration_p99
+        expr: histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket{job=~"vitrin-.*"}[5m])) by (le))
+
+      # Servis bazlı p95
+      - record: vitrin:request_duration_p95_by_service
+        expr: histogram_quantile(0.95, sum by (job, le) (rate(http_server_request_duration_seconds_bucket{job=~"vitrin-.*"}[5m])))
+
+  # ── SLO: Error Budget Alerts ──────────────────────────────────────────────
+  - name: vitrin.slo.alerts
+    interval: 30s
+    rules:
+      # SLO ihlali: availability %99.5 altına düştü
+      - alert: SLOAvailabilityBreach
+        expr: vitrin:request_success_rate5m < 0.995
+        for: 5m
+        labels:
+          severity: critical
+          category: slo
+        annotations:
+          summary: "SLO ihlali: Availability %99.5 altında"
+          description: "Son 5 dakikada başarı oranı {{ $value | humanizePercentage }}, SLO hedefi %99.5"
+
+      # SLO uyarısı: %99.9 altına düştü (erken uyarı)
+      - alert: SLOAvailabilityWarning
+        expr: vitrin:request_success_rate1h < 0.999
+        for: 10m
+        labels:
+          severity: warning
+          category: slo
+        annotations:
+          summary: "SLO uyarısı: Son 1 saatte availability düşüyor"
+          description: "Son 1 saatte başarı oranı {{ $value | humanizePercentage }}"
+
+      # p95 SLO: 1 saniyeyi aştı
+      - alert: SLOLatencyP95Breach
+        expr: vitrin:request_duration_p95 > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          category: slo
+        annotations:
+          summary: "SLO ihlali: p95 latency 1s üzerinde"
+          description: "p95 yanıt süresi {{ $value | humanizeDuration }}, SLO hedefi < 1s"
+
+      # p99 kritik: 2 saniyeyi aştı
+      - alert: SLOLatencyP99Critical
+        expr: vitrin:request_duration_p99 > 2.0
+        for: 2m
+        labels:
+          severity: critical
+          category: slo
+        annotations:
+          summary: "Kritik: p99 latency 2s üzerinde"
+          description: "p99 yanıt süresi {{ $value | humanizeDuration }}"
+
+  # ── Kafka Consumer Lag ────────────────────────────────────────────────────
+  # kafka-exporter (port 9308) şu metrikleri sağlar:
+  #   kafka_consumergroup_lag           — consumer group başına lag
+  #   kafka_consumergroup_lag_sum       — toplam lag
+  #   kafka_topic_partition_current_offset
+  #   kafka_topic_partition_oldest_offset
+  - name: vitrin.kafka.lag
+    interval: 30s
+    rules:
+      # Consumer group başına lag recording rule
+      - record: vitrin:kafka_consumer_lag_by_group
+        expr: sum by (consumergroup, topic) (kafka_consumergroup_lag{job="kafka-exporter"})
+
+      # Toplam lag
+      - record: vitrin:kafka_consumer_lag_total
+        expr: sum(kafka_consumergroup_lag{job="kafka-exporter"})
+
+      # Uyarı: herhangi bir consumer group'ta lag 1000'i aştı
+      - alert: KafkaConsumerLagHigh
+        expr: sum by (consumergroup, topic) (kafka_consumergroup_lag{job="kafka-exporter"}) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          category: messaging
+        annotations:
+          summary: "Kafka consumer lag yüksek"
+          description: "{{ $labels.consumergroup }} (topic: {{ $labels.topic }}) lag {{ $value }} mesaj, consumer işleme gerisinde kalıyor"
+
+      # Kritik: lag 5000'i aştı
+      - alert: KafkaConsumerLagCritical
+        expr: sum by (consumergroup, topic) (kafka_consumergroup_lag{job="kafka-exporter"}) > 5000
+        for: 2m
+        labels:
+          severity: critical
+          category: messaging
+        annotations:
+          summary: "Kafka consumer lag kritik seviyede"
+          description: "{{ $labels.consumergroup }} (topic: {{ $labels.topic }}) lag {{ $value }} mesaj"
+
+      # DLQ büyüme uyarısı: .dlq topic'ine yeni mesajlar geldi
+      - alert: KafkaDLQGrowing
+        expr: increase(kafka_topic_partition_current_offset{job="kafka-exporter", topic=~".*\\.dlq"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          category: messaging
+        annotations:
+          summary: "Kafka DLQ büyüyor"
+          description: "{{ $labels.topic }} topic'ine son 10 dakikada {{ $value }} yeni mesaj eklendi — işlenemeyen mesajlar var"
+
+      # Outbox dispatcher lag: Outbox mesajları işlenemiyor olabilir
+      - alert: KafkaOutboxConsumerStopped
+        expr: sum(kafka_consumergroup_lag{job="kafka-exporter", consumergroup=~"vitrin.*"}) == 0 unless sum(kafka_consumergroup_lag{job="kafka-exporter", consumergroup=~"vitrin.*"}) > 0
+        for: 10m
+        labels:
+          severity: info
+          category: messaging
+        annotations:
+          summary: "Kafka consumer group activity yok"
+          description: "Vitrin consumer group'larında 10 dakikadır sıfır lag — ya sistem boşta ya da consumer durdu"
+
+  # ── Outbox Health ─────────────────────────────────────────────────────────
+  - name: vitrin.outbox
+    interval: 60s
+    rules:
+      # Dead-lettered Outbox satırları artıyorsa
+      - alert: OutboxDeadLetterGrowing
+        expr: increase(vitrin_events_published_total{success="false"}[30m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: messaging
+        annotations:
+          summary: "Outbox dead-letter mesajları artıyor"
+          description: "Son 30 dakikada {{ $value }} Outbox mesajı başarısız oldu"
