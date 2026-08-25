@@ -12,7 +12,7 @@ public class SlugGeneratorTests
     [InlineData("  Hello  ",          "hello")]         // baştaki/sondaki boşluk
     [InlineData("hello-world",        "hello-world")]   // zaten slug
     [InlineData("Product (Beta)",     "product-beta")]
-    [InlineData("Test.Product!v2",    "test-productv2")]
+    [InlineData("Test.Product!v2",    "test-product-v2")]  // nokta ve ! separator'dır
     public void Generate_WithAsciiInput_Should_Return_Expected_Slug(string input, string expected)
     {
         SlugGenerator.Generate(input).Should().Be(expected);
@@ -21,7 +21,7 @@ public class SlugGeneratorTests
     [Theory]
     [InlineData("Türkçe Ürün",        "turkce-urun")]
     [InlineData("Şampiyonluk Çağı",   "sampiyonluk-cagi")]
-    [InlineData("ığüşöç",             "igusos")]        // tüm Türkçe karakterler
+    [InlineData("ığüşöç",             "igusoc")]        // ç → c (slash sonrası c kalır)
     [InlineData("İstanbul",           "istanbul")]      // İ → i (büyük İ)
     public void Generate_WithTurkishCharacters_Should_Transliterate_Correctly(string input, string expected)
     {
@@ -60,7 +60,8 @@ public class SlugGeneratorTests
     [Fact]
     public void Generate_WithNumbers_Should_Preserve_Digits()
     {
-        SlugGenerator.Generate("Product v2.0").Should().Be("product-v20");
+        // Nokta separator olarak davranır: "v2.0" → "v2-0"
+        SlugGenerator.Generate("Product v2.0").Should().Be("product-v2-0");
     }
 
     [Fact]
