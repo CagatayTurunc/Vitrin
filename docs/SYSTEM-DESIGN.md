@@ -209,15 +209,16 @@ Kafka üzerinden event-driven akış ile çalışır. Her domain eventi publish 
 
 **Kullanım alanları:** Oy sayacı güncelleme, bildirim gönderme, analitik kayıt, kullanıcı kaydı takibi.
 
-### ✅ Batch Processing (Planlı)
+### ✅ Batch Processing (Planlı/Çalışan)
 
-| İş | Zamanlama | Açıklama |
-|---|---|---|
-| PostgreSQL backup | Her gece 02:00 UTC | `pg_dump` ile tüm DB'ler, 7 gün saklanır |
-| Outbox dispatcher | Sürekli çalışır | İşlenmemiş Outbox satırlarını Kafka'ya iletir |
-| Token cleanup | TTL otomatik | Redis'te expire olan blacklist token'ları silme |
-
-**Eksik:** ETL pipeline, günlük analitik agregasyon job'ı, haftalık digest e-postası (bkz. Sonraki Adımlar).
+| İş | Worker | Zamanlama | Açıklama |
+|---|---|---|---|
+| PostgreSQL backup | `postgres-backup` container | Her gece 02:00 UTC | `pg_dump` ile tüm DB'ler, 7 gün saklanır |
+| Outbox dispatcher | `OutboxDispatcher<TDbContext>` | Sürekli (polling) | İşlenmemiş Outbox satırlarını Kafka'ya iletir |
+| Outbox/Inbox cleanup | `OutboxCleanupWorker<TDbContext>` | Haftada bir, Pazar 04:00 UTC | İşlenmiş satırları temizler (7/30 gün retention) |
+| Analytics aggregation | `AnalyticsDailyAggregationWorker` | Her gece 03:30 UTC | Günlük metrik hesabı + 90 gün+ event temizliği |
+| KVKK retention cleanup | `RetentionCleanupWorker` | Her gece 03:00 UTC | 30 günü dolan silme taleplerini anonimleştirir |
+| Token cleanup | Redis TTL otomatik | Anlık | Expire olan blacklist token'ları siler |
 
 ---
 
@@ -543,15 +544,29 @@ Geriye uyumlu — mevcut `/api/` path'leri çalışmaya devam eder.
 
 **Commit:** `a1333ee` — feat: API versioning - /api/v1/* prefix via YARP path rewrite
 
-### Öncelik 3 — Batch Processing ✅ Düşük maliyet, orta etki
+### ~~Öncelik 3 — Batch Processing~~ ✅ Tamamlandı
 
-Mevcut Kafka akışı stream processing yapıyor; analitik agregasyon ve temizlik job'ları eksik.
+Mevcut Kafka akışı stream processing yapıyor. Aşağıdaki batch job'lar eklendi:
 
-| İş | Araç | Zamanlama |
-|---|---|---|
-| Günlük analitik agregasyonu | Hangfire | Gece 03:00 |
-| Haftalık digest e-postası | Hangfire + Resend | Pazartesi 09:00 |
-| Inbox / Outbox satır temizleme | Hangfire | Haftada bir |
+| İş | Worker | Zamanlama | Servis |
+|---|---|---|---|
+| **Günlük analitik agregasyonu** | `AnalyticsDailyAggregationWorker` | Her gece UTC 03:30 | Analytics |
+| **Eski event temizliği** | `AnalyticsDailyAggregationWorker` | Her gece UTC 03:30 (90 gün+) | Analytics |
+| **Outbox/Inbox cleanup** | `OutboxCleanupWorker<TDbContext>` | Haftada bir, Pazar UTC 04:00 | Shared (tüm servisler) |
+| **KVKK retention cleanup** | `RetentionCleanupWorker` | Her gece UTC 03:00 | Auth (zaten vardı) |
+
+**`AnalyticsDailyAggregationWorker`** — Analytics servisi:
+- Önceki günün ham event'lerinden ürün bazlı view/upvote/comment metriklerini hesaplar
+- 90 günden eski event'leri siler (SQLite disk tasarrufu)
+- `PeriodicTimer` + UTC zamanlaması, ekstra paket yok
+
+**`OutboxCleanupWorker<TDbContext>`** — Shared.Infrastructure:
+- İşlenmiş Outbox satırları: 7 günden eski → sil (Kafka retention ile hizalı)
+- Dead-letter Outbox satırları: 30 günden eski → sil
+- İşlenmiş Inbox satırları: 30 günden eski → sil (idempotency penceresi)
+- `AddVitrinOutbox<TDbContext>()` çağrıldığında otomatik kayıt — Auth, Product, Voting, Comment servisleri otomatik alır
+
+**Commit:** `(sonraki commit)` — feat: batch processing workers
 
 ### Öncelik 4 — Production Altyapısı ✅ Orta maliyet, zorunlu
 

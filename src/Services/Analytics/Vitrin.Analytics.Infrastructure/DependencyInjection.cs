@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Vitrin.Analytics.Domain.Repositories;
 using Vitrin.Analytics.Infrastructure.Data;
+using Vitrin.Analytics.Infrastructure.Jobs;
 using Vitrin.Analytics.Infrastructure.Kafka;
 using Vitrin.Analytics.Infrastructure.Repositories;
 
@@ -27,6 +28,9 @@ public static class DependencyInjection
 
         // Kafka Consumer — BackgroundService olarak kayıt
         services.AddHostedService<AnalyticsKafkaConsumer>();
+
+        // Batch Processing — her gece UTC 03:30'da aggregation + event temizliği
+        services.AddHostedService<AnalyticsDailyAggregationWorker>();
 
         return services;
     }

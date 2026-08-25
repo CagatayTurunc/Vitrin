@@ -108,6 +108,10 @@ public static class OutboxDependencyInjection
             .Validate(options => options.MaxBackoffSeconds > 0)
             .ValidateOnStart();
         services.AddHostedService<OutboxDispatcher<TDbContext>>();
+
+        // Haftada bir işlenmiş Outbox/Inbox satırlarını temizler (Pazar UTC 04:00).
+        services.AddHostedService<OutboxCleanupWorker<TDbContext>>();
+
         return services;
     }
 }
