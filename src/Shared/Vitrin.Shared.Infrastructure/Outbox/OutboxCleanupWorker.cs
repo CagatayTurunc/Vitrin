@@ -73,15 +73,23 @@ public sealed class OutboxCleanupWorker<TDbContext> : BackgroundService
 
             // ── 1. İşlenmiş Outbox satırlarını temizle ──────────────────────
             var outboxProcessedCutoff = now.AddDays(-OutboxProcessedRetentionDays);
-            var outboxProcessedDeleted = await db.Set<OutboxMessage>()
+            var processedRows = await db.Set<OutboxMessage>()
                 .Where(m => m.ProcessedAtUtc != null && m.ProcessedAtUtc < outboxProcessedCutoff)
-                .ExecuteDeleteAsync(ct);
+                .ToListAsync(ct);
+            if (processedRows.Count > 0)
+                db.Set<OutboxMessage>().RemoveRange(processedRows);
 
             // ── 2. Dead-letter Outbox satırlarını temizle ────────────────────
             var outboxDlqCutoff = now.AddDays(-OutboxDeadLetterRetentionDays);
-            var outboxDlqDeleted = await db.Set<OutboxMessage>()
+            var dlqRows = await db.Set<OutboxMessage>()
                 .Where(m => m.DeadLetteredAtUtc != null && m.DeadLetteredAtUtc < outboxDlqCutoff)
-                .ExecuteDeleteAsync(ct);
+                .ToListAsync(ct);
+            if (dlqRows.Count > 0)
+                db.Set<OutboxMessage>().RemoveRange(dlqRows);
+
+            await db.SaveChangesAsync(ct);
+            var outboxProcessedDeleted = processedRows.Count;
+            var outboxDlqDeleted = dlqRows.Count;
 
             // ── 3. İşlenmiş Inbox satırlarını temizle ───────────────────────
             // Inbox DbSet sadece consumer servislerde var (Product, Analytics, Notification).
@@ -95,9 +103,15 @@ public sealed class OutboxCleanupWorker<TDbContext> : BackgroundService
             if (entityTypes.Contains(typeof(InboxMessage)))
             {
                 var inboxCutoff = now.AddDays(-InboxProcessedRetentionDays);
-                inboxDeleted = await db.Set<InboxMessage>()
+                var inboxRows = await db.Set<InboxMessage>()
                     .Where(m => m.ProcessedAtUtc < inboxCutoff)
-                    .ExecuteDeleteAsync(ct);
+                    .ToListAsync(ct);
+                if (inboxRows.Count > 0)
+                {
+                    db.Set<InboxMessage>().RemoveRange(inboxRows);
+                    await db.SaveChangesAsync(ct);
+                }
+                inboxDeleted = inboxRows.Count;
             }
 
             _logger.LogInformation(
