@@ -35,6 +35,8 @@
     <PackageReference Include="AspNetCore.HealthChecks.Sqlite" Version="8.0.1" />
     <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="8.0.1" />
     <PackageReference Include="AspNetCore.HealthChecks.Kafka" Version="8.0.1" />
+    <!-- Swagger / OpenAPI — ortak AddVitrinSwagger extension için -->
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 
   <ItemGroup>
