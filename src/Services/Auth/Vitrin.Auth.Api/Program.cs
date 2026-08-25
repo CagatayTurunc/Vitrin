@@ -28,8 +28,26 @@ builder.Services.AddSingleton<MetricsCollector>(provider =>
 // Enhanced health checks
 builder.Services.AddVitrinHealthChecks(builder.Configuration);
 
-builder.Services.AddVitrinSwagger("Vitrin Auth API",
-    "Kimlik doğrulama, kullanıcı profili, rol yönetimi, takip sistemi, rozetler ve moderasyon.");
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "Vitrin Auth API", Version = "v1",
+        Description = "Kimlik doğrulama, kullanıcı profili, rol yönetimi, takip sistemi, rozetler ve moderasyon."
+    });
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization", Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "bearer", BearerFormat = "JWT", In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "JWT token girin (prefix gerekmez). Token almak için /api/auth/login çağırın."
+    });
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        { new Microsoft.OpenApi.Models.OpenApiSecurityScheme { Reference = new Microsoft.OpenApi.Models.OpenApiReference
+            { Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme, Id = "Bearer" } }, Array.Empty<string>() }
+    });
+});
 builder.Services.AddVitrinApiErrors();
 builder.Services.AddVitrinAuditLogging();
 
@@ -55,7 +73,8 @@ if (await app.MigrateDatabaseAndExitAsync<Vitrin.Auth.Infrastructure.Data.AuthDb
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseVitrinSwagger(app.Environment);
+    app.UseSwagger();
+    app.UseSwaggerUI(c => { c.SwaggerEndpoint("/swagger/v1/swagger.json", "v1"); c.EnableFilter(); c.DisplayRequestDuration = true; });
 }
 
 app.UseAuthentication();
