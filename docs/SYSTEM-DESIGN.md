@@ -588,15 +588,34 @@ Mevcut Kafka akışı stream processing yapıyor. Aşağıdaki batch job'lar ekl
 
 **Commit:** `(sonraki commit)` — feat: batch processing workers
 
-### ~~Öncelik 4 — Production Altyapısı~~ 🔄 Kısmen Tamamlandı
+### ~~Öncelik 4 — Production Altyapısı~~ ✅ Tamamlandı
 
 | Özellik | Durum | Not |
 |---|---|---|
-| **CDN + DDoS koruması** | ❌ Manual | Cloudflare DNS ayarı — kod değil, domain erişimi gerekiyor |
+| **CDN + DDoS koruması** | ✅ Eklendi | Cloudflare Free — nameserver değişikliği ile aktif (propagation bekleniyor) |
 | **Secret Manager** | ❌ Planlandı | AWS Secrets Manager entegrasyonu |
 | **IaC** | ❌ Planlandı | Terraform |
 | **Container Scan (Trivy)** | ✅ Eklendi | deploy.yml'e `image-scan` job'ı — gateway/auth/web image'ları taranır |
 | **SBOM (Syft)** | ✅ Eklendi | CycloneDX JSON format, 90 gün artifact olarak saklanır |
+
+**Cloudflare kurulumu (Ağustos 2026):**
+- `vitrin.it.com` domain'i Cloudflare Free plan'a eklendi
+- DNS nameserver'lar Namecheap'te şu değerlere güncellendi:
+  - `byron.ns.cloudflare.com`
+  - `carla.ns.cloudflare.com`
+- A kaydı ve CNAME **Proxied** (turuncu bulut) — trafik Cloudflare üzerinden geçiyor
+- EC2'nun gerçek IP adresi (`63.180.14.214`) dışarıdan gizlendi
+
+**Nasıl çalışır:**
+```
+Ziyaretçi → Cloudflare Edge (CDN + DDoS filtresi + SSL) → EC2 :443 (Nginx)
+```
+
+**Sağlanan özellikler (ücretsiz):**
+- Statik asset'ler Cloudflare edge'den cache'lenir (JS/CSS/resimler hızlı gelir)
+- DDoS saldırılarını Cloudflare absorbe eder, EC2'ya ulaşmaz
+- Otomatik SSL sertifikası (Let's Encrypt'in yanına ekstra katman)
+- Gerçek IP gizlenir — EC2 IP'si doğrudan hedef alınamaz
 
 **Eklenen `image-scan` job'ı — deploy.yml:**
 - Trivy ile gateway, auth, web image'larını CRITICAL/HIGH seviyesinde tarar
@@ -607,7 +626,7 @@ Mevcut Kafka akışı stream processing yapıyor. Aşağıdaki batch job'lar ekl
 
 **Pipeline sırası:** `check-deploy → test → security-scan → build → image-scan → deploy → smoke-test → rollback`
 
-**Commit:** `(sonraki commit)` — feat: container image scan (Trivy) + SBOM (Syft) in deploy pipeline
+**Commit:** `3800d66` — feat: container image scan (Trivy) + SBOM (Syft) in deploy pipeline
 
 ---
 
