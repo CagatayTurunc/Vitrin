@@ -413,14 +413,21 @@ jobs:
             # Web servisi Next.js, farklı port
             echo "--- vitrin-web yeniden başlatılıyor ---"
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-web
-            for i in {1..12}; do
+            WEB_HEALTHY=false
+            for i in {1..24}; do
               if docker exec vitrin-web curl -sf --max-time 5 http://localhost:3000/api/health -o /dev/null 2>/dev/null; then
                 echo "✅ vitrin-web sağlıklı ($i. deneme)"
+                WEB_HEALTHY=true
                 break
               fi
-              echo "⏳ vitrin-web bekleniyor... ($i/12)"
+              echo "⏳ vitrin-web bekleniyor... ($i/24)"
               sleep 5
             done
+            if [ "$WEB_HEALTHY" = "false" ]; then
+              echo "❌ vitrin-web health check başarısız — deploy durduruluyor"
+              docker logs vitrin-web --tail 50 || true
+              exit 1
+            fi
 
             echo "=== Nginx reload ==="
             docker exec vitrin-nginx nginx -s reload 2>/dev/null || docker restart vitrin-nginx 2>/dev/null || true
