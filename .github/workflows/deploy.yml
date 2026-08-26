@@ -353,33 +353,24 @@ jobs:
 
             # Rollback için mevcut image tag'lerini kaydet
             echo "=== Mevcut image tag'leri kaydediliyor (rollback için) ==="
-            docker inspect vitrin-auth  --format='{{index .Config.Image}}' 2>/dev/null > /tmp/prev_auth_image  || echo "unknown" > /tmp/prev_auth_image
-            docker inspect vitrin-web   --format='{{index .Config.Image}}' 2>/dev/null > /tmp/prev_web_image   || echo "unknown" > /tmp/prev_web_image
+            docker inspect vitrin-auth    --format='{{index .Config.Image}}' 2>/dev/null > /tmp/prev_auth_image    || echo "unknown" > /tmp/prev_auth_image
+            docker inspect vitrin-web     --format='{{index .Config.Image}}' 2>/dev/null > /tmp/prev_web_image     || echo "unknown" > /tmp/prev_web_image
             docker inspect vitrin-gateway --format='{{index .Config.Image}}' 2>/dev/null > /tmp/prev_gateway_image || echo "unknown" > /tmp/prev_gateway_image
 
-            # Tüm uygulama servislerini pull et (altyapı servisleri hariç: db, redis, kafka vb.)
-            echo "=== Tüm servis image'ları pull ediliyor ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull \
-              vitrin-auth \
-              vitrin-product \
-              vitrin-voting \
-              vitrin-comment \
-              vitrin-notification \
-              vitrin-analytics \
-              vitrin-ai \
-              vitrin-gateway \
-              vitrin-web
+            # ── Image pull: her servis sırayla, birer birer ──────────────
+            # Paralel pull t3.medium'u kilitliyor — sıralı ve throttled çekiyoruz
+            echo "=== Image'lar sırayla pull ediliyor (throttled) ==="
+            for svc in vitrin-auth vitrin-product vitrin-voting vitrin-comment vitrin-notification vitrin-analytics vitrin-ai vitrin-gateway vitrin-web; do
+              echo "--- Pull: $svc ---"
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml pull "$svc" 2>&1 | tail -3
+              sleep 2
+            done
 
             # ── Servis bazlı rolling restart ──────────────────────────────
-            # Sıra önemli: önce backend, sonra gateway, en son web
-            # Her adımda health check — başarısız olursa deploy durur
-
-            # Tüm backend servisler container içinde :8080/health endpoint'ini kullanır.
-            # Dışa port expose edilmez — Docker exec üzerinden container içinden çağrılır.
+            # Her servis restart sonrası health check bekler
             health_check_container() {
               local container=$1
               local retries=${2:-12}
-
               for i in $(seq 1 $retries); do
                 if docker exec "$container" curl -sf --max-time 5 http://localhost:8080/health -o /dev/null 2>/dev/null; then
                   echo "✅ $container sağlıklı ($i. deneme)"
@@ -395,9 +386,9 @@ jobs:
             restart_and_check() {
               local service=$1
               local container=$2
-
               echo "--- $service yeniden başlatılıyor ---"
               docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps "$service"
+              sleep 3
               health_check_container "$container"
             }
 
@@ -413,6 +404,7 @@ jobs:
             # Web servisi Next.js, farklı port
             echo "--- vitrin-web yeniden başlatılıyor ---"
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-web
+            sleep 5
             WEB_HEALTHY=false
             for i in {1..24}; do
               if docker exec vitrin-web curl -sf --max-time 5 http://localhost:3000/api/health -o /dev/null 2>/dev/null; then
