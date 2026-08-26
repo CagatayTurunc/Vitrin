@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { ProductApiModel } from "@/core/domain/product.types";
+import { ScrollReveal } from "@/components/scroll-reveal";
 
 interface Props {
   products: ProductApiModel[];
@@ -25,7 +26,7 @@ export function FeaturedProducts({ products }: Props) {
     <section id="kesfet" className="py-16 bg-background">
       <div className="mx-auto max-w-6xl px-4">
         {/* Header */}
-        <div className="mb-12 flex items-end justify-between">
+        <ScrollReveal variant="fade-up" className="mb-12 flex items-end justify-between">
           <div className="space-y-2">
             <h2 className="text-sm font-semibold tracking-wider uppercase text-primary">
               KÜRSÜDEKİLER
@@ -42,19 +43,23 @@ export function FeaturedProducts({ products }: Props) {
             Tüm ürünleri gör
             <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
           </Link>
-        </div>
+        </ScrollReveal>
 
         {/* Product Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map((product, index) => (
-            <Link
+            <ScrollReveal
               key={product.id}
-              href={`/product/${product.slug}`}
-              className={`group block ${
-                mounted ? `animate-fade-in-up animate-stagger-${Math.min(index + 1, 3)}` : "opacity-0"
-              }`}
+              variant="zoom-up"
+              delay={(index % 3) as 0 | 1 | 2}
+              duration="normal"
+              threshold={0.08}
             >
-              <div className="bg-card border border-border rounded-xl p-6 space-y-4 card-hover">
+              <Link
+                href={`/product/${product.slug}`}
+                className="group block h-full"
+              >
+              <div className="bg-card border border-border rounded-xl p-6 space-y-4 card-hover h-full">
                 {/* Product icon area */}
                 <div className="flex items-center justify-between">
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden">
@@ -108,6 +113,7 @@ export function FeaturedProducts({ products }: Props) {
                 </div>
               </div>
             </Link>
+            </ScrollReveal>
           ))}
         </div>
       </div>

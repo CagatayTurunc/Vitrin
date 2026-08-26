@@ -1,9 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Sparkles, Eye, Trophy, MessageCircle, DollarSign, GitCompareArrows } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { HeroShowcase } from "@/components/hero-showcase";
 
 function istanbulDateLabel() {
   return new Intl.DateTimeFormat("tr-TR", {
@@ -96,127 +97,14 @@ export function PremiumHero() {
             </div>
           </div>
 
-          {/* Right side - Ürün → Para Çevirme Makinesi Animasyonu */}
+          {/* Right side - Premium Interactive Showcase */}
           <div 
             className={`relative z-10 hidden sm:flex items-center justify-center ${
               mounted ? "animate-slide-in-right animate-stagger-4" : "opacity-0"
             }`}
           >
-            <div className="relative w-72 h-72 sm:w-80 sm:h-80">
-
-              {/* Arka plan parıltısı */}
-              <div className="absolute inset-0 bg-gradient-radial from-primary/10 to-transparent rounded-full animate-pulse" />
-
-              {/* Yukarıdan düşen ürün 1 - Mavi / Eye */}
-              <div className="absolute top-0 left-[30%]">
-                <div className="animate-product-drop-1">
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg shadow-lg flex items-center justify-center">
-                    <Eye className="w-4 h-4 text-white" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Yukarıdan düşen ürün 2 - Yeşil / Trophy */}
-              <div className="absolute -top-4 left-[45%]">
-                <div className="animate-product-drop-2">
-                  <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-green-600 rounded-lg shadow-lg flex items-center justify-center">
-                    <Trophy className="w-4 h-4 text-white" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Yukarıdan düşen ürün 3 - Mor / MessageCircle */}
-              <div className="absolute -top-8 left-[38%]">
-                <div className="animate-product-drop-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-purple-600 rounded-lg shadow-lg flex items-center justify-center">
-                    <MessageCircle className="w-4 h-4 text-white" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Çevirici Makine - merkez */}
-              <div className="animate-float-slow absolute top-[38%] left-[28%]">
-                <div className="relative">
-                  {/* Giriş hunisi */}
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-8 h-4 bg-gradient-to-b from-gray-300 to-gray-400 dark:from-gray-500 dark:to-gray-600 rounded-t-lg" />
-
-                  {/* Makine gövdesi */}
-                  <div className="w-28 h-16 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-2xl shadow-2xl border-2 border-gray-300 dark:border-gray-600 overflow-hidden">
-                    {/* İç mekanizma */}
-                    <div className="absolute inset-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 rounded-xl flex items-center justify-around px-2">
-                      <div className="w-4 h-4 bg-gray-300 dark:bg-gray-500 rounded-full animate-spin-slow" />
-                      <div className="flex-1 mx-1 h-0.5 bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse" />
-                      <div className="w-4 h-4 bg-gray-300 dark:bg-gray-500 rounded-full animate-spin-slow" style={{ animationDirection: 'reverse' }} />
-                    </div>
-                  </div>
-
-                  {/* Çıkış hunisi - altın sarısı */}
-                  <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-10 h-5 bg-gradient-to-b from-yellow-400 to-yellow-600 rounded-b-xl shadow-lg" />
-                </div>
-              </div>
-
-              {/* Çıkan para 1 */}
-              <div className="absolute top-[60%] left-[35%]">
-                <div className="animate-coin-output-1">
-                  <div className="w-5 h-5 bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-full shadow-lg flex items-center justify-center ring-1 ring-yellow-400">
-                    <DollarSign className="w-2.5 h-2.5 text-yellow-900" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Çıkan para 2 */}
-              <div className="absolute top-[62%] left-[40%]">
-                <div className="animate-coin-output-2">
-                  <div className="w-5 h-5 bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-full shadow-lg flex items-center justify-center ring-1 ring-yellow-400">
-                    <DollarSign className="w-2.5 h-2.5 text-yellow-900" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Çıkan para 3 */}
-              <div className="absolute top-[61%] left-[45%]">
-                <div className="animate-coin-output-3">
-                  <div className="w-5 h-5 bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-full shadow-lg flex items-center justify-center ring-1 ring-yellow-400">
-                    <DollarSign className="w-2.5 h-2.5 text-yellow-900" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Sihirli ışık çizgisi */}
-              <div className="absolute top-[46%] left-[22%] w-14 h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent animate-magic-beam" />
-              <div className="absolute top-[52%] left-[24%] w-10 h-0.5 bg-gradient-to-r from-transparent via-purple-400 to-transparent animate-magic-beam" style={{ animationDelay: '0.5s' }} />
-
-              {/* Yüzen istatistik kartı */}
-              <div className="animate-float absolute top-6 right-4">
-                <div className="w-24 h-28 bg-white/85 dark:bg-card/85 backdrop-blur-sm rounded-xl border border-white/50 dark:border-border shadow-xl rotate-6">
-                  <div className="p-3 space-y-2">
-                    <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
-                    <div className="space-y-1">
-                      <div className="h-1.5 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
-                      <div className="h-1.5 bg-gray-100 dark:bg-gray-700 rounded w-3/4 animate-pulse" style={{ animationDelay: '150ms' }} />
-                    </div>
-                    <div className="flex justify-between items-center pt-1">
-                      <Trophy className="w-3 h-3 text-yellow-500" />
-                      <span className="text-xs font-bold text-primary">+48</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* VS kartı */}
-              <div className="animate-float-delayed absolute bottom-8 left-2">
-                <div className="w-14 h-16 bg-white/75 dark:bg-card/75 backdrop-blur-sm rounded-lg border border-white/40 dark:border-border shadow-md -rotate-6">
-                  <div className="p-2 text-center">
-                    <GitCompareArrows className="w-4 h-4 mx-auto text-primary mb-1" />
-                    <div className="text-[10px] font-bold text-muted-foreground">VS</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Parçacıklar */}
-              <div className="absolute top-6 left-12 w-2 h-2 bg-primary/40 rounded-full animate-ping" />
-              <div className="absolute top-24 right-6 w-1.5 h-1.5 bg-purple-500/50 rounded-full animate-bounce" style={{ animationDelay: '500ms' }} />
-              <div className="absolute bottom-10 left-16 w-1 h-1 bg-yellow-500/60 rounded-full animate-pulse" style={{ animationDelay: '700ms' }} />
+            <div className="relative w-full max-w-sm h-80 lg:h-96">
+              <HeroShowcase />
             </div>
           </div>
         </div>

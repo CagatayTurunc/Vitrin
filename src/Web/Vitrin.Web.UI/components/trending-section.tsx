@@ -4,6 +4,7 @@ import { TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ProductApiModel } from "@/core/domain/product.types";
 import Link from "next/link";
+import { ScrollReveal } from "@/components/scroll-reveal";
 
 interface Props {
   products: ProductApiModel[];
@@ -32,35 +33,29 @@ export function TrendingSection({ products }: Props) {
           <div className="relative z-10">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
               {/* Left side - Description */}
-              <div className={`space-y-4 ${mounted ? "animate-fade-in-up" : "opacity-0"}`}>
-                <h2 className="text-sm font-semibold tracking-wider uppercase text-primary">
-                  YÜKSELENLER
-                </h2>
-                
-                <h3 className="text-3xl font-bold text-foreground">
-                  Şu anda konuşulan fikirler.
-                </h3>
-                
-                <div className="space-y-3 text-muted-foreground">
-                  <p>
-                    Oylama, kaydetme ve yorum sinyallerinden beslenen seçki;
-                  </p>
-                  <p>
-                    yeni ama gerçekten yankı uyandıran ürünleri öne çıkarır.
-                  </p>
+              <ScrollReveal variant="fade-left" duration="normal">
+                <div className="space-y-4">
+                  <h2 className="text-sm font-semibold tracking-wider uppercase text-primary">
+                    YÜKSELENLER
+                  </h2>
+                  <h3 className="text-3xl font-bold text-foreground">
+                    Şu anda konuşulan fikirler.
+                  </h3>
+                  <div className="space-y-3 text-muted-foreground">
+                    <p>Oylama, kaydetme ve yorum sinyallerinden beslenen seçki;</p>
+                    <p>yeni ama gerçekten yankı uyandıran ürünleri öne çıkarır.</p>
+                  </div>
                 </div>
-              </div>
+              </ScrollReveal>
 
               {/* Right side - Ranking panel */}
-              <div className={`${mounted ? "animate-slide-in-right animate-stagger-2" : "opacity-0"}`}>
+              <ScrollReveal variant="fade-right" delay={1} duration="normal">
                 <div className="bg-card/50 backdrop-blur-sm border border-border rounded-xl p-6 space-y-4">
                   {products.map((product, index) => (
                     <Link
                       key={product.id}
                       href={`/product/${product.slug}`}
-                      className={`flex items-center justify-between p-3 rounded-lg bg-background/50 border border-border/50 card-hover ${
-                        mounted ? `animate-fade-in-up animate-stagger-${index + 3}` : "opacity-0"
-                      }`}
+                      className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-border/50 card-hover"
                     >
                       {/* Position and name */}
                       <div className="flex items-center gap-4">
@@ -87,7 +82,7 @@ export function TrendingSection({ products }: Props) {
                     Topluluğun anlık ilgisi
                   </p>
                 </div>
-              </div>
+              </ScrollReveal>
             </div>
           </div>
         </div>

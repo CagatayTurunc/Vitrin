@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ScrollReveal } from "@/components/scroll-reveal";
 
 interface Topic {
   id: string;
@@ -29,29 +30,36 @@ export function TopicsSection() {
     <section className="py-16 bg-background">
       <div className="mx-auto max-w-6xl px-4">
         {/* Header */}
-        <div className={`mb-8 space-y-2 text-center ${mounted ? "animate-fade-in-up" : "opacity-0"}`}>
+        <ScrollReveal variant="fade-up" className="mb-8 space-y-2 text-center">
           <h2 className="text-sm font-semibold tracking-wider uppercase text-primary">
             İLGİ ALANLARI
           </h2>
           <h3 className="text-3xl font-bold text-foreground">
             Bir sonraki favorini seçkilerden bul.
           </h3>
-        </div>
+        </ScrollReveal>
 
         {/* Topic Pills */}
-        <div className={`flex flex-wrap justify-center gap-3 ${mounted ? "animate-fade-in-up animate-stagger-2" : "opacity-0"}`}>
+        <div className="flex flex-wrap justify-center gap-3">
           {topics.map((topic, index) => (
-            <Link
+            <ScrollReveal
               key={topic.id}
-              href={`/topics/${topic.slug}`}
-              className={`px-6 py-3 rounded-full font-medium transition-all duration-300 card-hover ${
-                topic.isActive
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-card border border-border text-foreground hover:bg-muted hover:border-border/80"
-              } ${mounted ? `animate-scale-in animate-stagger-${index + 3}` : "opacity-0"}`}
+              variant="zoom-in"
+              delay={(index % 4) as 0 | 1 | 2 | 3}
+              duration="normal"
+              threshold={0.1}
             >
-              {topic.name}
-            </Link>
+              <Link
+                href={`/topics/${topic.slug}`}
+                className={`inline-block px-6 py-3 rounded-full font-medium transition-all duration-300 card-hover ${
+                  topic.isActive
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-card border border-border text-foreground hover:bg-muted hover:border-border/80"
+                }`}
+              >
+                {topic.name}
+              </Link>
+            </ScrollReveal>
           ))}
         </div>
       </div>
