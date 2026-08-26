@@ -1,23 +1,22 @@
 using System.Net;
+using Microsoft.Extensions.Http.Resilience;
 using Yarp.ReverseProxy.Forwarder;
 
 namespace Vitrin.Gateway.Resilience;
 
 /// <summary>
 /// YARP'ın IForwarderHttpClientFactory'sini wrap ederek cluster ID'ye göre
-/// doğru Polly resilience pipeline'lı HttpClient'ı seçer.
+/// doğru Polly resilience pipeline'lı HttpMessageInvoker döndürür.
 ///
-/// Cluster → profil eşlemesi:
-///   auth-cluster, product-cluster, comment-cluster → Vitrin.Critical
-///   vote-cluster                                   → Vitrin.Voting
-///   analytics-cluster, notification-cluster,
-///   ai-cluster                                     → Vitrin.Tolerant
+/// Not: YARP, CreateClient'tan HttpClient değil HttpMessageInvoker bekler.
+/// HttpClient, HttpMessageInvoker'dan türese de YARP tip kontrolü yapar ve
+/// HttpClient gelirse ArgumentException fırlatır. Bu yüzden HttpClientFactory
+/// yerine HttpMessageHandlerFactory kullanılır.
 /// </summary>
 public sealed class ResilienceForwarderHttpClientFactory : IForwarderHttpClientFactory
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IHttpMessageHandlerFactory _handlerFactory;
 
-    // Cluster ID → named HttpClient eşlemesi
     private static readonly Dictionary<string, string> ClusterClientMap =
         new(StringComparer.OrdinalIgnoreCase)
         {
@@ -30,17 +29,19 @@ public sealed class ResilienceForwarderHttpClientFactory : IForwarderHttpClientF
             ["ai-cluster"]           = ResilienceClientNames.Tolerant,
         };
 
-    public ResilienceForwarderHttpClientFactory(IHttpClientFactory httpClientFactory)
+    public ResilienceForwarderHttpClientFactory(IHttpMessageHandlerFactory handlerFactory)
     {
-        _httpClientFactory = httpClientFactory;
+        _handlerFactory = handlerFactory;
     }
 
     public HttpMessageInvoker CreateClient(ForwarderHttpClientContext context)
     {
         if (ClusterClientMap.TryGetValue(context.ClusterId, out var clientName))
         {
-            // IHttpClientFactory'den Polly resilience pipeline'lı handler al
-            return _httpClientFactory.CreateClient(clientName);
+            // IHttpMessageHandlerFactory → HttpMessageHandler → HttpMessageInvoker
+            // YARP'ın beklediği tip tam olarak bu
+            var handler = _handlerFactory.CreateHandler(clientName);
+            return new HttpMessageInvoker(handler, disposeHandler: true);
         }
 
         // Bilinmeyen cluster → YARP varsayılan davranışıyla aynı handler
