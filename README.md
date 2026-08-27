@@ -258,6 +258,7 @@ observability/           Prometheus, Grafana, Jaeger konfigürasyonları
 | [data-access-performance.md](docs/data-access-performance.md) | Index'ler, EXPLAIN ANALYZE rehberi |
 | [PROJE-GELISTIRME-YOL-HARITASI.md](docs/PROJE-GELISTIRME-YOL-HARITASI.md) | Kapsamlı teknik denetim ve yol haritası |
 | [observability/README.md](observability/README.md) | Monitoring stack detayları |
+| **[27-unsur/](docs/27-unsur/)** | **27 Unsur Kontrol Listesi — Production Launch Checklist** ✅ |
 
 ---
 
