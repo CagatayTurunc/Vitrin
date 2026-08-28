@@ -16,7 +16,7 @@ interface SEOConfig {
   author?: string
   publishedTime?: string
   modifiedTime?: string
-  type?: 'website' | 'article' | 'product'
+  type?: 'website' | 'article'
 }
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3001'
