@@ -494,7 +494,7 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: src/Web/Vitrin.Web.UI
-        run: pnpm exec playwright install chromium --with-deps
+        run: npx playwright install chromium --with-deps
 
       - name: Wait for deployment to stabilize
         run: |
