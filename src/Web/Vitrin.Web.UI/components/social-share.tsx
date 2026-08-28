@@ -6,7 +6,7 @@
  * Sosyal medya paylaşım butonları
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Share2, Link as LinkIcon, Check } from 'lucide-react'
 import { generateShareUrls, type SocialShareData } from '@/lib/social-media'
 
@@ -108,11 +108,11 @@ export function NativeShareButton({
   const [canShare, setCanShare] = useState(false)
 
   // Check if Web Share API is available
-  useState(() => {
+  useEffect(() => {
     if (typeof navigator !== 'undefined' && navigator.share) {
       setCanShare(true)
     }
-  })
+  }, [])
 
   const handleNativeShare = async () => {
     if (!navigator.share) return
