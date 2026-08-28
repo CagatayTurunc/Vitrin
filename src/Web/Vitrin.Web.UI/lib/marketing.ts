@@ -17,7 +17,7 @@ export const USP_VARIANTS = {
   makerFocused: {
     headline: 'Ürününü binlerce insana ulaştır',
     subheadline:
-      'Türkiye'nin en aktif maker topluluğunda ürününü lansmanla, geri bildirim al ve büyü.',
+      'Türkiye\'nin en aktif maker topluluğunda ürününü lansmanla, geri bildirim al ve büyü.',
     cta: 'Ürününü ekle',
   },
   communityFocused: {
