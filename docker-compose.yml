@@ -420,6 +420,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: "Host=postgres;Database=vitrin_product;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
       ConnectionStrings__Redis: "${REDIS_PASSWORD:+redis:6379,password=${REDIS_PASSWORD}}${REDIS_PASSWORD:-redis:6379}"
+      ConnectionStrings__Kafka: "kafka:9092"
       ConnectionStrings__Elasticsearch: "${ELASTICSEARCH_PASSWORD:+http://elastic:${ELASTICSEARCH_PASSWORD}@elasticsearch:9200}${ELASTICSEARCH_PASSWORD:-http://elasticsearch:9200}"
       Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       OpenTelemetry__ServiceName: "Vitrin.Product"

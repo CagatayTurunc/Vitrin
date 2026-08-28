@@ -7,6 +7,7 @@ public static class EventTopics
     public const string Analytics = "analytics-events";
     public const string Social = "social-events";
     public const string User = "user-events";
+    public const string Subscription = "subscription-events";
 }
 
 public static class EventCatalog
@@ -25,7 +26,9 @@ public static class EventCatalog
             [typeof(CommentAddedEvent)] = EventTopics.Social,
             [typeof(CommentRepliedEvent)] = EventTopics.Social,
             [typeof(UserRegisteredEvent)] = EventTopics.User,
-            [typeof(UserRoleChangedEvent)] = EventTopics.User
+            [typeof(UserRoleChangedEvent)] = EventTopics.User,
+            [typeof(SubscriptionUpgradedEvent)] = EventTopics.Subscription,
+            [typeof(SubscriptionCanceledEvent)] = EventTopics.Subscription,
         };
 
     public static IReadOnlyDictionary<Type, string> Entries => Topics;

@@ -52,6 +52,8 @@ public static class DependencyInjection
         // Kafka Consumer — Voting servisinden gelen VoteAdded/VoteRemoved event'lerini dinler
         services.AddHostedService<VotingEventsConsumer>();
         services.AddHostedService<EngagementEventsConsumer>();
+        // Kafka Consumer — Auth servisinden gelen SubscriptionUpgraded/Canceled event'lerini dinler
+        services.AddHostedService<SubscriptionEventsConsumer>();
 
         return services;
     }

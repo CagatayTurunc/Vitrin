@@ -756,6 +756,12 @@ namespace Vitrin.Product.Infrastructure.Migrations
                     b.Property<Guid>("MakerId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("MakerTierSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasDefaultValue("Free")
+                        .HasColumnType("character varying(50)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -808,6 +814,9 @@ namespace Vitrin.Product.Infrastructure.Migrations
 
                     b.HasIndex("MakerId")
                         .HasDatabaseName("IX_Products_MakerId");
+
+                    b.HasIndex("MakerTierSnapshot")
+                        .HasDatabaseName("IX_Products_MakerTierSnapshot");
 
                     b.HasIndex("Name")
                         .HasDatabaseName("IX_Products_Name_Trgm");

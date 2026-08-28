@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Vitrin.Auth.Infrastructure.Data;
+using Vitrin.Shared.Contracts.Events;
 using Vitrin.Shared.Contracts.Payment;
 using Vitrin.Shared.Infrastructure.Api;
 using Vitrin.Shared.Infrastructure.Audit;
 using Vitrin.Shared.Infrastructure.Auth;
+using Vitrin.Shared.Infrastructure.Kafka;
 using DomainSubscription = Vitrin.Auth.Domain.Entities.Subscription;
 using DomainSubscriptionTier = Vitrin.Auth.Domain.Entities.SubscriptionTier;
 using DomainSubscriptionStatus = Vitrin.Auth.Domain.Entities.SubscriptionStatus;
@@ -88,7 +90,8 @@ public static class SubscriptionEndpoints
             string? token,
             IPaymentService paymentService,
             AuthDbContext db,
-            IAuditLogger auditLogger) =>
+            IAuditLogger auditLogger,
+            IEventPublisher eventPublisher) =>
         {
             if (string.IsNullOrWhiteSpace(token))
             {
@@ -150,8 +153,15 @@ public static class SubscriptionEndpoints
             db.PaymentHistories.Add(paymentHistory);
             await db.SaveChangesAsync(context.RequestAborted);
 
-            // TODO: Publish SubscriptionUpgradedEvent to Kafka
-            // This will update product badges in Product service
+            // Publish SubscriptionUpgradedEvent to Kafka
+            // Product service bu event'i tüketerek ürünlerin MakerTierSnapshot alanını güncelleyecek
+            var oldTier = subscription.Tier == tier ? "Free" : subscription.Tier.ToString();
+            await eventPublisher.PublishAsync(new SubscriptionUpgradedEvent
+            {
+                UserId = userId,
+                OldTier = oldTier,
+                NewTier = tier.ToString()
+            }, context.RequestAborted);
 
             await auditLogger.WriteAsync(
                 new AuditEvent("subscription.upgraded", userId, "Subscription", subscription.Id.ToString(),
@@ -204,7 +214,8 @@ public static class SubscriptionEndpoints
             HttpContext context,
             CancellationRequest request,
             AuthDbContext db,
-            IAuditLogger auditLogger) =>
+            IAuditLogger auditLogger,
+            IEventPublisher eventPublisher) =>
         {
             var userId = context.User.GetUserId();
             if (userId is null) return Results.Unauthorized();
@@ -215,8 +226,17 @@ public static class SubscriptionEndpoints
             if (subscription is null || subscription.Tier == DomainSubscriptionTier.Free)
                 return ApiProblemResults.BadRequest("No active subscription to cancel.", "subscription.not_found");
 
+            var canceledTier = subscription.Tier.ToString();
             subscription.ScheduleCancellation(request.Reason ?? "User requested cancellation");
             await db.SaveChangesAsync(context.RequestAborted);
+
+            // Publish SubscriptionCanceledEvent — Product service Free tier'a düşürecek
+            await eventPublisher.PublishAsync(new SubscriptionCanceledEvent
+            {
+                UserId = userId.Value,
+                Tier = canceledTier,
+                CanceledAt = DateTime.UtcNow
+            }, context.RequestAborted);
 
             await auditLogger.WriteAsync(
                 new AuditEvent("subscription.canceled", userId, "Subscription", subscription.Id.ToString(),

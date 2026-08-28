@@ -15,6 +15,12 @@ public class ProductItem : AggregateRoot
     public Guid MakerId { get; private set; }
     public ProductStatus Status { get; private set; }
     public string? RejectionReason { get; private set; }
+
+    /// <summary>
+    /// Auth service'ten senkronize edilen maker tier snapshot'ı.
+    /// Premium badge görünümü için kullanılır (Free, ProMaker, Enterprise).
+    /// </summary>
+    public string MakerTierSnapshot { get; private set; } = "Free";
     
     public DateTime CreatedAt { get; private set; }
     public DateTime? PublishedAt { get; private set; }
@@ -298,6 +304,16 @@ public class ProductItem : AggregateRoot
     public void RecordView() => ViewCount++;
 
     public void RecordComment() => CommentCount++;
+
+    /// <summary>
+    /// Auth service'ten gelen SubscriptionUpgradedEvent ile güncellenir.
+    /// Premium badge görünümü bu snapshot'a bakarak belirlenir.
+    /// </summary>
+    public void UpdateMakerTier(string newTier)
+    {
+        if (!string.IsNullOrWhiteSpace(newTier))
+            MakerTierSnapshot = newTier;
+    }
     
     public void SetGalleryUrls(IEnumerable<string> urls)
     {
