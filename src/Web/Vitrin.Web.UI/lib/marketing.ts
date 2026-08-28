@@ -139,7 +139,7 @@ export function optimizeSubjectLine(subject: string): {
   // Emoji check
   if (!/[\u{1F300}-\u{1F9FF}]/u.test(subject)) {
     score -= 5
-    suggestions.push('Emoji kullanımı open rate'i artırabilir')
+    suggestions.push("Emoji kullanımı open rate'i artırabilir")
   }
   
   // Personalization
