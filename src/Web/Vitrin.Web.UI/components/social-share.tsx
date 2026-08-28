@@ -109,7 +109,7 @@ export function NativeShareButton({
 
   // Check if Web Share API is available
   useEffect(() => {
-    if (typeof navigator !== 'undefined' && navigator.share) {
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
       setCanShare(true)
     }
   }, [])
