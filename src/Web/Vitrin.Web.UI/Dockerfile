@@ -8,7 +8,7 @@ FROM base AS deps
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm config set enable-pre-post-scripts true && \
+RUN echo "ignore-scripts=false" > .npmrc && \
     pnpm install --no-frozen-lockfile
 
 FROM base AS builder
