@@ -8,7 +8,7 @@ FROM base AS deps
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN echo "ignore-scripts=false" > .npmrc && \
+RUN echo 'module.exports = { hooks: { readPackage(pkg) { if (pkg.name === "esbuild") { pkg.scripts = pkg.scripts || {}; delete pkg.scripts.postinstall; } return pkg; } } };' > .pnpmfile.cjs && \
     pnpm install --no-frozen-lockfile
 
 FROM base AS builder
