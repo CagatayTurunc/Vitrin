@@ -363,7 +363,13 @@ export function generateContentQualityReport(
       averageSyllablesPerWord: readability.details.avgSyllablesPerWord,
       grade: readability.level,
     },
-    structure: formattingCheck?.structure || {
+    structure: formattingCheck?.structure ? {
+      hasHeadings: formattingCheck.structure.hasHeadings,
+      hasList: formattingCheck.structure.hasList,
+      hasParagraphs: formattingCheck.structure.hasParagraphs,
+      imageCount: formattingCheck.structure.hasImages ? 1 : 0,
+      linkCount: formattingCheck.structure.hasLinks ? 1 : 0,
+    } : {
       hasHeadings: false,
       hasList: false,
       hasParagraphs: false,
