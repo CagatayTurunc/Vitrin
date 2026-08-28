@@ -127,10 +127,10 @@ function main() {
   })
   
   console.log('=' .repeat(80))
-  console.log('✅ URL'ler oluşturuldu!')
+  console.log('✅ URL\'ler oluşturuldu!')
   console.log()
-  console.log('💡 İpucu: Bu URL'leri kampanyalarınızda kullanarak')
-  console.log('   GA4\'te traffic source'ları takip edebilirsiniz.')
+  console.log('💡 İpucu: Bu URL\'leri kampanyalarınızda kullanarak')
+  console.log('   GA4\'te traffic source\'ları takip edebilirsiniz.')
   console.log()
   console.log('📊 Google Analytics → Reports → Acquisition → Traffic acquisition')
 }
