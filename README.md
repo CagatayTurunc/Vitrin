@@ -35,6 +35,158 @@ Bu repo yalnızca çalışan bir uygulama değil; servis sınırları, veri sahi
 
 ---
 
+## Cloud & Deployment Architecture
+
+### Infrastructure Strategy: Cost-Optimized Hybrid Cloud
+
+Vitrin, **selective PaaS** yaklaşımı ile maliyet-performans dengesini optimize eder: Mission-critical altyapı bileşenleri self-hosted (kontrol ve maliyet avantajı), commodity servisler ise yönetilen PaaS çözümleriyle sağlanır.
+
+#### Deployment Stack
+
+| Katman | Teknoloji | Hosting Model | Maliyet |
+|---|---|---|---|
+| **Compute** | AWS EC2 (t3.medium) | IaaS | ~$30/ay |
+| **Container Orchestration** | Docker Compose | Self-managed | $0 |
+| **Container Registry** | GitHub Container Registry (GHCR) | PaaS (Free) | $0 |
+| **CI/CD** | GitHub Actions | PaaS (Free) | $0 |
+| **Reverse Proxy** | Nginx | Self-hosted | $0 |
+| **API Gateway** | YARP (.NET) | Self-hosted | $0 |
+| **Database** | PostgreSQL (Docker) | Self-hosted | $0 |
+| **Cache** | Redis (Docker) | Self-hosted | $0 |
+| **Message Broker** | Kafka + Zookeeper (Docker) | Self-hosted | $0 |
+| **Observability** | Prometheus + Grafana + Jaeger | Self-hosted | $0 |
+| **Log Storage** | Elasticsearch + Kibana (Docker) | Self-hosted | $0 |
+| **CDN & DDoS** | Cloudflare Free Tier | PaaS (Free) | $0 |
+| **Email Delivery** | Resend Free Tier | PaaS (Free) | $0 |
+| **Image CDN** | Cloudinary Free Tier | PaaS (Free) | $0 |
+| **AI/LLM** | Google Gemini API | PaaS (Free) | $0 |
+| **OAuth** | Google/GitHub OAuth 2.0 | PaaS (Free) | $0 |
+| **Analytics** | Vercel Analytics | PaaS (Free) | $0 |
+| **Total** | | | **~$30/ay** |
+
+#### Multi-Layer Security Architecture
+
+```
+[Internet]
+    ↓
+[Cloudflare]  ← Layer 1: DDoS protection, bot filtering, CDN, SSL/TLS
+    ↓
+[AWS EC2 / Nginx]  ← Layer 2: HTTPS termination, security headers, endpoint protection
+    ↓
+[YARP Gateway]  ← Layer 3: JWT validation, distributed rate limiting, circuit breaker
+    ↓
+[Microservices]  ← Layer 4: Domain-specific authorization, data validation
+```
+
+#### Why Self-Host Core Infrastructure?
+
+**Strategic Decision Rationale:**
+
+| Bileşen | Self-Host Nedeni |
+|---|---|
+| **PostgreSQL** | Veri sahipliği, performance tuning kontrolü, migration esnekliği, RDS maliyetinden kaçınma (~$30-100/ay) |
+| **Redis** | Cache pattern özgürlüğü, rate limiting store kontrolü, ElastiCache maliyetinden kaçınma (~$15-50/ay) |
+| **Kafka** | Event sourcing tam kontrolü, MSK/Confluent Cloud maliyetinden kaçınma (~$200+/ay) |
+| **Observability Stack** | Unlimited metrics/logs, custom dashboards, Datadog/New Relic maliyetinden kaçınma (~$50-200/ay) |
+
+**Toplam Tasarruf:** ~$300-500/ay (managed servislere göre)
+
+#### Why Use Selective PaaS?
+
+**Strategic PaaS Adoption:**
+
+| PaaS Servisi | Kullanım Nedeni |
+|---|---|
+| **Resend (Email)** | SMTP complexity, deliverability optimization, SPF/DKIM/DMARC setup, IP reputation management |
+| **Cloudinary (Images)** | Automatic image optimization (WebP/AVIF), responsive srcset, CDN distribution, transformation API |
+| **Cloudflare (CDN/DDoS)** | Global edge network, unmetered DDoS protection, free SSL, Web Application Firewall |
+| **GitHub Actions (CI/CD)** | Zero maintenance, built-in secrets management, matrix builds, extensive ecosystem |
+| **Gemini AI (LLM)** | No model training/hosting, auto-scaling, API simplicity, free tier sufficient |
+
+#### CI/CD Pipeline Architecture
+
+```yaml
+Trigger: git push [deploy]
+    ↓
+1. Test Stage
+   ├─ Backend: xUnit (113 tests)
+   ├─ Frontend: Vitest (11 tests)
+   └─ Integration: Testcontainers
+    ↓
+2. Security Scan
+   ├─ .NET: dotnet list package --vulnerable
+   ├─ Frontend: pnpm audit
+   └─ Filesystem: Trivy scan
+    ↓
+3. Build & Push (Matrix: 9 services)
+   ├─ Multi-stage Dockerfile (layer optimization)
+   ├─ BuildKit cache (GitHub Actions cache)
+   └─ Push to ghcr.io (2 tags: commit-sha + latest)
+    ↓
+4. Image Security
+   ├─ Trivy container scan (CRITICAL/HIGH)
+   ├─ SBOM generation (Syft CycloneDX)
+   └─ SARIF upload to GitHub Security
+    ↓
+5. Deploy
+   ├─ SSH to EC2
+   ├─ Pull images (throttled, sequential)
+   ├─ Rolling restart (service-by-service)
+   └─ Health check (12 retries, 5s interval)
+    ↓
+6. Smoke Test
+   ├─ Playwright production tests
+   └─ Accessibility checks (axe-core)
+    ↓
+7. Auto Rollback (on failure)
+   └─ Revert to previous image tags
+```
+
+#### Backup & Disaster Recovery
+
+```yaml
+Strategy: Automated Daily Backups
+Schedule: 02:00 UTC (Cron)
+Retention: 7 days
+Databases:
+  - vitrin_auth (PostgreSQL)
+  - vitrin_product (PostgreSQL)
+  - vitrin_comment (PostgreSQL)
+Storage:
+  - Local: /backups (gzip compressed)
+  - Remote: AWS S3 (optional, ready to enable)
+Recovery:
+  - scripts/restore-postgres.sh
+  - Interactive confirmation (safety)
+  - Connection termination + drop-create
+```
+
+#### Cost Optimization Techniques
+
+1. **Single EC2 Instance:** Docker Compose multi-container deployment (resource sharing)
+2. **Free Tier PaaS:** Cloudflare, Resend, Cloudinary, GHCR, GitHub Actions
+3. **Self-Hosted Observability:** Prometheus + Grafana + Jaeger (zero cost)
+4. **SQLite for Non-Critical:** Voting, Notification, Analytics (volume storage instead of PostgreSQL)
+5. **Throttled Image Pulls:** Sequential deployment (avoid bandwidth spikes)
+6. **BuildKit Cache:** GitHub Actions cache (reduce build time + transfer)
+
+#### Scalability Path (Future)
+
+**Current:** Single EC2 + Docker Compose (~$30/ay)
+
+**Next Steps (if needed):**
+- Horizontal scaling: Multiple EC2 behind load balancer
+- Database: Read replicas, connection pooling (PgBouncer)
+- Cache: Redis cluster mode
+- Kubernetes: AWS EKS or self-managed (k3s)
+
+**Cost-Performance Trade-offs Considered:**
+- Kubernetes adds ~$150/ay (EKS control plane + nodes) but enables auto-scaling
+- Managed RDS adds ~$40/ay but provides Multi-AZ + automatic backups
+- Current setup handles ~1000 concurrent users (sufficient for MVP/portfolio)
+
+---
+
 ## Sistem Tasarımı
 
 Bu projede uygulanan tüm sistem tasarım pattern'leri, API gateway özellikleri, distributed sistem kavramları ve mimari kararlar için:
@@ -252,6 +404,7 @@ observability/           Prometheus, Grafana, Jaeger konfigürasyonları
 | Belge | İçerik |
 |---|---|
 | [SYSTEM-DESIGN.md](docs/SYSTEM-DESIGN.md) | Tüm sistem tasarım kararları, pattern'ler, mevcut/eksik özellikler |
+| **[CLOUD-ARCHITECTURE.md](docs/CLOUD-ARCHITECTURE.md)** | **Cloud & PaaS stratejisi, maliyet analizi, deployment mimarisi** |
 | [event-catalog.md](docs/event-catalog.md) | Kafka topic, producer ve consumer matrisi |
 | [testing-strategy.md](docs/testing-strategy.md) | Test piramidi ve kalite kapıları |
 | [SECURITY-CHECKLIST.md](docs/SECURITY-CHECKLIST.md) | Güvenlik kontrol listesi ve uygulananlar |

@@ -6,13 +6,71 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
+import { getOrganizationSchema, getWebSiteSchema, renderJsonLd } from '@/lib/seo'
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3001'
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3001'),
-  title: 'Vitrin — Günün Ürünleri',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'Vitrin — Günün Ürünleri',
+    template: '%s — Vitrin',
+  },
   description:
-    'Vitrin, en yeni ürünleri keşfedeceğin, oy vereceğin ve paylaşacağın ürün keşif platformu.',
-  generator: 'v0.app',
+    'Vitrin, en yeni ürünleri keşfedeceğin, oy vereceğin ve paylaşacağın ürün keşif platformu. Türkiye\'nin en büyük ürün keşif topluluğu.',
+  keywords: [
+    'ürün keşfi',
+    'yeni ürünler',
+    'startup',
+    'girişim',
+    'teknoloji',
+    'product hunt',
+    'türkiye',
+    'yazılım',
+    'uygulama',
+  ],
+  authors: [{ name: 'Vitrin Ekibi' }],
+  creator: 'Vitrin',
+  publisher: 'Vitrin',
+  generator: 'Next.js',
+  alternates: {
+    canonical: siteUrl,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'tr_TR',
+    url: siteUrl,
+    title: 'Vitrin — Günün Ürünleri',
+    description: 'Türkiye\'nin en yeni ürün keşif platformu',
+    siteName: 'Vitrin',
+    images: [
+      {
+        url: `${siteUrl}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: 'Vitrin — Günün Ürünleri',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Vitrin — Günün Ürünleri',
+    description: 'Türkiye\'nin en yeni ürün keşif platformu',
+    creator: '@vitrinapp',
+    site: '@vitrinapp',
+    images: [`${siteUrl}/og-image.png`],
+  },
   icons: {
     icon: [
       {
@@ -29,6 +87,11 @@ export const metadata: Metadata = {
       },
     ],
     apple: '/apple-icon.png',
+  },
+  // Madde 2.4: Google Analytics tracking için
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+    // Diğer verification kodları
   },
 }
 
@@ -47,11 +110,26 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Madde 2.7: Schema.org structured data
+  const organizationSchema = getOrganizationSchema()
+  const websiteSchema = getWebSiteSchema()
+
   return (
     <html
       lang="tr"
       suppressHydrationWarning
     >
+      <head>
+        {/* Madde 2.7: Global Schema.org */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={renderJsonLd(organizationSchema)}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={renderJsonLd(websiteSchema)}
+        />
+      </head>
       <body className="font-body antialiased min-h-screen bg-background text-foreground">
         <NextAuthProvider>
           <ThemeProvider

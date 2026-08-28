@@ -7,12 +7,20 @@ using Vitrin.Notification.Infrastructure.Data;
 using Vitrin.Shared.Infrastructure.Auth;
 using Vitrin.Shared.Infrastructure.Api;
 using Vitrin.Shared.Infrastructure.Migrations;
+using Vitrin.Shared.Infrastructure.Observability;
 using System.Text.Json;
 using Vitrin.Notification.Domain.Entities;
 using Vitrin.Notification.Infrastructure.Email;
 using Vitrin.Notification.Infrastructure.Realtime;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Observability: Serilog + OpenTelemetry + Prometheus
+builder.Services.AddVitrinObservability(builder.Configuration, builder.Environment, "Notification");
+
+// Enhanced health checks: SQLite + Kafka
+builder.Services.AddVitrinHealthChecks(builder.Configuration);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c => { c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "Vitrin Notification API", Version = "v1" }); c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme { Name = "Authorization", Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT", In = Microsoft.OpenApi.Models.ParameterLocation.Header }); c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement { { new Microsoft.OpenApi.Models.OpenApiSecurityScheme { Reference = new Microsoft.OpenApi.Models.OpenApiReference { Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme, Id = "Bearer" } }, Array.Empty<string>() } }); });
@@ -30,6 +38,7 @@ builder.Services.AddNotificationInfrastructure(builder.Configuration);
 var app = builder.Build();
 
 app.UseVitrinApiErrors();
+app.UseOpenTelemetryPrometheusScrapingEndpoint();
 
 if (await app.MigrateDatabaseAndExitAsync<NotificationDbContext>(
     args,
@@ -40,7 +49,7 @@ if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapHealthChecks("/health");
+app.UseVitrinHealthChecks();
 
 // ─── Endpoints ──────────────────────────────────────────────────────────────
 

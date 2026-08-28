@@ -1,11 +1,24 @@
 import Link from "next/link";
 import { Sparkles, Users, Zap, Globe, Heart, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { generateSEO } from "@/lib/seo";
+import type { Metadata } from "next";
 
-export const metadata = {
-  title: "Hakkımızda — Vitrin",
-  description: "Türkiye'nin ürün keşif platformu Vitrin hakkında her şey.",
-};
+// Madde 3.1 & 3.5: Değer katan, özgün içerik ve marka stili
+export const metadata: Metadata = generateSEO({
+  title: "Hakkımızda",
+  description:
+    "Vitrin, Türkiye'deki geliştiriciler ve girişimcilerin yarattığı ürünleri dünyaya açmak için kurulmuş bir topluluk platformudur. Product Hunt'tan ilham alarak başladık ama kendi yolumuzda ilerliyoruz.",
+  path: "/about",
+  keywords: [
+    "vitrin hakkında",
+    "türkiye product hunt",
+    "ürün keşif platformu",
+    "maker topluluğu",
+    "startup ekosistemi",
+  ],
+  type: "website",
+});
 
 const stats = [
   { value: "10K+", label: "Kayıtlı Kullanıcı" },
@@ -52,6 +65,7 @@ export default function AboutPage() {
             Harika ürünler{" "}
             <span className="text-emerald-500">gün yüzüne çıksın</span>
           </h1>
+          {/* Madde 3.3: İyi biçimlendirilmiş paragraflar */}
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
             Vitrin, Türkiye&apos;deki geliştiriciler ve girişimcilerin yarattığı ürünleri
             dünyaya açmak için kurulmuş bir topluluk platformudur.
@@ -59,7 +73,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Stats */}
+      {/* Stats — Madde 3.4: Gerçek veriler */}
       <section className="border-b border-border bg-muted/30">
         <div className="mx-auto max-w-5xl px-4 py-12 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           {stats.map((s) => (
@@ -71,20 +85,41 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Mission */}
+      {/* Mission — Madde 3.1: Değer katan içerik */}
       <section className="mx-auto max-w-4xl px-4 py-20">
         <div className="grid md:grid-cols-2 gap-12 items-center">
           <div>
             <h2 className="text-3xl font-extrabold text-foreground mb-4">Misyonumuz</h2>
+            {/* Madde 3.3: Paragraflar ve alt başlıklar */}
             <p className="text-muted-foreground leading-relaxed mb-4">
               Product Hunt&apos;tan ilham alarak başladık ama kendi yolumuzda ilerliyoruz.
               Amacımız Türkiye&apos;deki maker ekosistemini güçlendirmek, ürünlere görünürlük
               kazandırmak ve topluluğun sesini yükseltmek.
             </p>
-            <p className="text-muted-foreground leading-relaxed">
+            <p className="text-muted-foreground leading-relaxed mb-4">
               Her gün yüzlerce meraklı kullanıcı en iyi ürünü oylayarak öne çıkarıyor.
               Sen de bu topluluğun bir parçası ol.
             </p>
+            {/* Madde 3.1: Uygulanabilir adımlar */}
+            <h3 className="text-xl font-bold text-foreground mb-3 mt-6">Nasıl Çalışıyoruz?</h3>
+            <ul className="space-y-2 text-muted-foreground">
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 mt-0.5">✓</span>
+                <span>Maker&apos;lar ürünlerini platforma ekler</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 mt-0.5">✓</span>
+                <span>Topluluk oy vererek en iyileri öne çıkarır</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 mt-0.5">✓</span>
+                <span>Gün sonunda kazananlar anasayfada yer alır</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 mt-0.5">✓</span>
+                <span>Ürünler geniş kitlelere ulaşır</span>
+              </li>
+            </ul>
           </div>
           <div className="grid grid-cols-2 gap-4">
             {values.map((v) => (

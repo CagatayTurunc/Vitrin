@@ -1,6 +1,6 @@
-# ==============================================================
+﻿# ==============================================================
 # Vitrin - Docker Compose Orkestrasyon
-# Kullanım: docker compose up -d --build
+# KullanÄ±m: docker compose up -d --build
 # ==============================================================
 
 services:
@@ -124,8 +124,8 @@ services:
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      # Madde 21 — .env'i kapat: Hardcoded fallback şifresi kaldırıldı.
-      # GRAFANA_ADMIN_PASSWORD ortam değişkeni zorunlu — .env dosyasında CHANGE_ME değeri ayarlanmalı.
+      # Madde 21 â€” .env'i kapat: Hardcoded fallback ÅŸifresi kaldÄ±rÄ±ldÄ±.
+      # GRAFANA_ADMIN_PASSWORD ortam deÄŸiÅŸkeni zorunlu â€” .env dosyasÄ±nda CHANGE_ME deÄŸeri ayarlanmalÄ±.
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
       GF_INSTALL_PLUGINS: grafana-piechart-panel
     depends_on:
@@ -148,22 +148,31 @@ services:
       - "9300:9300"
     environment:
       discovery.type: single-node
-      # Madde 17 — Yedeklemeyi (log storage'ı) kapat: 
-      # DEV: xpack.security kapalı bırakıldı (kolaylık için).
-      # PRODUCTION: Bu iki satırı değiştirin:
-      #   xpack.security.enabled: "true"
-      #   xpack.security.enrollment.enabled: "true"
-      # Sonra docker exec ile şifre oluşturun:
-      #   docker exec vitrin-elasticsearch bin/elasticsearch-setup-passwords auto
-      xpack.security.enabled: "false"
+      # GÃ¼venlik: xpack.security her zaman aÃ§Ä±k.
+      # ELASTICSEARCH_PASSWORD env ile elastic kullanÄ±cÄ± ÅŸifresi set edilir.
+      # Ä°lk kurulumda boÅŸ bÄ±rakÄ±labilir â€” sonra aÅŸaÄŸÄ±daki komutla ÅŸifre belirlenir:
+      #   docker exec vitrin-elasticsearch \
+      #     bin/elasticsearch-reset-password -u elastic -i
+      # Serilog ve Kibana baÄŸlantÄ±larÄ± ELASTICSEARCH_PASSWORD'u kullanÄ±r.
+      xpack.security.enabled: "true"
       xpack.security.enrollment.enabled: "false"
+      # elastic kullanÄ±cÄ±sÄ± iÃ§in baÅŸlangÄ±Ã§ ÅŸifresi (boÅŸsa auth devre dÄ±ÅŸÄ± kalÄ±r)
+      ELASTIC_PASSWORD: ${ELASTICSEARCH_PASSWORD:-}
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
       - vitrin-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      # GÃ¼venlik aÃ§Ä±kken auth bilgisi gerekiyor â€” ÅŸifre yoksa anonymous health
+      test: >
+        sh -c "
+          if [ -n \"$$ELASTICSEARCH_PASSWORD\" ]; then
+            curl -sf -u elastic:$$ELASTICSEARCH_PASSWORD http://localhost:9200/_cluster/health
+          else
+            curl -sf http://localhost:9200/_cluster/health
+          fi
+        "
       interval: 30s
       timeout: 10s
       retries: 5
@@ -178,6 +187,9 @@ services:
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
       ELASTICSEARCH_URL: http://elasticsearch:9200
+      # Elasticsearch gÃ¼venlik aÃ§Ä±kken kullanÄ±cÄ± adÄ±/ÅŸifre gerekli
+      ELASTICSEARCH_USERNAME: elastic
+      ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:-}
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -191,13 +203,13 @@ services:
       start_period: 60s
 
   # ============================================================
-  # ALTYAPI SERVİSLERİ
+  # ALTYAPI SERVÄ°SLERÄ°
   # ============================================================
 
-  # Madde 20 — Otomatik Yedek: pg_dump her gece 02:00'da çalışır.
-  # Yedekler /var/backups/vitrin-postgres içinde tutulur, 7 gün sonra silinir.
-  # S3_BUCKET env değişkeni tanımlanırsa otomatik olarak S3'e de yükler.
-  # Not: Sadece docker-compose.prod.yml'de aktif — dev'de şart değil.
+  # Madde 20 â€” Otomatik Yedek: pg_dump her gece 02:00'da Ã§alÄ±ÅŸÄ±r.
+  # Yedekler /var/backups/vitrin-postgres iÃ§inde tutulur, 7 gÃ¼n sonra silinir.
+  # S3_BUCKET env deÄŸiÅŸkeni tanÄ±mlanÄ±rsa otomatik olarak S3'e de yÃ¼kler.
+  # Not: Sadece docker-compose.prod.yml'de aktif â€” dev'de ÅŸart deÄŸil.
   postgres-backup:
     image: postgres:16-alpine
     container_name: vitrin-postgres-backup
@@ -213,18 +225,18 @@ services:
       - postgres_backup_data:/backups
     networks:
       - vitrin-network
-    # Her gece 02:00 UTC'de tüm veritabanlarını yedekler
+    # Her gece 02:00 UTC'de tÃ¼m veritabanlarÄ±nÄ± yedekler
     entrypoint: >
       sh -c "
-        echo 'Backup servisi başlatıldı. Her gece 02:00 UTC çalışır.';
+        echo 'Backup servisi baÅŸlatÄ±ldÄ±. Her gece 02:00 UTC Ã§alÄ±ÅŸÄ±r.';
         while true; do
           NOW=$$(date +%H:%M);
           if [ \"$$NOW\" = '02:00' ]; then
             TIMESTAMP=$$(date +%Y%m%d_%H%M%S);
             for DB in vitrin_auth vitrin_product vitrin_comment; do
-              echo \"→ Yedekleniyor: $$DB\";
+              echo \"â†’ Yedekleniyor: $$DB\";
               pg_dump -h postgres -U $$POSTGRES_USER $$DB | gzip > /backups/$${DB}_$${TIMESTAMP}.sql.gz
-                && echo \"  ✅ $$DB yedeklendi\" || echo \"  ❌ $$DB yedekleme başarısız!\";
+                && echo \"  âœ… $$DB yedeklendi\" || echo \"  âŒ $$DB yedekleme baÅŸarÄ±sÄ±z!\";
             done;
             find /backups -name '*.sql.gz' -mtime +$${BACKUP_RETENTION_DAYS:-7} -delete;
             echo 'Eski yedekler temizlendi.';
@@ -258,17 +270,32 @@ services:
     image: redis:7-alpine
     container_name: vitrin-redis
     restart: unless-stopped
-    # Güvenlik notu: Redis şifresiz çalışıyor.
-    # Production'da aşağıdaki satırı açarak şifre ekleyin:
-    #   command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
-    # Ve tüm Redis bağlantı string'lerini "redis:6379,password=ŞIFRE" formatına güncelleyin.
-    # Mevcut durumda Docker iç ağıyla izole — dışarıya port açık değil.
+    # Redis ÅŸifre korumasÄ±: REDIS_PASSWORD env deÄŸiÅŸkeni tanÄ±mlanÄ±rsa aktif olur.
+    # Dev ortamÄ±nda boÅŸ bÄ±rakÄ±labilir (Docker iÃ§ aÄŸÄ±yla izole).
+    # Production'da .env dosyasÄ±na REDIS_PASSWORD=<gÃ¼Ã§lÃ¼-ÅŸifre> eklenmeli.
+    command: >
+      sh -c "
+        if [ -n \"$$REDIS_PASSWORD\" ]; then
+          redis-server --requirepass $$REDIS_PASSWORD
+        else
+          redis-server
+        fi
+      "
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     volumes:
       - redis_data:/data
     networks:
       - vitrin-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: >
+        sh -c "
+          if [ -n \"$$REDIS_PASSWORD\" ]; then
+            redis-cli -a $$REDIS_PASSWORD ping
+          else
+            redis-cli ping
+          fi
+        "
       interval: 10s
       timeout: 5s
       retries: 5
@@ -303,7 +330,7 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # Docker içi servisler kafka:9092, local servisler localhost:29092 kullanır
+      # Docker iÃ§i servisler kafka:9092, local servisler localhost:29092 kullanÄ±r
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
@@ -324,7 +351,7 @@ services:
       start_period: 30s
 
   # ============================================================
-  # UYGULAMA SERVİSLERİ
+  # UYGULAMA SERVÄ°SLERÄ°
   # ============================================================
 
   vitrin-auth:
@@ -344,9 +371,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: "Host=postgres;Database=vitrin_auth;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
-      ConnectionStrings__Redis: "redis:6379"
+      ConnectionStrings__Redis: "${REDIS_PASSWORD:+redis:6379,password=${REDIS_PASSWORD}}${REDIS_PASSWORD:-redis:6379}"
       ConnectionStrings__Kafka: "kafka:9092"
-      ConnectionStrings__Elasticsearch: "http://elasticsearch:9200"
+      ConnectionStrings__Elasticsearch: "${ELASTICSEARCH_PASSWORD:+http://elastic:${ELASTICSEARCH_PASSWORD}@elasticsearch:9200}${ELASTICSEARCH_PASSWORD:-http://elasticsearch:9200}"
       Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       Jwt__Issuer: Vitrin
       Jwt__Audience: Vitrin
@@ -355,6 +382,11 @@ services:
       Email__From: ${EMAIL_FROM:-Vitrin <onboarding@resend.dev>}
       Email__TokenSecret: ${EMAIL_TOKEN_SECRET:-}
       Email__Resend__ApiKey: ${RESEND_API_KEY:-}
+      # İyzico Payment Gateway
+      Iyzico__ApiKey: ${IYZICO_API_KEY:-}
+      Iyzico__SecretKey: ${IYZICO_SECRET_KEY:-}
+      Iyzico__BaseUrl: ${IYZICO_BASE_URL:-https://sandbox-api.iyzipay.com}
+      Iyzico__WebhookSecret: ${IYZICO_WEBHOOK_SECRET:-}
       # Observability
       OpenTelemetry__ServiceName: "Vitrin.Auth"
       OpenTelemetry__ServiceVersion: "1.0.0"
@@ -387,10 +419,16 @@ services:
       ASPNETCORE_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: "Host=postgres;Database=vitrin_product;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      ConnectionStrings__Redis: "${REDIS_PASSWORD:+redis:6379,password=${REDIS_PASSWORD}}${REDIS_PASSWORD:-redis:6379}"
+      ConnectionStrings__Elasticsearch: "${ELASTICSEARCH_PASSWORD:+http://elastic:${ELASTICSEARCH_PASSWORD}@elasticsearch:9200}${ELASTICSEARCH_PASSWORD:-http://elasticsearch:9200}"
       Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
-    # Madde 20 — İzinleri azalt: Product servisi artık dışarıya expose edilmiyor.
-    # Sadece Docker iç ağından (vitrin-gateway üzerinden) erişilebilir.
-    # Dev ortamında test etmek için geçici olarak "5177:8080" ekleyebilirsiniz.
+      OpenTelemetry__ServiceName: "Vitrin.Product"
+      OpenTelemetry__ServiceVersion: "1.0.0"
+      OpenTelemetry__OtlpEndpoint: "${OPENTELEMETRY_OTLP_ENDPOINT:-}"
+      Serilog__MinimumLevel: ${LOG_LEVEL:-Information}
+    # Madde 20 â€” Ä°zinleri azalt: Product servisi artÄ±k dÄ±ÅŸarÄ±ya expose edilmiyor.
+    # Sadece Docker iÃ§ aÄŸÄ±ndan (vitrin-gateway Ã¼zerinden) eriÅŸilebilir.
+    # Dev ortamÄ±nda test etmek iÃ§in geÃ§ici olarak "5177:8080" ekleyebilirsiniz.
     networks:
       - vitrin-network
     healthcheck:
@@ -414,6 +452,11 @@ services:
       ASPNETCORE_URLS: http://+:8080
       Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       ConnectionStrings__DefaultConnection: "Data Source=/app/data/voting_db.sqlite"
+      ConnectionStrings__Elasticsearch: "${ELASTICSEARCH_PASSWORD:+http://elastic:${ELASTICSEARCH_PASSWORD}@elasticsearch:9200}${ELASTICSEARCH_PASSWORD:-http://elasticsearch:9200}"
+      OpenTelemetry__ServiceName: "Vitrin.Voting"
+      OpenTelemetry__ServiceVersion: "1.0.0"
+      OpenTelemetry__OtlpEndpoint: "${OPENTELEMETRY_OTLP_ENDPOINT:-}"
+      Serilog__MinimumLevel: ${LOG_LEVEL:-Information}
     volumes:
       - ./data/voting:/app/data
     networks:
@@ -440,7 +483,12 @@ services:
       ASPNETCORE_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: "Host=postgres;Database=vitrin_comment;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      ConnectionStrings__Elasticsearch: "${ELASTICSEARCH_PASSWORD:+http://elastic:${ELASTICSEARCH_PASSWORD}@elasticsearch:9200}${ELASTICSEARCH_PASSWORD:-http://elasticsearch:9200}"
       Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
+      OpenTelemetry__ServiceName: "Vitrin.Comment"
+      OpenTelemetry__ServiceVersion: "1.0.0"
+      OpenTelemetry__OtlpEndpoint: "${OPENTELEMETRY_OTLP_ENDPOINT:-}"
+      Serilog__MinimumLevel: ${LOG_LEVEL:-Information}
     networks:
       - vitrin-network
     healthcheck:
@@ -464,8 +512,13 @@ services:
       ASPNETCORE_URLS: http://+:8080
       Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       ConnectionStrings__DefaultConnection: "Data Source=/app/data/notification_db.sqlite"
+      ConnectionStrings__Elasticsearch: "${ELASTICSEARCH_PASSWORD:+http://elastic:${ELASTICSEARCH_PASSWORD}@elasticsearch:9200}${ELASTICSEARCH_PASSWORD:-http://elasticsearch:9200}"
       Email__From: ${EMAIL_FROM:-Vitrin <onboarding@resend.dev>}
       Email__Resend__ApiKey: ${RESEND_API_KEY:-}
+      OpenTelemetry__ServiceName: "Vitrin.Notification"
+      OpenTelemetry__ServiceVersion: "1.0.0"
+      OpenTelemetry__OtlpEndpoint: "${OPENTELEMETRY_OTLP_ENDPOINT:-}"
+      Serilog__MinimumLevel: ${LOG_LEVEL:-Information}
     volumes:
       - ./data/notification:/app/data
     networks:
@@ -491,6 +544,11 @@ services:
       ASPNETCORE_URLS: http://+:8080
       Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       ConnectionStrings__DefaultConnection: "Data Source=/app/data/analytics_db.sqlite"
+      ConnectionStrings__Elasticsearch: "${ELASTICSEARCH_PASSWORD:+http://elastic:${ELASTICSEARCH_PASSWORD}@elasticsearch:9200}${ELASTICSEARCH_PASSWORD:-http://elasticsearch:9200}"
+      OpenTelemetry__ServiceName: "Vitrin.Analytics"
+      OpenTelemetry__ServiceVersion: "1.0.0"
+      OpenTelemetry__OtlpEndpoint: "${OPENTELEMETRY_OTLP_ENDPOINT:-}"
+      Serilog__MinimumLevel: ${LOG_LEVEL:-Information}
     volumes:
       - ./data/analytics:/app/data
     networks:
@@ -513,8 +571,13 @@ services:
       ASPNETCORE_URLS: http://+:8080
       Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       ConnectionStrings__DefaultConnection: "Data Source=/app/data/ai_db.sqlite"
+      ConnectionStrings__Elasticsearch: "${ELASTICSEARCH_PASSWORD:+http://elastic:${ELASTICSEARCH_PASSWORD}@elasticsearch:9200}${ELASTICSEARCH_PASSWORD:-http://elasticsearch:9200}"
       Gemini__ApiKey: ${GEMINI_API_KEY:-}
       AiQuota__DailyRequestLimit: ${AI_DAILY_REQUEST_LIMIT:-10}
+      OpenTelemetry__ServiceName: "Vitrin.Ai"
+      OpenTelemetry__ServiceVersion: "1.0.0"
+      OpenTelemetry__OtlpEndpoint: "${OPENTELEMETRY_OTLP_ENDPOINT:-}"
+      Serilog__MinimumLevel: ${LOG_LEVEL:-Information}
     volumes:
       - ./data/ai:/app/data
     networks:
@@ -559,7 +622,8 @@ services:
       Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
       Jwt__Issuer: Vitrin
       Jwt__Audience: Vitrin
-      ConnectionStrings__Redis: "redis:6379"
+      # REDIS_PASSWORD tanÄ±mlÄ±ysa ÅŸifreli baÄŸlantÄ± kullan
+      ConnectionStrings__Redis: "${REDIS_PASSWORD:+redis:6379,password=${REDIS_PASSWORD}}${REDIS_PASSWORD:-redis:6379}"
     networks:
       - vitrin-network
     healthcheck:
@@ -578,8 +642,8 @@ services:
       context: .
       dockerfile: src/Web/Vitrin.Web.UI/Dockerfile
       args:
-        # Boş bırakılır — client fetch'leri relative /api/* path'i kullanır,
-        # next.config.mjs rewrites bunları INTERNAL_API_URL'ye yönlendirir.
+        # BoÅŸ bÄ±rakÄ±lÄ±r â€” client fetch'leri relative /api/* path'i kullanÄ±r,
+        # next.config.mjs rewrites bunlarÄ± INTERNAL_API_URL'ye yÃ¶nlendirir.
         NEXT_PUBLIC_API_URL: ""
         NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:-}
         NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET:-}
@@ -602,7 +666,7 @@ services:
       - vitrin-network
 
 # ============================================================
-# AĞLAR
+# AÄLAR
 # ============================================================
 
 networks:

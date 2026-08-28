@@ -443,6 +443,53 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ============================================================
+      # Madde 18: Secret Validation
+      # Smoke test'ler çalışmadan önce tüm gerekli secret'ların
+      # tanımlı olduğunu doğrula. Eksik secret deploy sonrası
+      # test başarısızlığına neden olur.
+      # ============================================================
+      - name: Validate required secrets
+        run: |
+          echo "→ Gerekli secret'lar kontrol ediliyor..."
+          MISSING_SECRETS=()
+          
+          # E2E test için gerekli secret'lar
+          if [ -z "${{ secrets.E2E_TEST_EMAIL }}" ]; then
+            MISSING_SECRETS+=("E2E_TEST_EMAIL")
+          fi
+          
+          if [ -z "${{ secrets.E2E_TEST_PASSWORD }}" ]; then
+            MISSING_SECRETS+=("E2E_TEST_PASSWORD")
+          fi
+          
+          # Deploy için gerekli secret'lar (smoke test bağlamında opsiyonel ama deploy için kritik)
+          if [ -z "${{ secrets.EC2_HOST }}" ]; then
+            echo "⚠️  UYARI: EC2_HOST tanımlı değil (smoke test için gerekli değil ama deploy edilmediyse sorun olabilir)"
+          fi
+          
+          if [ -z "${{ secrets.EC2_USER }}" ]; then
+            echo "⚠️  UYARI: EC2_USER tanımlı değil"
+          fi
+          
+          if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
+            echo "⚠️  UYARI: EC2_SSH_KEY tanımlı değil"
+          fi
+          
+          # Eksik secret varsa fail et
+          if [ ${#MISSING_SECRETS[@]} -gt 0 ]; then
+            echo ""
+            echo "❌ Eksik secret'lar:"
+            for secret in "${MISSING_SECRETS[@]}"; do
+              echo "   - $secret"
+            done
+            echo ""
+            echo "Çözüm: GitHub Settings > Secrets and variables > Actions > New repository secret"
+            exit 1
+          fi
+          
+          echo "✅ Tüm gerekli secret'lar tanımlı"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:

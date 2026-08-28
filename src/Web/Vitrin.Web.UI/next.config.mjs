@@ -5,6 +5,11 @@ const projectRoot = fileURLToPath(new URL('.', import.meta.url))
 // Runtime'da okunur (build'e gömülmez) — Docker environment'dan gelir
 const internalApiUrl = process.env.INTERNAL_API_URL ?? 'http://localhost:5000'
 
+// Bundle analyzer (pnpm analyze komutu ile)
+const withBundleAnalyzer = (await import('@next/bundle-analyzer')).default({
+  enabled: process.env.ANALYZE === 'true',
+})
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Docker imaj boyutunu ~150-200MB'a düşüren standalone output modu
@@ -47,6 +52,11 @@ const nextConfig = {
       ],
     }
   },
+  // Madde 1.2: Performans optimizasyonları
+  compress: true, // Gzip compression
+  poweredByHeader: false, // X-Powered-By header'ı kaldır (güvenlik)
+  reactStrictMode: true, // React strict mode
+  swcMinify: true, // SWC ile minification
 }
 
-export default nextConfig
+export default withBundleAnalyzer(nextConfig)

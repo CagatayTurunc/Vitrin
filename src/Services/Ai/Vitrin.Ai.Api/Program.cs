@@ -10,8 +10,16 @@ using Vitrin.Shared.Infrastructure.Auth;
 using Vitrin.Shared.Infrastructure.Api;
 using Vitrin.Shared.Infrastructure.Audit;
 using Vitrin.Shared.Infrastructure.Migrations;
+using Vitrin.Shared.Infrastructure.Observability;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Observability: Serilog + OpenTelemetry + Prometheus
+builder.Services.AddVitrinObservability(builder.Configuration, builder.Environment, "Ai");
+
+// Enhanced health checks: SQLite
+builder.Services.AddVitrinHealthChecks(builder.Configuration);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c => { c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "Vitrin AI API", Version = "v1" }); c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme { Name = "Authorization", Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT", In = Microsoft.OpenApi.Models.ParameterLocation.Header }); c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement { { new Microsoft.OpenApi.Models.OpenApiSecurityScheme { Reference = new Microsoft.OpenApi.Models.OpenApiReference { Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme, Id = "Bearer" } }, Array.Empty<string>() } }); });
@@ -37,6 +45,7 @@ builder.Services.AddOptions<AiQuotaOptions>()
 var app = builder.Build();
 
 app.UseVitrinApiErrors();
+app.UseOpenTelemetryPrometheusScrapingEndpoint();
 
 if (await app.MigrateDatabaseAndExitAsync<AiDbContext>(
     args,
@@ -48,7 +57,7 @@ app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
 
-app.MapHealthChecks("/health");
+app.UseVitrinHealthChecks();
 
 app.MapPost("/api/ai/analyze", async ([FromBody] AnalyzeProductCommand command, HttpContext context, IMediator mediator, IAiQuotaService quotaService, IAuditLogger auditLogger) =>
 {

@@ -21,7 +21,15 @@
     "test:e2e:health": "playwright test --grep @health",
     "test:e2e:auth": "playwright test --grep @auth-flow",
     "test:e2e:report": "playwright show-report ../../../artifacts/playwright-report",
-    "test:agent": "playwright test comprehensive-crawler.spec.ts"
+    "test:agent": "playwright test comprehensive-crawler.spec.ts",
+    "check-links": "tsx scripts/check-links.ts",
+    "check-links:full": "tsx scripts/check-links.ts --full",
+    "analyze": "cross-env ANALYZE=true next build",
+    "seo-audit": "tsx scripts/seo-audit.ts",
+    "seo-audit:prod": "tsx scripts/seo-audit.ts --url=https://vitrin.com",
+    "content-audit": "tsx scripts/content-audit.ts",
+    "content-audit:page": "tsx scripts/content-audit.ts --page=",
+    "campaign-url": "tsx scripts/campaign-url-builder.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -47,6 +55,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
+    "@next/bundle-analyzer": "^16.2.6",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.2.0",
     "@testing-library/jest-dom": "^6.9.1",
@@ -57,11 +66,13 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.10",
+    "cross-env": "^7.0.3",
     "eslint": "^9.39.1",
     "eslint-config-next": "16.2.6",
     "jsdom": "^29.1.1",
     "postcss": "^8.5",
     "tailwindcss": "^4.2.0",
+    "tsx": "^4.19.2",
     "typescript": "5.7.3",
     "vitest": "^4.1.10"
   }

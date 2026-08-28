@@ -18,6 +18,8 @@ public class AuthDbContext : DbContext
     public DbSet<ModerationAuditEntry> ModerationAuditEntries => Set<ModerationAuditEntry>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<PaymentHistory> PaymentHistories => Set<PaymentHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -132,6 +134,29 @@ public class AuthDbContext : DbContext
             builder.Property(f => f.AllowedRoles).HasMaxLength(500);
             builder.Property(f => f.VariantPayload).HasMaxLength(4000);
             builder.HasIndex(f => f.Key).IsUnique().HasDatabaseName("UX_FeatureFlags_Key");
+        });
+
+        modelBuilder.Entity<Subscription>(builder =>
+        {
+            builder.HasKey(s => s.Id);
+            builder.Property(s => s.IyzicoCustomerId).HasMaxLength(100);
+            builder.Property(s => s.IyzicoSubscriptionId).HasMaxLength(100);
+            builder.Property(s => s.CancellationReason).HasMaxLength(500);
+            builder.HasIndex(s => s.UserId).IsUnique().HasDatabaseName("UX_Subscriptions_UserId");
+            builder.HasIndex(s => new { s.Status, s.CurrentPeriodEnd });
+        });
+
+        modelBuilder.Entity<PaymentHistory>(builder =>
+        {
+            builder.HasKey(p => p.Id);
+            builder.Property(p => p.Currency).IsRequired().HasMaxLength(3);
+            builder.Property(p => p.IyzicoPaymentId).HasMaxLength(200);
+            builder.Property(p => p.IyzicoConversationId).HasMaxLength(200);
+            builder.Property(p => p.FailureReason).HasMaxLength(500);
+            builder.Property(p => p.FailureCode).HasMaxLength(50);
+            builder.Property(p => p.RefundReason).HasMaxLength(500);
+            builder.HasIndex(p => new { p.SubscriptionId, p.CreatedAt });
+            builder.HasIndex(p => p.IyzicoPaymentId);
         });
     }
 }

@@ -1370,6 +1370,9 @@ app.MapGet("/api/auth/admin/kvkk/pending-deletions/export", async (
 .WithName("AdminExportKvkkPendingDeletions")
 .RequireAuthorization(VitrinAuthDefaults.AdminPolicy);
 
+// SUBSCRIPTION & PAYMENT ENDPOINTS
+app.MapSubscriptionEndpoints();
+
 app.Run();
 
 // ─── Admin: KVKK Pending Deletions ─────────────────────────────────────────

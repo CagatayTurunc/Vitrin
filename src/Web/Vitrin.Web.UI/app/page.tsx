@@ -5,9 +5,29 @@ import { TrendingSection } from '@/components/trending-section'
 import { TopicsSection } from '@/components/topics-section'
 import { serverApiFetch } from '@/lib/server-api'
 import type { CursorPage, ProductApiModel } from '@/core/domain/product.types'
+import { generateSEO } from '@/lib/seo'
+import type { Metadata } from 'next'
 
 // API'ye bağımlı server component'ler build sırasında prerender edilemez
 export const dynamic = 'force-dynamic'
+
+// Madde 2.5 & 2.6: Ana sayfa için optimize edilmiş SEO
+export const metadata: Metadata = generateSEO({
+  title: 'Vitrin — Günün Ürünleri',
+  description:
+    'Türkiye\'nin en yeni ürünlerini keşfet, oy ver ve paylaş. Startup\'lar, SaaS ürünleri, mobil uygulamalar ve teknoloji ürünleri için en büyük keşif platformu.',
+  path: '',
+  keywords: [
+    'ürün keşfi',
+    'yeni ürünler',
+    'startup',
+    'product hunt türkiye',
+    'yazılım ürünleri',
+    'mobil uygulama',
+    'saas',
+    'teknoloji',
+  ],
+})
 
 export default async function HomePage() {
   const [featured, trending, ticker] = await Promise.all([

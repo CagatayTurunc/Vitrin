@@ -8,6 +8,8 @@ using Vitrin.Auth.Infrastructure.Audit;
 using Vitrin.Auth.Infrastructure.Kafka;
 using Vitrin.Auth.Infrastructure.Repositories;
 using Vitrin.Auth.Infrastructure.Services;
+using Vitrin.Auth.Infrastructure.Payment;
+using Vitrin.Shared.Contracts.Payment;
 using Vitrin.Shared.Infrastructure.Kafka;
 using Vitrin.Shared.Infrastructure.Audit;
 using Vitrin.Shared.Infrastructure.Auth;
@@ -53,6 +55,9 @@ public static class DependencyInjection
         services.AddScoped<IAuthNotificationPublisher, AuthNotificationPublisher>();
         services.AddScoped<IAuditLogger, AuthAuditLogger>();
         services.AddVitrinOutbox<AuthDbContext>(configuration);
+
+        // Payment Integration — İyzico
+        services.AddScoped<IPaymentService, IyzicoPaymentService>();
 
         // KVKK — her gün 30 günü dolan silme taleplerini anonimleştirir
         services.AddHostedService<RetentionCleanupWorker>();

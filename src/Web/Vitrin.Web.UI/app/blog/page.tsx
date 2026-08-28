@@ -1,10 +1,24 @@
 import Link from "next/link";
 import { ArrowRight, Clock, User } from "lucide-react";
+import { generateSEO } from "@/lib/seo";
+import type { Metadata } from "next";
 
-export const metadata = {
-  title: "Blog — Vitrin",
-  description: "Vitrin ekibinden haberler, ipuçları ve Türk teknoloji ekosisteminden hikayeler.",
-};
+// Madde 3.1 & 3.6: Değer katan içerik haritası
+export const metadata: Metadata = generateSEO({
+  title: "Blog",
+  description:
+    "Vitrin ekibinden haberler, ipuçları ve Türk teknoloji ekosisteminden hikayeler. Maker rehberleri, platform güncellemeleri ve sektör analizleri.",
+  path: "/blog",
+  keywords: [
+    "vitrin blog",
+    "maker rehberi",
+    "startup hikayeleri",
+    "ürün lansmanı",
+    "türkiye tech",
+    "product hunt türkiye",
+  ],
+  type: "website",
+});
 
 const posts = [
   {
@@ -54,6 +68,7 @@ export default function BlogPage() {
       <div className="border-b border-border bg-muted/20">
         <div className="mx-auto max-w-5xl px-4 py-16 text-center">
           <h1 className="text-4xl sm:text-5xl font-extrabold text-foreground mb-4">Blog</h1>
+          {/* Madde 3.5: Marka stili — Dostça, bilgilendirici */}
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
             Türk teknoloji ekosistemi, maker hikayeleri ve platform haberleri.
           </p>
@@ -77,7 +92,7 @@ export default function BlogPage() {
           ))}
         </div>
 
-        {/* Featured Post */}
+        {/* Featured Post — Madde 3.3: İyi biçimlendirilmiş */}
         <div className="bg-card border border-border rounded-3xl overflow-hidden mb-8 hover:border-emerald-500/30 transition-colors group">
           <div className="h-48 bg-gradient-to-br from-emerald-500/20 via-emerald-500/5 to-transparent" />
           <div className="p-8">

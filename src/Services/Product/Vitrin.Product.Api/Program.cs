@@ -17,8 +17,16 @@ using Vitrin.Product.Infrastructure.Repositories;
 using NpgsqlTypes;
 using Vitrin.Product.Domain.Services;
 using Microsoft.AspNetCore.DataProtection;
+using Vitrin.Shared.Infrastructure.Observability;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Observability: Serilog + OpenTelemetry + Prometheus
+builder.Services.AddVitrinObservability(builder.Configuration, builder.Environment, "Product");
+
+// Enhanced health checks: PostgreSQL + Kafka
+builder.Services.AddVitrinHealthChecks(builder.Configuration);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c => { c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "Vitrin Product API", Version = "v1" }); c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme { Name = "Authorization", Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT", In = Microsoft.OpenApi.Models.ParameterLocation.Header }); c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement { { new Microsoft.OpenApi.Models.OpenApiSecurityScheme { Reference = new Microsoft.OpenApi.Models.OpenApiReference { Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme, Id = "Bearer" } }, Array.Empty<string>() } }); });
@@ -49,6 +57,7 @@ builder.Services.AddProductInfrastructure(builder.Configuration);
 var app = builder.Build();
 
 app.UseVitrinApiErrors();
+app.UseOpenTelemetryPrometheusScrapingEndpoint();
 
 if (await app.MigrateDatabaseAndExitAsync<ProductDbContext>(
     args,
@@ -59,7 +68,7 @@ if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapHealthChecks("/health");
+app.UseVitrinHealthChecks();
 app.MapLaunchEndpoints();
 app.MapCategoryEndpoints();
 app.MapProductFollowEndpoints();
