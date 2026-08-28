@@ -5,6 +5,7 @@ import { ProfileSettingsForm } from "@/components/profile-settings-form";
 import { AccountModerationStatus } from "@/components/account-moderation-status";
 import { NotificationPreferences } from "@/components/notification-preferences";
 import { KvkkDataControls } from "@/components/kvkk-data-controls";
+import { SubscriptionStatus } from "@/components/subscription-status";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -60,6 +61,10 @@ export default async function SettingsPage() {
         suspensionReason={userProfile.suspensionReason}
         isBanned={userProfile.isBanned}
       />
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold mb-3">Abonelik</h2>
+        <SubscriptionStatus />
+      </div>
       <NotificationPreferences initialEmail={session.user.email ?? userProfile.email ?? ""} />
       <KvkkDataControls deleteRequestedAt={userProfile.deleteRequestedAtUtc ?? null} />
       <ProfileSettingsForm initialData={userProfile} />
