@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react'
-import { Share2, Facebook, Linkedin, Link as LinkIcon, Check } from 'lucide-react'
+import { Share2, Link as LinkIcon, Check } from 'lucide-react'
 import { generateShareUrls, type SocialShareData } from '@/lib/social-media'
 
 interface SocialShareProps {
@@ -37,19 +37,19 @@ export function SocialShare({ data, className = '', showLabels = false }: Social
   const buttons = [
     {
       name: 'X (Twitter)',
-      icon: Share2, // Using Share2 as a placeholder since Twitter icon was removed
+      icon: Share2,
       url: shareUrls.twitter,
       color: 'hover:bg-black hover:text-white',
     },
     {
       name: 'Facebook',
-      icon: Facebook,
+      icon: Share2,
       url: shareUrls.facebook,
       color: 'hover:bg-[#1877F2] hover:text-white',
     },
     {
       name: 'LinkedIn',
-      icon: Linkedin,
+      icon: Share2,
       url: shareUrls.linkedin,
       color: 'hover:bg-[#0A66C2] hover:text-white',
     },
