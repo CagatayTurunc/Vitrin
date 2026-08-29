@@ -283,6 +283,102 @@ public static class SubscriptionEndpoints
                 subscription.CurrentPeriodEnd
             });
         }).RequireAuthorization();
+
+        // ====================================================================
+        // ADMIN ENDPOINTS
+        // ====================================================================
+
+        // GET /api/subscription/admin/list — Tüm abonelikleri listele
+        app.MapGet("/api/subscription/admin/list", async (
+            HttpContext context,
+            AuthDbContext db) =>
+        {
+            var subscriptions = await db.Subscriptions
+                .AsNoTracking()
+                .OrderByDescending(s => s.CreatedAt)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.UserId,
+                    UserEmail = db.Users
+                        .Where(u => u.Id == s.UserId)
+                        .Select(u => u.Email)
+                        .FirstOrDefault() ?? string.Empty,
+                    UserFullName = db.Users
+                        .Where(u => u.Id == s.UserId)
+                        .Select(u => u.FullName ?? u.Username)
+                        .FirstOrDefault() ?? string.Empty,
+                    Tier = s.Tier.ToString(),
+                    Status = s.Status.ToString(),
+                    s.CurrentPeriodStart,
+                    s.CurrentPeriodEnd,
+                    s.CancelAtPeriodEnd,
+                    s.CreatedAt
+                })
+                .ToListAsync(context.RequestAborted);
+
+            return Results.Ok(subscriptions);
+        }).RequireAuthorization("Admin");
+
+        // GET /api/subscription/admin/payments — Tüm ödeme geçmişi
+        app.MapGet("/api/subscription/admin/payments", async (
+            HttpContext context,
+            AuthDbContext db) =>
+        {
+            var payments = await db.PaymentHistories
+                .AsNoTracking()
+                .OrderByDescending(p => p.BillingDate)
+                .Select(p => new
+                {
+                    p.Id,
+                    p.UserId,
+                    UserEmail = db.Users
+                        .Where(u => u.Id == p.UserId)
+                        .Select(u => u.Email)
+                        .FirstOrDefault() ?? string.Empty,
+                    p.Amount,
+                    p.Currency,
+                    Status = p.Status.ToString(),
+                    p.BillingDate,
+                    p.IyzicoPaymentId
+                })
+                .Take(500)
+                .ToListAsync(context.RequestAborted);
+
+            return Results.Ok(payments);
+        }).RequireAuthorization("Admin");
+
+        // GET /api/subscription/admin/stats — MRR ve özet istatistikler
+        app.MapGet("/api/subscription/admin/stats", async (
+            HttpContext context,
+            AuthDbContext db) =>
+        {
+            var allSubs = await db.Subscriptions
+                .AsNoTracking()
+                .ToListAsync(context.RequestAborted);
+
+            var totalActive = allSubs.Count(s => s.Status == DomainSubscriptionStatus.Active);
+            var totalPro = allSubs.Count(s => s.Tier == DomainSubscriptionTier.ProMaker && s.Status == DomainSubscriptionStatus.Active);
+            var totalEnterprise = allSubs.Count(s => s.Tier == DomainSubscriptionTier.Enterprise && s.Status == DomainSubscriptionStatus.Active);
+            var totalCanceled = allSubs.Count(s => s.CancelAtPeriodEnd || s.Status == DomainSubscriptionStatus.Canceled);
+
+            var mrr = (totalPro * 299m) + (totalEnterprise * 999m);
+
+            var totalEverActive = allSubs.Count(s => s.Tier != DomainSubscriptionTier.Free);
+            var churnRate = totalEverActive > 0
+                ? (double)totalCanceled / totalEverActive * 100
+                : 0;
+
+            return Results.Ok(new
+            {
+                TotalActive = totalActive,
+                TotalPro = totalPro,
+                TotalEnterprise = totalEnterprise,
+                TotalCanceled = totalCanceled,
+                Mrr = mrr,
+                ChurnRate = Math.Round(churnRate, 1)
+            });
+        }).RequireAuthorization("Admin");
     }
 
     private static object GetFeatures(SubscriptionTier tier)

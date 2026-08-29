@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Package, Users, Settings, LogOut, Search, ShieldAlert, Flag, ShieldCheck, ListChecks, ScanSearch } from "lucide-react";
+import { LayoutDashboard, Package, Users, Settings, LogOut, Search, ShieldAlert, Flag, ShieldCheck, ListChecks, ScanSearch, CreditCard } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -15,6 +15,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Fraud Sinyalleri", href: "/admin/fraud", icon: ScanSearch },
     { name: "Maker Başvuruları", href: "/admin/maker-requests", icon: Users },
     { name: "Kullanıcılar", href: "/admin/users", icon: Users },
+    { name: "Abonelikler", href: "/admin/subscriptions", icon: CreditCard },
     { name: "Moderasyon", href: "/admin/moderation", icon: ShieldAlert },
     { name: "Feature Flags", href: "/admin/feature-flags", icon: Flag },
     { name: "KVKK Yönetimi", href: "/admin/kvkk", icon: ShieldCheck },
