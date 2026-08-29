@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Vitrin.Auth.Application.Interfaces;
 using Vitrin.Auth.Infrastructure.Data;
 using Vitrin.Shared.Contracts.Events;
 using Vitrin.Shared.Contracts.Payment;
@@ -19,6 +22,7 @@ public static class SubscriptionEndpoints
 {
     public static void MapSubscriptionEndpoints(this WebApplication app)
     {
+        var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("SubscriptionEndpoints");
         // POST /api/subscription/checkout
         // Creates a checkout session and returns İyzico payment page URL
         app.MapPost("/api/subscription/checkout", async (
@@ -91,7 +95,8 @@ public static class SubscriptionEndpoints
             IPaymentService paymentService,
             AuthDbContext db,
             IAuditLogger auditLogger,
-            IEventPublisher eventPublisher) =>
+            IEventPublisher eventPublisher,
+            IAccountEmailService emailService) =>
         {
             if (string.IsNullOrWhiteSpace(token))
             {
@@ -163,6 +168,21 @@ public static class SubscriptionEndpoints
                 NewTier = tier.ToString()
             }, context.RequestAborted);
 
+            // Email bildirimi gönder — fire and forget (email hatası ödemeyi etkilemesin)
+            var user = await db.Users.FindAsync([userId], context.RequestAborted);
+            if (user is not null)
+            {
+                _ = emailService.SendSubscriptionUpgradedAsync(
+                    user,
+                    tier.ToString(),
+                    subscription.CurrentPeriodEnd,
+                    context.RequestAborted).ContinueWith(t =>
+                {
+                    if (t.IsFaulted)
+                        logger.LogError(t.Exception, "Subscription upgrade email failed for user {UserId}", userId);
+                });
+            }
+
             await auditLogger.WriteAsync(
                 new AuditEvent("subscription.upgraded", userId, "Subscription", subscription.Id.ToString(),
                     "Succeeded", context.TraceIdentifier, tier.ToString()),
@@ -215,7 +235,8 @@ public static class SubscriptionEndpoints
             CancellationRequest request,
             AuthDbContext db,
             IAuditLogger auditLogger,
-            IEventPublisher eventPublisher) =>
+            IEventPublisher eventPublisher,
+            IAccountEmailService emailService) =>
         {
             var userId = context.User.GetUserId();
             if (userId is null) return Results.Unauthorized();
@@ -227,6 +248,7 @@ public static class SubscriptionEndpoints
                 return ApiProblemResults.BadRequest("No active subscription to cancel.", "subscription.not_found");
 
             var canceledTier = subscription.Tier.ToString();
+            var periodEnd = subscription.CurrentPeriodEnd;
             subscription.ScheduleCancellation(request.Reason ?? "User requested cancellation");
             await db.SaveChangesAsync(context.RequestAborted);
 
@@ -237,6 +259,18 @@ public static class SubscriptionEndpoints
                 Tier = canceledTier,
                 CanceledAt = DateTime.UtcNow
             }, context.RequestAborted);
+
+            // Email bildirimi — fire and forget
+            var user = await db.Users.FindAsync([userId.Value], context.RequestAborted);
+            if (user is not null)
+            {
+                _ = emailService.SendSubscriptionCanceledAsync(user, canceledTier, periodEnd, context.RequestAborted)
+                    .ContinueWith(t =>
+                    {
+                        if (t.IsFaulted)
+                            logger.LogError(t.Exception, "Subscription canceled email failed for user {UserId}", userId.Value);
+                    });
+            }
 
             await auditLogger.WriteAsync(
                 new AuditEvent("subscription.canceled", userId, "Subscription", subscription.Id.ToString(),

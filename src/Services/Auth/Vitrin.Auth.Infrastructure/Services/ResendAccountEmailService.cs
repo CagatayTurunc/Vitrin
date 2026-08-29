@@ -69,6 +69,78 @@ public sealed class ResendAccountEmailService(
             cancellationToken);
     }
 
+    public Task<bool> SendSubscriptionUpgradedAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken)
+    {
+        var dashboardUrl = $"{GetAppBaseUrl()}/dashboard";
+        var tierLabel = tier == "ProMaker" ? "Pro Maker 🏆" : "Enterprise 💎";
+        var tierPrice = tier == "ProMaker" ? "₺299/ay" : "₺999/ay";
+        var periodEndStr = periodEnd.ToString("d MMMM yyyy", new System.Globalization.CultureInfo("tr-TR"));
+
+        return SendAsync(
+            user.Email,
+            $"🎉 {tierLabel} aboneliğin aktif!",
+            EmailLayout(
+                user.FullName ?? user.Username,
+                $"{tierLabel} aboneliğin başladı!",
+                $"Harika haber! {tierLabel} planına geçişin başarıyla tamamlandı. " +
+                $"Bir sonraki yenileme tarihin: {periodEndStr}. " +
+                $"Ödeme tutarı: {tierPrice}. Artık tüm premium özelliklere erişebilirsin.",
+                "Dashboard'a Git",
+                dashboardUrl,
+                "Aboneliğini Settings sayfasından yönetebilir, istediğin zaman iptal edebilirsin. " +
+                "Sorularınız için destek@vitrin.com.tr adresine yazabilirsiniz."),
+            $"{tierLabel} aboneliğin aktif. Yenileme: {periodEndStr}. Dashboard: {dashboardUrl}",
+            dashboardUrl,
+            cancellationToken);
+    }
+
+    public Task<bool> SendSubscriptionCanceledAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken)
+    {
+        var pricingUrl = $"{GetAppBaseUrl()}/pricing";
+        var tierLabel = tier == "ProMaker" ? "Pro Maker 🏆" : "Enterprise 💎";
+        var periodEndStr = periodEnd.ToString("d MMMM yyyy", new System.Globalization.CultureInfo("tr-TR"));
+
+        return SendAsync(
+            user.Email,
+            "Abonelik iptali alındı",
+            EmailLayout(
+                user.FullName ?? user.Username,
+                "Abonelik iptalin onaylandı",
+                $"{tierLabel} aboneliğin iptal edildi. " +
+                $"Premium özelliklerine {periodEndStr} tarihine kadar erişmeye devam edebilirsin. " +
+                $"Bu tarihten sonra ücretsiz plana geçeceksin. " +
+                $"Fikrin değişirse istediğin zaman tekrar abone olabilirsin.",
+                "Tekrar Abone Ol",
+                pricingUrl,
+                $"Aboneliğin sona erdiğinde ürün gönderme sınırın 5 adete düşecek. " +
+                $"Verilerini kaybetmeyeceksin."),
+            $"Aboneliğin {periodEndStr} tarihine kadar aktif. Yeniden abone olmak için: {pricingUrl}",
+            pricingUrl,
+            cancellationToken);
+    }
+
+    public Task<bool> SendPaymentFailedAsync(User user, string tier, CancellationToken cancellationToken)
+    {
+        var settingsUrl = $"{GetAppBaseUrl()}/settings";
+        var tierLabel = tier == "ProMaker" ? "Pro Maker 🏆" : "Enterprise 💎";
+
+        return SendAsync(
+            user.Email,
+            "⚠️ Ödeme başarısız — aboneliğin risk altında",
+            EmailLayout(
+                user.FullName ?? user.Username,
+                "Ödemen alınamadı",
+                $"{tierLabel} aboneliğin için ödeme alınamadı. " +
+                "Kart bilgilerini güncelleyerek aboneliğini aktif tutabilirsin. " +
+                "7 gün içinde ödeme alınamazsa aboneliğin askıya alınacak.",
+                "Ödeme Bilgilerini Güncelle",
+                settingsUrl,
+                "Yardım için destek@vitrin.com.tr adresine yazabilirsiniz."),
+            $"Aboneliğin için ödeme alınamadı. Güncelle: {settingsUrl}",
+            settingsUrl,
+            cancellationToken);
+    }
+
     private async Task<bool> SendAsync(
         string recipient,
         string subject,

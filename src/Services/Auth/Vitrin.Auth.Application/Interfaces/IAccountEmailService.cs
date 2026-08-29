@@ -26,4 +26,7 @@ public interface IAccountEmailService
     Task<bool> SendEmailConfirmationAsync(User user, string token, CancellationToken cancellationToken);
     Task<bool> SendPasswordResetAsync(User user, string token, CancellationToken cancellationToken);
     Task<bool> SendMakerApprovedAsync(User user, CancellationToken cancellationToken);
+    Task<bool> SendSubscriptionUpgradedAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken);
+    Task<bool> SendSubscriptionCanceledAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken);
+    Task<bool> SendPaymentFailedAsync(User user, string tier, CancellationToken cancellationToken);
 }
