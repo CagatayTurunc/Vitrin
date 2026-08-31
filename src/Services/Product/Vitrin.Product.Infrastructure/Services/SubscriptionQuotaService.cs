@@ -67,7 +67,7 @@ public sealed class ProductSubscriptionQuotaService : ISubscriptionQuotaService
         var limit = tier == SubscriptionTier.ProMaker ? 10 : FreeCollectionLimit;
 
         var count = await _db.Collections
-            .CountAsync(c => c.OwnerId == userId, ct);
+            .CountAsync(c => c.UserId == userId, ct);
 
         if (count >= limit)
         {
