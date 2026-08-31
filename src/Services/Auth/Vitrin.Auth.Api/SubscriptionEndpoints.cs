@@ -404,9 +404,110 @@ public static class SubscriptionEndpoints
             return Results.Ok(new { tier });
         }); // Internal — auth yok (sadece internal Docker ağından erişilebilir)
 
-        // GET /api/subscription/admin/stats — MRR ve özet istatistikler
-        app.MapGet("/api/subscription/admin/stats", async (
+        // GET /api/subscription/invoices — Kullanıcının ödeme geçmişi listesi
+        app.MapGet("/api/subscription/invoices", async (
             HttpContext context,
+            AuthDbContext db) =>
+        {
+            var userId = context.User.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var payments = await db.PaymentHistories
+                .AsNoTracking()
+                .Where(p => p.UserId == userId.Value && p.Status == DomainPaymentStatus.Succeeded)
+                .OrderByDescending(p => p.BillingDate)
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Amount,
+                    p.Currency,
+                    Status = p.Status.ToString(),
+                    p.BillingDate,
+                    p.IyzicoPaymentId
+                })
+                .ToListAsync(context.RequestAborted);
+
+            return Results.Ok(payments);
+        }).RequireAuthorization();
+
+        // GET /api/subscription/invoices/{paymentId}/pdf — Fatura PDF indir
+        app.MapGet("/api/subscription/invoices/{paymentId:guid}/pdf", async (
+            Guid paymentId,
+            HttpContext context,
+            AuthDbContext db) =>
+        {
+            var userId = context.User.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            // Kullanıcı sadece kendi ödeme kaydına erişebilir
+            var payment = await db.PaymentHistories
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p =>
+                    p.Id == paymentId &&
+                    p.UserId == userId.Value &&
+                    p.Status == DomainPaymentStatus.Succeeded,
+                    context.RequestAborted);
+
+            if (payment is null)
+                return Results.NotFound();
+
+            var user = await db.Users.FindAsync([userId.Value], context.RequestAborted);
+            if (user is null) return Results.Unauthorized();
+
+            // Abonelik tier bilgisini bul
+            var subscription = await db.Subscriptions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.UserId == userId.Value, context.RequestAborted);
+
+            // Hangi tier için ödeme yapıldığını fiyattan çıkar
+            var tierLabel = payment.Amount switch
+            {
+                >= 900m => "Enterprise 💎",
+                >= 250m => "Pro Maker 🏆",
+                _ => "Abonelik"
+            };
+
+            // Kupon kullanımını bul
+            var couponUsage = await db.DiscountCodeUsages
+                .AsNoTracking()
+                .Where(u => u.PaymentHistoryId == paymentId)
+                .Select(u => new
+                {
+                    u.DiscountApplied,
+                    CouponCode = db.DiscountCodes
+                        .Where(d => d.Id == u.DiscountCodeId)
+                        .Select(d => d.Code)
+                        .FirstOrDefault()
+                })
+                .FirstOrDefaultAsync(context.RequestAborted);
+
+            var discountAmount = couponUsage?.DiscountApplied ?? 0m;
+            var originalAmount = payment.Amount + discountAmount;
+
+            var periodStart = payment.BillingDate;
+            var periodEnd = payment.BillingDate.AddMonths(1);
+            var billingPeriod = $"{periodStart:dd.MM.yyyy} – {periodEnd:dd.MM.yyyy}";
+
+            var invoiceData = new InvoiceData(
+                UserFullName: user.FullName ?? user.Username,
+                UserEmail: user.Email,
+                TierLabel: tierLabel,
+                BillingPeriod: billingPeriod,
+                OriginalAmount: originalAmount,
+                DiscountAmount: discountAmount,
+                PaidAmount: payment.Amount,
+                CouponCode: couponUsage?.CouponCode,
+                PaymentDate: payment.BillingDate,
+                IyzicoPaymentId: payment.IyzicoPaymentId);
+
+            var pdfBytes = InvoicePdfService.Generate(invoiceData);
+
+            var fileName = $"vitrin-fatura-{payment.BillingDate:yyyy-MM}.pdf";
+            return Results.File(pdfBytes, "application/pdf", fileName);
+        }).RequireAuthorization();
+
+        // GET /api/subscription/admin/stats — MRR ve özet istatistikler
+        app.MapGet("/api/subscription/admin/stats", async (            HttpContext context,
             AuthDbContext db) =>
         {
             var allSubs = await db.Subscriptions
