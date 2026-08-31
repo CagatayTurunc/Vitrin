@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -59,6 +59,14 @@ const ENTERPRISE_FEATURES = [
 ]
 
 export default function WelcomePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center" />}>
+      <WelcomeContent />
+    </Suspense>
+  )
+}
+
+function WelcomeContent() {
   const { data: session } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
