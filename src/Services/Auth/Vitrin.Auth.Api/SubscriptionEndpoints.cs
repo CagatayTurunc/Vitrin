@@ -270,6 +270,63 @@ public static class SubscriptionEndpoints
             });
         }).RequireAuthorization();
 
+        // POST /api/subscription/reactivate
+        // CancelAtPeriodEnd = true olan aboneliği iptalden vazgeç — dönem sonunda yenilenecek
+        app.MapPost("/api/subscription/reactivate", async (
+            HttpContext context,
+            AuthDbContext db,
+            IAuditLogger auditLogger,
+            IAccountEmailService emailService) =>
+        {
+            var userId = context.User.GetUserId();
+            if (userId is null) return Results.Unauthorized();
+
+            var subscription = await db.Subscriptions
+                .FirstOrDefaultAsync(s => s.UserId == userId.Value, context.RequestAborted);
+
+            if (subscription is null || subscription.Tier == DomainSubscriptionTier.Free)
+                return ApiProblemResults.BadRequest("Aktif bir abonelik bulunamadı.", "subscription.not_found");
+
+            if (!subscription.CancelAtPeriodEnd)
+                return ApiProblemResults.BadRequest(
+                    "Aboneliğiniz zaten aktif durumda, iptal planlanmamış.",
+                    "subscription.not_canceled");
+
+            if (subscription.Status == DomainSubscriptionStatus.Expired)
+                return ApiProblemResults.BadRequest(
+                    "Aboneliğiniz sona ermiş. Yeniden abone olmak için ödeme yapmalısınız.",
+                    "subscription.expired");
+
+            subscription.ReactivateSubscription();
+            await db.SaveChangesAsync(context.RequestAborted);
+
+            await auditLogger.WriteAsync(
+                new AuditEvent("subscription.reactivated", userId, "Subscription", subscription.Id.ToString(),
+                    "Succeeded", context.TraceIdentifier, subscription.Tier.ToString()),
+                context.RequestAborted);
+
+            // Email bildirimi — fire and forget
+            var user = await db.Users.FindAsync([userId.Value], context.RequestAborted);
+            if (user is not null)
+            {
+                _ = emailService.SendSubscriptionReactivatedAsync(
+                    user,
+                    subscription.Tier.ToString(),
+                    subscription.CurrentPeriodEnd,
+                    context.RequestAborted).ContinueWith(t =>
+                {
+                    if (t.IsFaulted)
+                        logger.LogError(t.Exception, "Reactivation emaili gönderilemedi: UserId={UserId}", userId.Value);
+                }, TaskScheduler.Default);
+            }
+
+            return Results.Ok(new
+            {
+                Message = "Aboneliğiniz yeniden aktifleştirildi. Dönem sonunda otomatik yenilenecek.",
+                subscription.CurrentPeriodEnd
+            });
+        }).RequireAuthorization();
+
         // POST /api/subscription/cancel
         // Schedule cancellation at end of period
         app.MapPost("/api/subscription/cancel", async (
@@ -329,6 +386,61 @@ public static class SubscriptionEndpoints
         // ====================================================================
         // ADMIN ENDPOINTS
         // ====================================================================
+
+        // POST /api/subscription/admin/grandfather
+        // Belirli bir kullanıcıya grandfather (ücretsiz Pro) ayrıcalığı ver
+        app.MapPost("/api/subscription/admin/grandfather", async (
+            HttpContext context,
+            GrandfatherRequest request,
+            AuthDbContext db,
+            IAuditLogger auditLogger) =>
+        {
+            var adminId = context.User.GetUserId();
+
+            var user = await db.Users.FindAsync([request.UserId], context.RequestAborted);
+            if (user is null)
+                return ApiProblemResults.NotFound("Kullanıcı bulunamadı.", "user.not_found");
+
+            var subscription = await db.Subscriptions
+                .FirstOrDefaultAsync(s => s.UserId == request.UserId, context.RequestAborted);
+
+            var grandfatherUntil = DateTime.UtcNow.AddMonths(request.MonthsCount);
+
+            if (subscription is null)
+            {
+                // İlk kez — grandfather abonelik oluştur
+                subscription = DomainSubscription.CreateGrandfathered(request.UserId, grandfatherUntil);
+
+                // Pro Maker özellikleri ver
+                subscription.Upgrade(
+                    newTier: DomainSubscriptionTier.ProMaker,
+                    iyzicoCustomerId: "GRANDFATHER",
+                    iyzicoSubscriptionId: "GRANDFATHER",
+                    paymentMethod: DomainPaymentMethod.None);
+
+                db.Subscriptions.Add(subscription);
+            }
+            else
+            {
+                // Mevcut aboneliğe grandfather ekle
+                subscription.ApplyGrandfatherClause(grandfatherUntil);
+            }
+
+            await db.SaveChangesAsync(context.RequestAborted);
+
+            await auditLogger.WriteAsync(
+                new AuditEvent("admin.subscription_grandfathered", adminId, "Subscription",
+                    subscription.Id.ToString(), "Succeeded", context.TraceIdentifier,
+                    $"UserId={request.UserId}, Months={request.MonthsCount}"),
+                context.RequestAborted);
+
+            return Results.Ok(new
+            {
+                Message = $"Kullanıcı {request.MonthsCount} ay boyunca grandfather ayrıcalığına sahip.",
+                UserId = request.UserId,
+                GrandfatherUntil = grandfatherUntil
+            });
+        }).RequireAuthorization("Admin");
 
         // GET /api/subscription/admin/list — Tüm abonelikleri listele
         app.MapGet("/api/subscription/admin/list", async (
@@ -573,3 +685,4 @@ public static class SubscriptionEndpoints
 
 public record CheckoutRequest(SubscriptionTier Tier, string? CouponCode = null);
 public record CancellationRequest(string? Reason);
+public record GrandfatherRequest(Guid UserId, int MonthsCount = 6);

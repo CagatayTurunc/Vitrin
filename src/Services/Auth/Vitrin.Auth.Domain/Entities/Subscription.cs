@@ -208,6 +208,16 @@ public class Subscription : AggregateRoot
     }
 
     /// <summary>
+    /// Mevcut bir aboneliğe grandfather clause uygular.
+    /// Admin tarafından özel kullanıcılara erken erişim veya ücretsiz dönem tanımlamak için kullanılır.
+    /// </summary>
+    public void ApplyGrandfatherClause(DateTime grandfatherUntil)
+    {
+        GrandfatherUntil = grandfatherUntil;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
     /// Renews billing cycle after successful payment.
     /// Called by payment webhook handler.
     /// </summary>

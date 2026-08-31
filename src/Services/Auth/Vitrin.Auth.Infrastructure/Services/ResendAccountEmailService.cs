@@ -198,8 +198,30 @@ public sealed class ResendAccountEmailService(
             cancellationToken);
     }
 
-    public Task<bool> SendSubscriptionRenewalReminderAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken)
+    public Task<bool> SendSubscriptionReactivatedAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken)
     {
+        var dashboardUrl = $"{GetAppBaseUrl()}/dashboard";
+        var tierLabel = tier == "ProMaker" ? "Pro Maker 🏆" : "Enterprise 💎";
+        var periodEndStr = periodEnd.ToString("d MMMM yyyy", new System.Globalization.CultureInfo("tr-TR"));
+
+        return SendAsync(
+            user.Email,
+            $"✅ {tierLabel} aboneliğin yeniden aktif",
+            EmailLayout(
+                user.FullName ?? user.Username,
+                "Aboneliğin devam ediyor!",
+                $"{tierLabel} aboneliğinin iptali geri alındı. " +
+                $"Aboneliğin {periodEndStr} tarihinde otomatik olarak yenilenecek. " +
+                "Premium özelliklerine kesintisiz erişmeye devam ediyorsun.",
+                "Dashboard'a Git",
+                dashboardUrl,
+                "Aboneliğini Settings sayfasından yönetebilirsin."),
+            $"{tierLabel} aboneliğin iptal geri alındı. Yenileme: {periodEndStr}. Dashboard: {dashboardUrl}",
+            dashboardUrl,
+            cancellationToken);
+    }
+
+    public Task<bool> SendSubscriptionRenewalReminderAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken)    {
         var settingsUrl = $"{GetAppBaseUrl()}/settings";
         var tierLabel = tier == "ProMaker" ? "Pro Maker 🏆" : "Enterprise 💎";
         var tierPrice = tier == "ProMaker" ? "₺299" : "₺999";
