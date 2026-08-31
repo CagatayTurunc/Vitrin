@@ -36,7 +36,8 @@ public sealed record ProductResponse(
     LaunchSummaryResponse? ActiveLaunch,
     double TrendScore = 0,
     double SearchScore = 0,
-    string? MatchType = null);
+    string? MatchType = null,
+    string MakerTierSnapshot = "Free");
 
 public sealed record CollectionCollaboratorResponse(
     Guid UserId,
@@ -116,7 +117,8 @@ public static class ProductQueryExtensions
                 .FirstOrDefault(),
             0,
             0,
-            null));
+            null,
+            product.MakerTierSnapshot));
     }
 
     public static IQueryable<CollectionDetailsResponse> ProjectToDetailsResponse(this IQueryable<Collection> query)
@@ -172,7 +174,8 @@ public static class ProductQueryExtensions
                     .FirstOrDefault(),
                 0,
                 0,
-                null)).ToList(),
+                null,
+                product.MakerTierSnapshot)).ToList(),
             collection.Collaborators
                 .OrderBy(member => member.AddedAt)
                 .Select(member => new CollectionCollaboratorResponse(

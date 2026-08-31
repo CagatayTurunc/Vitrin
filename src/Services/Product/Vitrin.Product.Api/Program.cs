@@ -19,6 +19,7 @@ using Vitrin.Product.Domain.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Vitrin.Shared.Infrastructure.Observability;
 using Serilog;
+using Vitrin.Shared.Contracts.Subscription;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -78,10 +79,19 @@ app.MapProductExperienceEndpoints();
 app.MapDiscoveryAndComparisonEndpoints();
 app.MapProductBadgeEndpoints();
 
-app.MapPost("/api/products", async (HttpContext context, [FromBody] CreateProductRequest request, IMediator mediator) =>
+app.MapPost("/api/products", async (HttpContext context, [FromBody] CreateProductRequest request, IMediator mediator, ISubscriptionQuotaService quotaService) =>
 {
     var makerId = context.User.GetUserId();
     if (makerId is null) return Results.Unauthorized();
+
+    // Quota check — Free kullanıcılar max 5 ürün
+    var quotaResult = await quotaService.CanCreateProductAsync(makerId.Value, context.RequestAborted);
+    if (!quotaResult.IsAllowed)
+    {
+        return ApiProblemResults.BadRequest(
+            quotaResult.DenialReason ?? "Ürün oluşturma limitine ulaştınız.",
+            "subscription.quota_exceeded");
+    }
 
     var command = new CreateProductCommand(
         makerId.Value,

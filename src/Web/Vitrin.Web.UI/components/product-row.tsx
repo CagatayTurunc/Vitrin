@@ -48,6 +48,16 @@ export function ProductRow({ product, onRemove }: { product: Product; onRemove?:
           <Link href={`/product/${product.slug}`} className="outline-none after:absolute after:inset-0">
             {product.name}
           </Link>
+          {product.makerTier === 'ProMaker' && (
+            <span className="ml-2 inline-flex items-center rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold text-blue-500 border border-blue-500/20 align-middle">
+              🏆 PRO
+            </span>
+          )}
+          {product.makerTier === 'Enterprise' && (
+            <span className="ml-2 inline-flex items-center rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-500 border border-amber-500/20 align-middle animate-pulse">
+              💎 FEATURED
+            </span>
+          )}
         </h3>
         <p className="mt-0.5 truncate text-sm text-muted-foreground">
           {product.description}

@@ -6,6 +6,8 @@ using Vitrin.Product.Application.Commands;
 using Vitrin.Product.Infrastructure.Data;
 using Vitrin.Product.Infrastructure.Kafka;
 using Vitrin.Product.Infrastructure.Repositories;
+using Vitrin.Product.Infrastructure.Services;
+using Vitrin.Shared.Contracts.Subscription;
 using Vitrin.Shared.Infrastructure.Kafka;
 using Vitrin.Shared.Infrastructure.Outbox;
 using Vitrin.Shared.Infrastructure.Redis;
@@ -30,6 +32,17 @@ public static class DependencyInjection
 
         // Repository
         services.AddScoped<IProductRepository, ProductRepository>();
+
+        // Subscription Quota Service
+        var authServiceUrl = configuration["Services:AuthServiceUrl"]
+            ?? configuration.GetConnectionString("AuthService")
+            ?? "http://vitrin-auth:8080";
+        services.AddHttpClient("AuthService", client =>
+        {
+            client.BaseAddress = new Uri(authServiceUrl);
+            client.Timeout = TimeSpan.FromSeconds(3);
+        });
+        services.AddScoped<ISubscriptionQuotaService, ProductSubscriptionQuotaService>();
 
         // Redis Cache — bağlantı string'i yapılandırılmışsa aktif olur
         // Ürün listeleri, trending ve topic cache'i için kullanılır

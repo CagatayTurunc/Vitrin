@@ -13,6 +13,7 @@ export interface Product {
   trendScore?: number;
   searchScore?: number;
   matchType?: string | null;
+  makerTier?: 'Free' | 'ProMaker' | 'Enterprise' | null;
 }
 
 export interface Topic {
@@ -66,6 +67,7 @@ export interface ProductApiModel {
   hasKvkk?: boolean;
   reviewScore?: number;
   verifiedUsersCount?: number;
+  makerTierSnapshot?: 'Free' | 'ProMaker' | 'Enterprise' | null;
 }
 
 export interface ProductDetailApiModel extends ProductApiModel {

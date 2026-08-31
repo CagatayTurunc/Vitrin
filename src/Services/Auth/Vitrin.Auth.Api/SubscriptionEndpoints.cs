@@ -348,6 +348,20 @@ public static class SubscriptionEndpoints
             return Results.Ok(payments);
         }).RequireAuthorization("Admin");
 
+        // GET /api/subscription/tier/{userId} — Internal endpoint (Product service kullanır)
+        app.MapGet("/api/subscription/tier/{userId:guid}", async (
+            Guid userId,
+            AuthDbContext db,
+            HttpContext context) =>
+        {
+            var subscription = await db.Subscriptions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.UserId == userId, context.RequestAborted);
+
+            var tier = subscription?.Tier.ToString() ?? "Free";
+            return Results.Ok(new { tier });
+        }); // Internal — auth yok (sadece internal Docker ağından erişilebilir)
+
         // GET /api/subscription/admin/stats — MRR ve özet istatistikler
         app.MapGet("/api/subscription/admin/stats", async (
             HttpContext context,
