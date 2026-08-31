@@ -278,8 +278,129 @@ public sealed class IyzicoPaymentService : IPaymentService
         }
     }
 
-    private static (string price, string currency) GetPricing(SubscriptionTier tier)
+    /// <summary>
+    /// Kayıtlı kart bilgileriyle yenileme ödemesi alır.
+    /// İyzico'nun stored card / non-3DS flow'unu kullanır.
+    /// Not: Türkiye düzenlemeleri gereği yenileme ödemeleri 3DS gerektirmez
+    /// (recurring transaction olarak sınıflandırılır).
+    /// </summary>
+    public async Task<ChargeResult> ChargeStoredCardAsync(
+        ChargeRequest request,
+        CancellationToken ct = default)
     {
+        try
+        {
+            var (price, currency) = GetPricing(request.Tier);
+            
+            // İyzico recurring payment — stored card ile direkt ödeme
+            var iyzicoRequest = new CreatePaymentRequest
+            {
+                Locale = Locale.TR.ToString(),
+                ConversationId = request.ConversationId,
+                Price = price,
+                PaidPrice = price,
+                Currency = currency,
+                Installment = 1,
+                BasketId = request.UserId.ToString(),
+                PaymentChannel = PaymentChannel.WEB.ToString(),
+                PaymentGroup = PaymentGroup.SUBSCRIPTION.ToString(),
+                
+                // Stored card token — initial checkout'ta kaydedilen kart
+                PaymentCard = new PaymentCard
+                {
+                    CardUserKey = request.IyzicoCustomerId, // stored card key
+                    CardToken = request.IyzicoSubscriptionId  // token from initial payment
+                },
+                
+                Buyer = new Buyer
+                {
+                    Id = request.UserId.ToString(),
+                    Name = request.FullName.Split(' ').FirstOrDefault() ?? "User",
+                    Surname = request.FullName.Split(' ').LastOrDefault() ?? "Name",
+                    Email = request.Email,
+                    IdentityNumber = "11111111111",
+                    RegistrationAddress = "Türkiye",
+                    City = "İstanbul",
+                    Country = "Turkey",
+                    GsmNumber = "+905555555555"
+                },
+                
+                ShippingAddress = new Address
+                {
+                    ContactName = request.FullName,
+                    City = "İstanbul",
+                    Country = "Turkey",
+                    Description = "Vitrin Subscription Renewal"
+                },
+                
+                BillingAddress = new Address
+                {
+                    ContactName = request.FullName,
+                    City = "İstanbul",
+                    Country = "Turkey",
+                    Description = "Vitrin Subscription Renewal"
+                },
+                
+                BasketItems = new List<BasketItem>
+                {
+                    new BasketItem
+                    {
+                        Id = "RENEWAL_" + request.Tier,
+                        Name = $"Vitrin {request.Tier} Subscription Renewal",
+                        Category1 = "Subscription",
+                        ItemType = BasketItemType.VIRTUAL.ToString(),
+                        Price = price
+                    }
+                }
+            };
+            
+            var response = await Task.Run(() =>
+                Iyzipay.Model.Payment.Create(iyzicoRequest, _options), ct);
+            
+            if (response.Status == "success")
+            {
+                _logger.LogInformation(
+                    "Yenileme ödemesi başarılı: UserId={UserId}, Tier={Tier}, PaymentId={PaymentId}",
+                    request.UserId, request.Tier, response.PaymentId);
+                
+                return new ChargeResult(
+                    Success: true,
+                    PaymentId: response.PaymentId,
+                    ConversationId: response.ConversationId,
+                    PaidPrice: decimal.Parse(price),
+                    Currency: currency,
+                    ErrorMessage: null,
+                    ErrorCode: null);
+            }
+            
+            _logger.LogWarning(
+                "Yenileme ödemesi başarısız: UserId={UserId}, ErrorCode={Code}, Error={Msg}",
+                request.UserId, response.ErrorCode, response.ErrorMessage);
+            
+            return new ChargeResult(
+                Success: false,
+                PaymentId: null,
+                ConversationId: response.ConversationId,
+                PaidPrice: 0,
+                Currency: currency,
+                ErrorMessage: response.ErrorMessage,
+                ErrorCode: response.ErrorCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Yenileme ödemesi sırasında hata: UserId={UserId}", request.UserId);
+            return new ChargeResult(
+                Success: false,
+                PaymentId: null,
+                ConversationId: request.ConversationId,
+                PaidPrice: 0,
+                Currency: "TRY",
+                ErrorMessage: "Ödeme gateway hatası. Lütfen tekrar deneyiniz.",
+                ErrorCode: "GATEWAY_ERROR");
+        }
+    }
+
+    private static (string price, string currency) GetPricing(SubscriptionTier tier)    {
         return tier switch
         {
             SubscriptionTier.ProMaker => ("299.00", Iyzipay.Model.Currency.TRY.ToString()),

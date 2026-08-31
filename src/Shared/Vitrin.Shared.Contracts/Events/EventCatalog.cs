@@ -29,6 +29,9 @@ public static class EventCatalog
             [typeof(UserRoleChangedEvent)] = EventTopics.User,
             [typeof(SubscriptionUpgradedEvent)] = EventTopics.Subscription,
             [typeof(SubscriptionCanceledEvent)] = EventTopics.Subscription,
+            [typeof(SubscriptionRenewedEvent)] = EventTopics.Subscription,
+            [typeof(SubscriptionExpiredEvent)] = EventTopics.Subscription,
+            [typeof(SubscriptionPaymentFailedEvent)] = EventTopics.Subscription,
         };
 
     public static IReadOnlyDictionary<Type, string> Entries => Topics;

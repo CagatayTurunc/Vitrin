@@ -65,6 +65,12 @@ public static class DependencyInjection
         // Abonelik hatırlatma — dönem bitiminden 3 gün önce email gönderir
         services.AddHostedService<SubscriptionReminderWorker>();
 
+        // Abonelik yenileme — her gün dönem biten aktif aboneliklere ödeme çeker
+        services.AddHostedService<SubscriptionRenewalWorker>();
+
+        // Abonelik expire — PastDue grace period dolunca Free'ye düşürür
+        services.AddHostedService<SubscriptionExpirationWorker>();
+
         return services;
     }
 }

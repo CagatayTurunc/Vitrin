@@ -48,7 +48,34 @@ public interface IPaymentService
         decimal amount,
         string reason,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Charges the user's stored card for subscription renewal.
+    /// Called by SubscriptionRenewalWorker on billing cycle end.
+    /// Requires IyzicoCustomerId (stored during initial checkout).
+    /// </summary>
+    Task<ChargeResult> ChargeStoredCardAsync(
+        ChargeRequest request,
+        CancellationToken ct = default);
 }
+
+public record ChargeRequest(
+    Guid UserId,
+    string IyzicoCustomerId,
+    string IyzicoSubscriptionId,
+    string Email,
+    string FullName,
+    SubscriptionTier Tier,
+    string ConversationId);
+
+public record ChargeResult(
+    bool Success,
+    string? PaymentId,
+    string? ConversationId,
+    decimal PaidPrice,
+    string Currency,
+    string? ErrorMessage,
+    string? ErrorCode);
 
 public record CheckoutSessionRequest(
     Guid UserId,

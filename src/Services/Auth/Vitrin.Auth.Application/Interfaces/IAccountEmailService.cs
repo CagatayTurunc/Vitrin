@@ -28,6 +28,8 @@ public interface IAccountEmailService
     Task<bool> SendMakerApprovedAsync(User user, CancellationToken cancellationToken);
     Task<bool> SendSubscriptionUpgradedAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken);
     Task<bool> SendSubscriptionCanceledAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken);
-    Task<bool> SendPaymentFailedAsync(User user, string tier, CancellationToken cancellationToken);
+    Task<bool> SendSubscriptionRenewedAsync(User user, string tier, DateTime newPeriodEnd, decimal paidAmount, CancellationToken cancellationToken);
+    Task<bool> SendSubscriptionExpiredAsync(User user, string tier, CancellationToken cancellationToken);
+    Task<bool> SendPaymentFailedAsync(User user, string tier, int retryCount, DateTime? nextRetryAt, CancellationToken cancellationToken);
     Task<bool> SendSubscriptionRenewalReminderAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken);
 }

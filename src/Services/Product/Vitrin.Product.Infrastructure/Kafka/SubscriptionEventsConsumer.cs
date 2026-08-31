@@ -64,6 +64,8 @@ public sealed class SubscriptionEventsConsumer : KafkaConsumerBase
         {
             "subscription.upgraded" => await HandleUpgraded(value, db, cancellationToken),
             "subscription.canceled" => await HandleCanceled(value, db, cancellationToken),
+            "subscription.expired"  => await HandleExpired(value, db, cancellationToken),
+            "subscription.renewed"  => 0, // Tier değişmez, sadece dönem uzar — no-op
             _ => 0
         };
 
@@ -110,6 +112,27 @@ public sealed class SubscriptionEventsConsumer : KafkaConsumerBase
             ?? throw new InvalidDataException("SubscriptionCanceledEvent deserialize edilemedi.");
 
         // Abonelik iptalinde Free tier'a düşür
+        var products = await db.Products
+            .Where(p => p.MakerId == @event.UserId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var product in products)
+        {
+            product.UpdateMakerTier("Free");
+        }
+
+        return products.Count;
+    }
+
+    private static async Task<int> HandleExpired(
+        string json,
+        ProductDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var @event = DeserializeMessage<SubscriptionExpiredEvent>(json)
+            ?? throw new InvalidDataException("SubscriptionExpiredEvent deserialize edilemedi.");
+
+        // Expire olunca da Free tier'a düşür
         var products = await db.Products
             .Where(p => p.MakerId == @event.UserId)
             .ToListAsync(cancellationToken);

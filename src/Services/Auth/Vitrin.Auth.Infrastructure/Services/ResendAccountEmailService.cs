@@ -119,10 +119,23 @@ public sealed class ResendAccountEmailService(
             cancellationToken);
     }
 
-    public Task<bool> SendPaymentFailedAsync(User user, string tier, CancellationToken cancellationToken)
+    public Task<bool> SendPaymentFailedAsync(User user, string tier, int retryCount, DateTime? nextRetryAt, CancellationToken cancellationToken)
     {
         var settingsUrl = $"{GetAppBaseUrl()}/settings";
         var tierLabel = tier == "ProMaker" ? "Pro Maker 🏆" : "Enterprise 💎";
+
+        string retryInfo;
+        if (nextRetryAt.HasValue)
+        {
+            var retryDateStr = nextRetryAt.Value.ToString("d MMMM yyyy", new System.Globalization.CultureInfo("tr-TR"));
+            retryInfo = $"Ödeme {retryDateStr} tarihinde otomatik olarak tekrar deneyecek (deneme {retryCount}/3). " +
+                        "Bu tarihe kadar kart bilgilerini güncelleyebilirsin.";
+        }
+        else
+        {
+            retryInfo = "Tüm yenileme denemeleri başarısız oldu. Aboneliğin ücretsiz plana geçirildi. " +
+                        "Yeniden abone olmak için fiyatlandırma sayfasını ziyaret edebilirsin.";
+        }
 
         return SendAsync(
             user.Email,
@@ -130,14 +143,58 @@ public sealed class ResendAccountEmailService(
             EmailLayout(
                 user.FullName ?? user.Username,
                 "Ödemen alınamadı",
-                $"{tierLabel} aboneliğin için ödeme alınamadı. " +
-                "Kart bilgilerini güncelleyerek aboneliğini aktif tutabilirsin. " +
-                "7 gün içinde ödeme alınamazsa aboneliğin askıya alınacak.",
+                $"{tierLabel} aboneliğin için ödeme alınamadı. " + retryInfo,
                 "Ödeme Bilgilerini Güncelle",
                 settingsUrl,
                 "Yardım için destek@vitrin.com.tr adresine yazabilirsiniz."),
-            $"Aboneliğin için ödeme alınamadı. Güncelle: {settingsUrl}",
+            $"Aboneliğin için ödeme alınamadı. {retryInfo} Güncelle: {settingsUrl}",
             settingsUrl,
+            cancellationToken);
+    }
+
+    public Task<bool> SendSubscriptionRenewedAsync(User user, string tier, DateTime newPeriodEnd, decimal paidAmount, CancellationToken cancellationToken)
+    {
+        var dashboardUrl = $"{GetAppBaseUrl()}/dashboard";
+        var tierLabel = tier == "ProMaker" ? "Pro Maker 🏆" : "Enterprise 💎";
+        var periodEndStr = newPeriodEnd.ToString("d MMMM yyyy", new System.Globalization.CultureInfo("tr-TR"));
+        var amountStr = paidAmount.ToString("N2", new System.Globalization.CultureInfo("tr-TR"));
+
+        return SendAsync(
+            user.Email,
+            $"✅ {tierLabel} aboneliğin yenilendi",
+            EmailLayout(
+                user.FullName ?? user.Username,
+                "Aboneliğin başarıyla yenilendi!",
+                $"{tierLabel} aboneliğin ₺{amountStr} tutarında başarıyla yenilendi. " +
+                $"Bir sonraki yenileme tarihin: {periodEndStr}. " +
+                "Premium özelliklerine kesintisiz erişmeye devam ediyorsun.",
+                "Dashboard'a Git",
+                dashboardUrl,
+                "Aboneliğini Settings sayfasından yönetebilir, istediğin zaman iptal edebilirsin."),
+            $"{tierLabel} aboneliğin yenilendi. Tutar: ₺{amountStr}. Sonraki yenileme: {periodEndStr}. Dashboard: {dashboardUrl}",
+            dashboardUrl,
+            cancellationToken);
+    }
+
+    public Task<bool> SendSubscriptionExpiredAsync(User user, string tier, CancellationToken cancellationToken)
+    {
+        var pricingUrl = $"{GetAppBaseUrl()}/pricing";
+        var tierLabel = tier == "ProMaker" ? "Pro Maker 🏆" : "Enterprise 💎";
+
+        return SendAsync(
+            user.Email,
+            "Aboneliğin sona erdi",
+            EmailLayout(
+                user.FullName ?? user.Username,
+                "Aboneliğin sona erdi",
+                $"{tierLabel} aboneliğin sona erdi ve ücretsiz plana geçirildi. " +
+                "Ürünlerin ve verilerinin kaybolmayacak; ancak premium özelliklerine erişimin kısıtlandı. " +
+                "İstediğin zaman yeniden abone olarak tam erişimi geri kazanabilirsin.",
+                "Yeniden Abone Ol",
+                pricingUrl,
+                "Sorularınız için destek@vitrin.com.tr adresine yazabilirsiniz."),
+            $"{tierLabel} aboneliğin sona erdi, ücretsiz plana geçildi. Yeniden abone ol: {pricingUrl}",
+            pricingUrl,
             cancellationToken);
     }
 
