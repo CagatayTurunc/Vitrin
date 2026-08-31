@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Vitrin.Auth.Infrastructure.Data.Migrations
+namespace Vitrin.Auth.Infrastructure.Migrations
 {
     /// <inheritdoc />
     public partial class AddDiscountCodes : Migration

@@ -9,7 +9,7 @@ using Vitrin.Auth.Infrastructure.Data;
 
 #nullable disable
 
-namespace Vitrin.Auth.Infrastructure.Data.Migrations
+namespace Vitrin.Auth.Infrastructure.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
     [Migration("20260831100755_AddDiscountCodes")]

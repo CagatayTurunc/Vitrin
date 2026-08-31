@@ -1,0 +1,2 @@
+2026-08-31 13:07:46.617 +03:00 [WRN] The property 'DiscountCode.ApplicableTiers' is a collection or enumeration type with a value converter but with no value comparer. Set a value comparer to ensure the collection/enumeration elements are compared correctly.
+2026-08-31 13:07:48.043 +03:00 [WRN] The property 'DiscountCode.ApplicableTiers' is a collection or enumeration type with a value converter but with no value comparer. Set a value comparer to ensure the collection/enumeration elements are compared correctly.
