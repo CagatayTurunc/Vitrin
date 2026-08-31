@@ -1372,6 +1372,7 @@ app.MapGet("/api/auth/admin/kvkk/pending-deletions/export", async (
 
 // SUBSCRIPTION & PAYMENT ENDPOINTS
 app.MapSubscriptionEndpoints();
+app.MapDiscountEndpoints();
 
 app.Run();
 

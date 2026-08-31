@@ -46,12 +46,29 @@ public sealed class IyzicoPaymentService : IPaymentService
             var (price, currency) = GetPricing(request.Tier);
             var conversationId = Guid.NewGuid().ToString();
 
+            // Kupon varsa indirimli fiyatı hesapla
+            decimal finalPrice;
+            if (request.DiscountAmount.HasValue && request.DiscountAmount.Value > 0)
+            {
+                var original = decimal.Parse(price);
+                finalPrice = Math.Max(0m, original - request.DiscountAmount.Value);
+                _logger.LogInformation(
+                    "Kupon uygulandı: Orijinal={Original}, İndirim={Discount}, Final={Final}",
+                    original, request.DiscountAmount.Value, finalPrice);
+            }
+            else
+            {
+                finalPrice = decimal.Parse(price);
+            }
+
+            var finalPriceStr = finalPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+
             var iyzicoRequest = new CreateCheckoutFormInitializeRequest
             {
                 Locale = Locale.TR.ToString(),
                 ConversationId = conversationId,
-                Price = price,
-                PaidPrice = price,
+                Price = finalPriceStr,
+                PaidPrice = finalPriceStr,
                 Currency = currency,
                 BasketId = request.UserId.ToString(),
                 PaymentGroup = PaymentGroup.SUBSCRIPTION.ToString(),
@@ -95,7 +112,7 @@ public sealed class IyzicoPaymentService : IPaymentService
                         Name = $"Vitrin {request.Tier} Subscription",
                         Category1 = "Subscription",
                         ItemType = BasketItemType.VIRTUAL.ToString(),
-                        Price = price
+                        Price = finalPriceStr
                     }
                 }
             };

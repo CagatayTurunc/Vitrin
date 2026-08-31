@@ -83,7 +83,9 @@ public record CheckoutSessionRequest(
     string FullName,
     string PhoneNumber,
     SubscriptionTier Tier,
-    string CallbackUrl);
+    string CallbackUrl,
+    decimal? DiscountAmount = null,
+    string? CouponCode = null);
 
 public record CheckoutSessionResult(
     bool Success,

@@ -15,6 +15,7 @@ using DomainSubscriptionStatus = Vitrin.Auth.Domain.Entities.SubscriptionStatus;
 using DomainPaymentStatus = Vitrin.Auth.Domain.Entities.PaymentStatus;
 using DomainPaymentMethod = Vitrin.Auth.Domain.Entities.PaymentMethod;
 using DomainPaymentHistory = Vitrin.Auth.Domain.Entities.PaymentHistory;
+using DomainDiscountCodeUsage = Vitrin.Auth.Domain.Entities.DiscountCodeUsage;
 
 namespace Vitrin.Auth.Api;
 
@@ -52,6 +53,26 @@ public static class SubscriptionEndpoints
                     $"Already subscribed to {existingSubscription.Tier} or higher.",
                     "subscription.already_subscribed");
 
+            // Kupon kodu doğrulama (opsiyonel)
+            decimal? discountAmount = null;
+            Guid? discountCodeId = null;
+            if (!string.IsNullOrWhiteSpace(request.CouponCode))
+            {
+                var validation = await DiscountEndpoints.ValidateCouponInternalAsync(
+                    request.CouponCode, request.Tier, userId.Value, db, context.RequestAborted);
+
+                if (!validation.IsValid)
+                    return ApiProblemResults.BadRequest(
+                        validation.ErrorMessage ?? "Geçersiz kupon kodu.",
+                        "subscription.invalid_coupon");
+
+                discountAmount = validation.DiscountAmount;
+                var coupon = await db.DiscountCodes
+                    .FirstOrDefaultAsync(d => d.Code == request.CouponCode.ToUpperInvariant().Trim(),
+                        context.RequestAborted);
+                discountCodeId = coupon?.Id;
+            }
+
             // Create checkout session
             var checkoutRequest = new CheckoutSessionRequest(
                 UserId: userId.Value,
@@ -59,7 +80,9 @@ public static class SubscriptionEndpoints
                 FullName: user.FullName ?? user.Username,
                 PhoneNumber: "+905555555555", // Default for sandbox testing
                 Tier: request.Tier,
-                CallbackUrl: $"{context.Request.Scheme}://{context.Request.Host}/api/subscription/callback");
+                CallbackUrl: $"{context.Request.Scheme}://{context.Request.Host}/api/subscription/callback",
+                DiscountAmount: discountAmount,
+                CouponCode: request.CouponCode?.ToUpperInvariant().Trim());
 
             var result = await paymentService.CreateCheckoutSessionAsync(checkoutRequest, context.RequestAborted);
 
@@ -83,7 +106,9 @@ public static class SubscriptionEndpoints
             return Results.Ok(new
             {
                 CheckoutUrl = result.CheckoutUrl,
-                Token = result.Token
+                Token = result.Token,
+                DiscountAmount = discountAmount,
+                DiscountCodeId = discountCodeId
             });
         }).RequireAuthorization();
 
@@ -156,9 +181,26 @@ public static class SubscriptionEndpoints
                 iyzicoConversationId: paymentResult.ConversationId);
 
             db.PaymentHistories.Add(paymentHistory);
-            await db.SaveChangesAsync(context.RequestAborted);
 
-            // Publish SubscriptionUpgradedEvent to Kafka
+            // Kupon kullanım kaydı — query param'dan kupon kodu gel
+            var couponCode = context.Request.Query["coupon"].ToString();
+            if (!string.IsNullOrWhiteSpace(couponCode))
+            {
+                var discountCode = await db.DiscountCodes
+                    .FirstOrDefaultAsync(d => d.Code == couponCode.ToUpperInvariant().Trim(),
+                        context.RequestAborted);
+
+                if (discountCode is not null)
+                {
+                    var discountApplied = discountCode.CalculateDiscount(tier);
+                    var usage = DomainDiscountCodeUsage.Create(discountCode.Id, userId, discountApplied);
+                    usage.LinkToPayment(paymentHistory.Id);
+                    db.DiscountCodeUsages.Add(usage);
+                    discountCode.IncrementUseCount();
+                }
+            }
+
+            await db.SaveChangesAsync(context.RequestAborted);            // Publish SubscriptionUpgradedEvent to Kafka
             // Product service bu event'i tüketerek ürünlerin MakerTierSnapshot alanını güncelleyecek
             var oldTier = subscription.Tier == tier ? "Free" : subscription.Tier.ToString();
             await eventPublisher.PublishAsync(new SubscriptionUpgradedEvent
@@ -428,5 +470,5 @@ public static class SubscriptionEndpoints
     }
 }
 
-public record CheckoutRequest(SubscriptionTier Tier);
+public record CheckoutRequest(SubscriptionTier Tier, string? CouponCode = null);
 public record CancellationRequest(string? Reason);

@@ -20,6 +20,8 @@ public class AuthDbContext : DbContext
     public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<PaymentHistory> PaymentHistories => Set<PaymentHistory>();
+    public DbSet<DiscountCode> DiscountCodes => Set<DiscountCode>();
+    public DbSet<DiscountCodeUsage> DiscountCodeUsages => Set<DiscountCodeUsage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -157,6 +159,40 @@ public class AuthDbContext : DbContext
             builder.Property(p => p.RefundReason).HasMaxLength(500);
             builder.HasIndex(p => new { p.SubscriptionId, p.CreatedAt });
             builder.HasIndex(p => p.IyzicoPaymentId);
+        });
+
+        modelBuilder.Entity<DiscountCode>(builder =>
+        {
+            builder.HasKey(d => d.Id);
+            builder.Property(d => d.Code).IsRequired().HasMaxLength(50);
+            builder.Property(d => d.Description).HasMaxLength(500);
+            builder.Property(d => d.Value).HasPrecision(10, 2);
+            // ApplicableTiers listesini JSON olarak sakla
+            builder.Property(d => d.ApplicableTiers)
+                .HasConversion(
+                    v => string.Join(',', v.Select(t => (int)t)),
+                    v => string.IsNullOrEmpty(v)
+                        ? new List<SubscriptionTier>()
+                        : v.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                           .Select(s => (SubscriptionTier)int.Parse(s))
+                           .ToList())
+                .HasMaxLength(200);
+            builder.HasIndex(d => d.Code).IsUnique().HasDatabaseName("UX_DiscountCodes_Code");
+            builder.HasIndex(d => new { d.IsActive, d.ExpiresAt });
+            builder.HasMany(d => d.Usages)
+                .WithOne(u => u.DiscountCode)
+                .HasForeignKey(u => u.DiscountCodeId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DiscountCodeUsage>(builder =>
+        {
+            builder.HasKey(u => u.Id);
+            builder.Property(u => u.DiscountApplied).HasPrecision(10, 2);
+            builder.HasIndex(u => new { u.DiscountCodeId, u.UserId })
+                .HasDatabaseName("IX_DiscountCodeUsages_CodeId_UserId");
+            builder.HasIndex(u => u.UserId)
+                .HasDatabaseName("IX_DiscountCodeUsages_UserId");
         });
     }
 }
