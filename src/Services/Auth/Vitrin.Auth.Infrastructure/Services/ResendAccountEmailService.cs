@@ -141,6 +141,30 @@ public sealed class ResendAccountEmailService(
             cancellationToken);
     }
 
+    public Task<bool> SendSubscriptionRenewalReminderAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken)
+    {
+        var settingsUrl = $"{GetAppBaseUrl()}/settings";
+        var tierLabel = tier == "ProMaker" ? "Pro Maker 🏆" : "Enterprise 💎";
+        var tierPrice = tier == "ProMaker" ? "₺299" : "₺999";
+        var periodEndStr = periodEnd.ToString("d MMMM yyyy", new System.Globalization.CultureInfo("tr-TR"));
+
+        return SendAsync(
+            user.Email,
+            $"⏰ {tierLabel} aboneliğin 3 gün içinde yenileniyor",
+            EmailLayout(
+                user.FullName ?? user.Username,
+                "Aboneliğin yakında yenileniyor",
+                $"{tierLabel} aboneliğin {periodEndStr} tarihinde {tierPrice} olarak otomatik yenilenecek. " +
+                "Her şey yolundaysa herhangi bir işlem yapmanıza gerek yok. " +
+                "Aboneliğinizi iptal etmek istiyorsanız yenileme tarihinden önce ayarlar sayfasından iptal edebilirsiniz.",
+                "Abonelik Ayarları",
+                settingsUrl,
+                "Sorularınız için destek@vitrin.com.tr adresine yazabilirsiniz."),
+            $"{tierLabel} aboneliğin {periodEndStr} tarihinde {tierPrice} olarak yenileniyor. Ayarlar: {settingsUrl}",
+            settingsUrl,
+            cancellationToken);
+    }
+
     private async Task<bool> SendAsync(
         string recipient,
         string subject,

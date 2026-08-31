@@ -62,6 +62,9 @@ public static class DependencyInjection
         // KVKK — her gün 30 günü dolan silme taleplerini anonimleştirir
         services.AddHostedService<RetentionCleanupWorker>();
 
+        // Abonelik hatırlatma — dönem bitiminden 3 gün önce email gönderir
+        services.AddHostedService<SubscriptionReminderWorker>();
+
         return services;
     }
 }

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
-import { CheckCircle, XCircle, ArrowRight } from 'lucide-react'
+import { XCircle } from 'lucide-react'
 import Link from 'next/link'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
@@ -30,39 +30,10 @@ export default async function PricingCallbackPage({ searchParams }: CallbackPage
       )
 
       if (res.ok) {
-        // Başarılı ödeme
-        return (
-          <div className="min-h-screen bg-background flex items-center justify-center px-4">
-            <div className="max-w-md w-full text-center space-y-6">
-              <div className="flex justify-center">
-                <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                  <CheckCircle className="w-10 h-10 text-emerald-500" />
-                </div>
-              </div>
-              <div>
-                <h1 className="text-3xl font-extrabold mb-2">Abonelik Aktif! 🎉</h1>
-                <p className="text-muted-foreground">
-                  Ödemeniz başarıyla tamamlandı. Pro özelliklerine hemen erişebilirsiniz.
-                </p>
-              </div>
-              <div className="flex flex-col gap-3">
-                <Link
-                  href="/dashboard"
-                  className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold hover:opacity-90 transition-opacity"
-                >
-                  Dashboard&apos;a Git
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-                <Link
-                  href="/submit"
-                  className="w-full py-3 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
-                >
-                  Ürün Paylaş
-                </Link>
-              </div>
-            </div>
-          </div>
-        )
+        // Başarılı ödeme — welcome sayfasına yönlendir
+        const data = await res.json().catch(() => ({})) as { tier?: string }
+        const tierParam = data.tier ?? 'ProMaker'
+        redirect(`/welcome?tier=${tierParam}`)
       }
     } catch {
       // Hata durumuna düş

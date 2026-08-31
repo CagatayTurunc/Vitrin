@@ -29,4 +29,5 @@ public interface IAccountEmailService
     Task<bool> SendSubscriptionUpgradedAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken);
     Task<bool> SendSubscriptionCanceledAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken);
     Task<bool> SendPaymentFailedAsync(User user, string tier, CancellationToken cancellationToken);
+    Task<bool> SendSubscriptionRenewalReminderAsync(User user, string tier, DateTime periodEnd, CancellationToken cancellationToken);
 }
