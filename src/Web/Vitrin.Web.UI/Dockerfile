@@ -17,6 +17,7 @@ COPY . .
 COPY --from=deps /app/node_modules ./node_modules
 
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV PNPM_DEPS_STATUS_CHECK=disable
 
 ARG NEXT_PUBLIC_API_URL=http://localhost:5000
 ARG NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
