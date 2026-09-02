@@ -272,10 +272,15 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Hata */}
               {error && (
                 <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-500">
-                  {error}
+                  <p className="font-semibold mb-1">Ödeme başlatılamadı</p>
+                  <p>{error}</p>
+                  {error.includes('yapılandırılmamış') && (
+                    <a href="mailto:destek@vitrin.it.com" className="mt-2 inline-block text-xs underline">
+                      destek@vitrin.it.com ile iletişime geçin
+                    </a>
+                  )}
                 </div>
               )}
 

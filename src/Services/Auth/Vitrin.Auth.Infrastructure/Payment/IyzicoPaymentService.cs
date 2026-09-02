@@ -24,15 +24,20 @@ public sealed class IyzicoPaymentService : IPaymentService
         ILogger<IyzicoPaymentService> logger)
     {
         _logger = logger;
-        _webhookSecret = configuration["Iyzico:WebhookSecret"] 
-            ?? throw new InvalidOperationException("Iyzico:WebhookSecret is required");
+        _webhookSecret = configuration["Iyzico:WebhookSecret"] ?? string.Empty;
+
+        var apiKey = configuration["Iyzico:ApiKey"] ?? string.Empty;
+        var secretKey = configuration["Iyzico:SecretKey"] ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(secretKey))
+        {
+            _logger.LogWarning("Iyzico API keys are not configured. Payment functionality will be unavailable.");
+        }
 
         _options = new Options
         {
-            ApiKey = configuration["Iyzico:ApiKey"] 
-                ?? throw new InvalidOperationException("Iyzico:ApiKey is required"),
-            SecretKey = configuration["Iyzico:SecretKey"] 
-                ?? throw new InvalidOperationException("Iyzico:SecretKey is required"),
+            ApiKey = apiKey,
+            SecretKey = secretKey,
             BaseUrl = configuration["Iyzico:BaseUrl"] ?? "https://sandbox-api.iyzipay.com"
         };
     }
@@ -41,6 +46,17 @@ public sealed class IyzicoPaymentService : IPaymentService
         CheckoutSessionRequest request,
         CancellationToken ct = default)
     {
+        // Erken kontrol: API key'ler yapılandırılmamışsa anlamlı hata dön
+        if (string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(_options.SecretKey))
+        {
+            _logger.LogError("Iyzico API keys are not configured. Cannot process payment for UserId={UserId}", request.UserId);
+            return new CheckoutSessionResult(
+                Success: false,
+                CheckoutUrl: null,
+                Token: null,
+                ErrorMessage: "Ödeme sistemi şu an yapılandırılmamış. Lütfen destek ekibiyle iletişime geçin.");
+        }
+
         try
         {
             var (price, currency) = GetPricing(request.Tier);
