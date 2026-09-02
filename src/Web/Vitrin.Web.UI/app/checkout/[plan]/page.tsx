@@ -22,7 +22,7 @@ import {
 const PLAN_DETAILS = {
   pro: {
     id: 'pro',
-    tier: 'Pro',
+    tierValue: 1,   // SubscriptionTier.ProMaker = 1
     name: 'Pro Maker',
     price: 299,
     badge: '🏆 PRO',
@@ -42,7 +42,7 @@ const PLAN_DETAILS = {
   },
   enterprise: {
     id: 'enterprise',
-    tier: 'Enterprise',
+    tierValue: 2,   // SubscriptionTier.Enterprise = 2
     name: 'Enterprise',
     price: 999,
     badge: '💎 ENTERPRISE',
@@ -123,7 +123,7 @@ export default function CheckoutPage() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session.accessToken}`,
           },
-          body: JSON.stringify({ tier: plan.tier }),
+          body: JSON.stringify({ tier: plan.tierValue }),
         }
       )
 
