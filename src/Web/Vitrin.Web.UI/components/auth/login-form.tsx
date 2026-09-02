@@ -61,8 +61,10 @@ export function LoginForm() {
           ? "Giriş bilgileri hatalı. Lütfen kontrol edip tekrar deneyin."
           : (result.error || "Giriş bilgileri hatalı. Lütfen kontrol edip tekrar deneyin."));
       } else {
-        router.push("/");
-        router.refresh();
+        // Login başarılı — pricing modal göster (query param ile)
+        const redirectUrl = searchParams.get('redirect') ?? '/?showPricing=1'
+        router.push(redirectUrl.includes('?') ? redirectUrl : `${redirectUrl}?showPricing=1`)
+        router.refresh()
       }
     } catch (err: unknown) {
       console.error("Login Error:", err);

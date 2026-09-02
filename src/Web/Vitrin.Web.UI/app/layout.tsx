@@ -1,11 +1,13 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
+import { Suspense } from 'react'
 import './globals.css'
 import NextAuthProvider from "@/components/next-auth-provider";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
+import { PostLoginPricingTrigger } from "@/components/post-login-pricing-trigger";
 import { getOrganizationSchema, getWebSiteSchema, renderJsonLd } from '@/lib/seo'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3001'
@@ -147,6 +149,10 @@ export default function RootLayout({
             </div>
             <Toaster />
             <Analytics />
+            {/* Login sonrası pricing modal tetikleyici */}
+            <Suspense>
+              <PostLoginPricingTrigger />
+            </Suspense>
           </ThemeProvider>
         </NextAuthProvider>
       </body>

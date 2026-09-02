@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getApiProblemMessage, getErrorMessage } from "@/lib/errors";
+import { PricingModal } from "@/components/pricing-modal";
 
 export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
@@ -17,6 +18,7 @@ export function RegisterForm() {
   const [resendStatus, setResendStatus] = useState("");
   const [mounted, setMounted] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [showPricingModal, setShowPricingModal] = useState(false);
   
   const [formData, setFormData] = useState({
     fullName: "",
@@ -49,6 +51,8 @@ export function RegisterForm() {
         throw new Error(getApiProblemMessage(data, "Kayıt işlemi başarısız oldu. Lütfen tekrar deneyin."));
       }
       setRegistered(true);
+      // Kısa gecikme sonrası pricing modal'ı aç
+      setTimeout(() => setShowPricingModal(true), 800);
     } catch (caught: unknown) {
       setError(getErrorMessage(caught, "Bilinmeyen bir hata oluştu."));
     } finally {
@@ -77,41 +81,63 @@ export function RegisterForm() {
 
   if (registered) {
     return (
-      <div className={`mx-auto w-full max-w-md transition-all duration-700 ${mounted ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
-        <div className="rounded-2xl bg-gradient-to-b from-card/50 to-card border border-border/50 p-8 shadow-xl backdrop-blur-sm text-center">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/20">
-            <MailCheck className="h-8 w-8 text-primary" />
-          </div>
-          <h1 className="text-3xl font-bold mb-4 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
-            E-postanı kontrol et
-          </h1>
-          <p className="text-muted-foreground mb-6 leading-relaxed">
-            <strong className="text-foreground">{formData.email}</strong> adresine doğrulama bağlantısı gönderdik.
-            Bağlantı 24 saat geçerlidir.
-          </p>
-          
-          <div className="space-y-4">
-            <Link href="/login">
-              <Button className="w-full bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 text-primary-foreground rounded-xl h-12 font-semibold transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/20">
-                Giriş sayfasına dön
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
+      <>
+        <div className={`mx-auto w-full max-w-md transition-all duration-700 ${mounted ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+          <div className="rounded-2xl bg-gradient-to-b from-card/50 to-card border border-border/50 p-8 shadow-xl backdrop-blur-sm text-center">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/20">
+              <MailCheck className="h-8 w-8 text-primary" />
+            </div>
+            <h1 className="text-3xl font-bold mb-4 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+              E-postanı kontrol et
+            </h1>
+            <p className="text-muted-foreground mb-6 leading-relaxed">
+              <strong className="text-foreground">{formData.email}</strong> adresine doğrulama bağlantısı gönderdik.
+              Bağlantı 24 saat geçerlidir.
+            </p>
+
+            {/* Planını seç CTA */}
+            <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20">
+              <p className="text-sm font-semibold mb-1">🎉 Hesabın oluşturuldu!</p>
+              <p className="text-xs text-muted-foreground mb-3">Doğrulama beklerken planını seçebilirsin.</p>
+              <button
+                onClick={() => setShowPricingModal(true)}
+                className="w-full py-2 px-4 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                Planını Seç
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
             
-            <button 
-              type="button" 
-              onClick={() => void resendConfirmation()} 
-              className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 hover:underline"
-            >
-              E-posta gelmedi mi? Tekrar gönder
-            </button>
-            
-            {resendStatus && (
-              <p className="text-xs text-muted-foreground animate-fade-in-up">{resendStatus}</p>
-            )}
+            <div className="space-y-4">
+              <Link href="/login">
+                <Button className="w-full bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 text-primary-foreground rounded-xl h-12 font-semibold transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/20">
+                  Giriş sayfasına dön
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+              
+              <button 
+                type="button" 
+                onClick={() => void resendConfirmation()} 
+                className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 hover:underline"
+              >
+                E-posta gelmedi mi? Tekrar gönder
+              </button>
+              
+              {resendStatus && (
+                <p className="text-xs text-muted-foreground animate-fade-in-up">{resendStatus}</p>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+
+        <PricingModal
+          open={showPricingModal}
+          onClose={() => setShowPricingModal(false)}
+          trigger="register"
+        />
+      </>
     );
   }
 

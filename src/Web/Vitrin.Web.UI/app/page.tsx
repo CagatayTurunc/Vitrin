@@ -4,6 +4,7 @@ import { FeaturedProducts } from '@/components/featured-products'
 import { TrendingSection } from '@/components/trending-section'
 import { TopicsSection } from '@/components/topics-section'
 import { HomepagePricingSection } from '@/components/homepage-pricing-section'
+import { UpgradePromoBanner } from '@/components/upgrade-promo-banner'
 import { serverApiFetch } from '@/lib/server-api'
 import type { CursorPage, ProductApiModel } from '@/core/domain/product.types'
 import { generateSEO } from '@/lib/seo'
@@ -47,6 +48,11 @@ export default async function HomePage() {
 
       {/* Featured Products */}
       <FeaturedProducts products={featured?.items ?? []} />
+
+      {/* Upgrade promo — hero variant, FeaturedProducts ile Trending arasında */}
+      <div className="mx-auto max-w-6xl px-4 pb-4">
+        <UpgradePromoBanner variant="hero" />
+      </div>
 
       {/* Trending Section */}
       <div id="trendler">
