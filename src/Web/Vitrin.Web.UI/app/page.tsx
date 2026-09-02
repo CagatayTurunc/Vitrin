@@ -3,6 +3,7 @@ import { LiveDiscoveryTicker } from '@/components/live-discovery-ticker'
 import { FeaturedProducts } from '@/components/featured-products'
 import { TrendingSection } from '@/components/trending-section'
 import { TopicsSection } from '@/components/topics-section'
+import { HomepagePricingSection } from '@/components/homepage-pricing-section'
 import { serverApiFetch } from '@/lib/server-api'
 import type { CursorPage, ProductApiModel } from '@/core/domain/product.types'
 import { generateSEO } from '@/lib/seo'
@@ -56,6 +57,9 @@ export default async function HomePage() {
       <div id="konular">
         <TopicsSection />
       </div>
+
+      {/* Pricing Section */}
+      <HomepagePricingSection />
     </div>
   )
 }

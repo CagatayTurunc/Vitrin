@@ -1,11 +1,15 @@
 using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Vitrin.Auth.Infrastructure.Data;
 
 #nullable disable
 
 namespace Vitrin.Auth.Infrastructure.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(AuthDbContext))]
+    [Migration("20260827135000_AddSubscriptionAndPaymentHistory")]
     public partial class AddSubscriptionAndPaymentHistory : Migration
     {
         /// <inheritdoc />
