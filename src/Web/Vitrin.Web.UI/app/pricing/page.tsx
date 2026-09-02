@@ -91,55 +91,14 @@ export default function PricingPage() {
 
   const handleUpgrade = async (planId: string) => {
     if (!session?.accessToken) {
-      router.push('/login?redirect=/pricing')
+      router.push(`/login?redirect=/checkout/${planId}`)
       return
     }
 
     if (planId === 'free') return
 
-    setLoading(planId)
-    setError(null)
-
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/subscription/checkout`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.accessToken}`,
-          },
-          body: JSON.stringify({ plan: planId }),
-        }
-      )
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { detail?: string }
-        throw new Error(data.detail ?? 'Ödeme başlatılamadı')
-      }
-
-      const data = await res.json() as { checkoutFormContent?: string; paymentPageUrl?: string }
-
-      // İyzico checkout — redirect veya form inject
-      if (data.paymentPageUrl) {
-        window.location.href = data.paymentPageUrl
-      } else if (data.checkoutFormContent) {
-        // İyzico inline form
-        const div = document.createElement('div')
-        div.innerHTML = data.checkoutFormContent
-        document.body.appendChild(div)
-        const script = div.querySelector('script')
-        if (script) {
-          const s = document.createElement('script')
-          s.src = script.src
-          document.body.appendChild(s)
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bir hata oluştu')
-    } finally {
-      setLoading(null)
-    }
+    // Checkout onay sayfasına yönlendir
+    router.push(`/checkout/${planId}`)
   }
 
   return (

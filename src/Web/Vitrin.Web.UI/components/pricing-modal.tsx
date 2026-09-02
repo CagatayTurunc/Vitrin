@@ -72,7 +72,6 @@ interface PricingModalProps {
 export function PricingModal({ open, onClose, trigger = 'manual' }: PricingModalProps) {
   const { data: session } = useSession()
   const router = useRouter()
-  const [loading, setLoading] = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
 
   // Açılış/kapanış animasyonu
@@ -121,38 +120,13 @@ export function PricingModal({ open, onClose, trigger = 'manual' }: PricingModal
 
     if (!session?.accessToken) {
       handleClose()
-      router.push(`/login?redirect=/pricing`)
+      router.push(`/login?redirect=/checkout/${planId}`)
       return
     }
 
-    setLoading(planId)
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/subscription/checkout`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.accessToken}`,
-          },
-          body: JSON.stringify({ tier: planId === 'pro' ? 'Pro' : 'Enterprise' }),
-        }
-      )
-      if (res.ok) {
-        const data = await res.json() as { checkoutUrl?: string }
-        if (data.checkoutUrl) {
-          window.location.href = data.checkoutUrl
-          return
-        }
-      }
-    } catch {
-      // fallback
-    } finally {
-      setLoading(null)
-    }
-
+    // Checkout onay sayfasına yönlendir
     handleClose()
-    router.push('/pricing')
+    router.push(`/checkout/${planId}`)
   }
 
   const headingMap = {
@@ -211,7 +185,6 @@ export function PricingModal({ open, onClose, trigger = 'manual' }: PricingModal
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {PLANS.map((plan) => {
               const Icon = plan.icon
-              const isLoading = loading === plan.id
 
               return (
                 <div
@@ -260,7 +233,7 @@ export function PricingModal({ open, onClose, trigger = 'manual' }: PricingModal
                   {/* CTA */}
                   <button
                     onClick={() => void handlePlanSelect(plan.id)}
-                    disabled={!!loading}
+                    disabled={false}
                     className={`w-full py-2.5 px-4 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-60
                       ${plan.popular
                         ? `bg-gradient-to-r ${plan.gradient} text-white hover:opacity-90 shadow-md`
@@ -270,14 +243,8 @@ export function PricingModal({ open, onClose, trigger = 'manual' }: PricingModal
                       }
                     `}
                   >
-                    {isLoading ? (
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        {plan.cta}
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </>
-                    )}
+                    {plan.cta}
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )
