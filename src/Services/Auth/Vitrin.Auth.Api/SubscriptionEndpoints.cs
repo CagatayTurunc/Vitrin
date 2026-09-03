@@ -148,13 +148,17 @@ public static class SubscriptionEndpoints
 
             if (!paymentResult.Success || paymentResult.Status != PaymentStatus.Success)
             {
+                var errorDetail = paymentResult.ErrorMessage ?? "payment_failed";
+                logger.LogWarning("Payment callback failed: Status={Status}, Error={Error}, PaymentId={PaymentId}",
+                    paymentResult.Status, errorDetail, paymentResult.PaymentId);
+
                 await auditLogger.WriteAsync(
                     new AuditEvent("subscription.payment_failed", null, "Payment", paymentResult.PaymentId,
-                        "Failed", context.TraceIdentifier, paymentResult.ErrorMessage),
+                        "Failed", context.TraceIdentifier, errorDetail),
                     context.RequestAborted);
 
                 var baseUrl2 = app.Configuration["AppBaseUrl"] ?? "https://vitrin.it.com";
-                return Results.Redirect($"{baseUrl2}/subscription/failed?error={Uri.EscapeDataString(paymentResult.ErrorMessage ?? "payment_failed")}");
+                return Results.Redirect($"{baseUrl2}/subscription/failed?error={Uri.EscapeDataString(errorDetail)}");
             }
 
             // Parse conversation ID to get user ID (we set BasketId = UserId in CreateCheckoutSessionAsync)

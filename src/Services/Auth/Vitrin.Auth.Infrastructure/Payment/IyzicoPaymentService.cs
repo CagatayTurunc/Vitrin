@@ -180,12 +180,20 @@ public sealed class IyzicoPaymentService : IPaymentService
             var response = await Task.Run(() => 
                 CheckoutForm.Retrieve(request, _options), ct);
 
-            var status = response.PaymentStatus switch
+            var status = response.PaymentStatus?.ToUpperInvariant() switch
             {
                 "SUCCESS" => PaymentStatus.Success,
                 "FAILURE" => PaymentStatus.Failure,
                 _ => PaymentStatus.Pending
             };
+
+            // iyzico checkout form için alternatif başarı kontrolü
+            // response.Status == "success" ve PaymentId doluysa başarılıdır
+            var isSuccess = status == PaymentStatus.Success
+                || (response.Status?.ToLowerInvariant() == "success" 
+                    && !string.IsNullOrWhiteSpace(response.PaymentId));
+            
+            if (isSuccess) status = PaymentStatus.Success;
 
             _logger.LogInformation(
                 "Payment retrieved: PaymentId={PaymentId}, Status={Status}",
@@ -195,10 +203,10 @@ public sealed class IyzicoPaymentService : IPaymentService
                 Success: status == PaymentStatus.Success,
                 PaymentId: response.PaymentId ?? string.Empty,
                 ConversationId: response.ConversationId ?? string.Empty,
-                PaidPrice: decimal.Parse(response.PaidPrice ?? "0"),
+                PaidPrice: decimal.TryParse(response.PaidPrice, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var paid) ? paid : 0m,
                 Currency: response.Currency ?? "TRY",
                 Status: status,
-                ErrorMessage: status == PaymentStatus.Failure ? response.ErrorMessage : null);
+                ErrorMessage: status != PaymentStatus.Success ? (response.ErrorMessage ?? response.PaymentStatus) : null);
         }
         catch (Exception ex)
         {
