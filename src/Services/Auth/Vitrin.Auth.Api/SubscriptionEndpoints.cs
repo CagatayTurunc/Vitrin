@@ -119,17 +119,24 @@ public static class SubscriptionEndpoints
             });
         }).RequireAuthorization();
 
-        // GET /api/subscription/callback
-        // İyzico redirects here after payment completion
-        app.MapGet("/api/subscription/callback", async (
+        // POST /api/subscription/callback
+        // İyzico 3D Secure sonrası token'ı POST body'de form-urlencoded olarak gönderir
+        app.MapPost("/api/subscription/callback", async (
             HttpContext context,
-            string? token,
             IPaymentService paymentService,
             AuthDbContext db,
             IAuditLogger auditLogger,
             IEventPublisher eventPublisher,
             IAccountEmailService emailService) =>
         {
+            // iyzico token'ı hem query string hem de POST form body'de gönderebilir
+            string? token = context.Request.Query["token"];
+            if (string.IsNullOrWhiteSpace(token) && context.Request.HasFormContentType)
+            {
+                var form = await context.Request.ReadFormAsync(context.RequestAborted);
+                token = form["token"];
+            }
+
             if (string.IsNullOrWhiteSpace(token))
             {
                 var baseUrl = app.Configuration["AppBaseUrl"] ?? "https://vitrin.it.com";
