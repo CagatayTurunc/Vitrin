@@ -97,6 +97,7 @@ public record PaymentResult(
     bool Success,
     string PaymentId,
     string ConversationId,
+    string BasketId,
     decimal PaidPrice,
     string Currency,
     PaymentStatus Status,

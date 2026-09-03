@@ -148,7 +148,8 @@ public static class SubscriptionEndpoints
 
             if (!paymentResult.Success || paymentResult.Status != PaymentStatus.Success)
             {
-                var errorDetail = paymentResult.ErrorMessage ?? "payment_failed";
+                var errorDetail = paymentResult.ErrorMessage 
+                    ?? $"status_{paymentResult.Status}";
                 logger.LogWarning("Payment callback failed: Status={Status}, Error={Error}, PaymentId={PaymentId}",
                     paymentResult.Status, errorDetail, paymentResult.PaymentId);
 
@@ -158,14 +159,24 @@ public static class SubscriptionEndpoints
                     context.RequestAborted);
 
                 var baseUrl2 = app.Configuration["AppBaseUrl"] ?? "https://vitrin.it.com";
-                return Results.Redirect($"{baseUrl2}/subscription/failed?error={Uri.EscapeDataString(errorDetail)}");
+                return Results.Redirect($"{baseUrl2}/subscription/failed?error={Uri.EscapeDataString(errorDetail)}&status={paymentResult.Status}");
             }
 
-            // Parse conversation ID to get user ID (we set BasketId = UserId in CreateCheckoutSessionAsync)
-            if (!Guid.TryParse(paymentResult.ConversationId, out var userId))
+            // BasketId = UserId olarak set etmiştik (CreateCheckoutSessionAsync'te BasketId = userId)
+            // iyzico bunu response'da BasketId olarak geri döndürür
+            var userIdStr = paymentResult.BasketId;
+            if (string.IsNullOrWhiteSpace(userIdStr))
             {
+                // Fallback: ConversationId'yi dene (eski format için)
+                userIdStr = paymentResult.ConversationId;
+            }
+
+            if (!Guid.TryParse(userIdStr, out var userId))
+            {
+                logger.LogError("Cannot parse userId from BasketId={BasketId} or ConversationId={ConvId}",
+                    paymentResult.BasketId, paymentResult.ConversationId);
                 var baseUrl3 = app.Configuration["AppBaseUrl"] ?? "https://vitrin.it.com";
-                return Results.Redirect($"{baseUrl3}/subscription/failed?error=invalid_conversation_id");
+                return Results.Redirect($"{baseUrl3}/subscription/failed?error=invalid_user_id");
             }
 
             // Get or create subscription
@@ -185,7 +196,7 @@ public static class SubscriptionEndpoints
             
             subscription.Upgrade(
                 newTier: tier,
-                iyzicoCustomerId: paymentResult.ConversationId,
+                iyzicoCustomerId: paymentResult.PaymentId,   // iyzico cardUserKey yoksa paymentId sakla
                 iyzicoSubscriptionId: paymentResult.PaymentId,
                 paymentMethod: DomainPaymentMethod.CreditCard);
 

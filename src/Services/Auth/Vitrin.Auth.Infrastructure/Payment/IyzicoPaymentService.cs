@@ -196,13 +196,18 @@ public sealed class IyzicoPaymentService : IPaymentService
             if (isSuccess) status = PaymentStatus.Success;
 
             _logger.LogInformation(
-                "Payment retrieved: PaymentId={PaymentId}, Status={Status}",
-                response.PaymentId, status);
+                "Payment retrieve response: Status={Status}, PaymentStatus={PaymentStatus}, " +
+                "PaymentId={PaymentId}, ConversationId={ConversationId}, PaidPrice={PaidPrice}, " +
+                "ErrorCode={ErrorCode}, ErrorMessage={ErrorMessage}",
+                response.Status, response.PaymentStatus,
+                response.PaymentId, response.ConversationId,
+                response.PaidPrice, response.ErrorCode, response.ErrorMessage);
 
             return new PaymentResult(
                 Success: status == PaymentStatus.Success,
                 PaymentId: response.PaymentId ?? string.Empty,
                 ConversationId: response.ConversationId ?? string.Empty,
+                BasketId: response.BasketId ?? string.Empty,
                 PaidPrice: decimal.TryParse(response.PaidPrice, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var paid) ? paid : 0m,
                 Currency: response.Currency ?? "TRY",
                 Status: status,
@@ -215,6 +220,7 @@ public sealed class IyzicoPaymentService : IPaymentService
                 Success: false,
                 PaymentId: string.Empty,
                 ConversationId: string.Empty,
+                BasketId: string.Empty,
                 PaidPrice: 0,
                 Currency: "TRY",
                 Status: PaymentStatus.Failure,
