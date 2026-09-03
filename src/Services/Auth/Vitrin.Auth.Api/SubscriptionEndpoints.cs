@@ -1,3 +1,5 @@
+// AppBaseUrl: appsettings.json → appsettings.Docker.json → env var APP_BASE_URL
+// Callback URL hiçbir zaman Docker internal host olmamalı (vitrin-auth:8080)
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -74,9 +76,11 @@ public static class SubscriptionEndpoints
             }
 
             // Create checkout session
-            // CallbackUrl: config'den al, yoksa request host'u kullan
-            var appBaseUrl = app.Configuration["AppBaseUrl"] 
-                ?? $"{context.Request.Scheme}://{context.Request.Host}";
+            // CallbackUrl: config'den al. Docker internal host'un callback URL'i olarak
+            // kullanılmasını önlemek için request host'a asla fallback yapma.
+            var appBaseUrl = app.Configuration["AppBaseUrl"]
+                ?? app.Configuration["Email:AppBaseUrl"]
+                ?? "https://vitrin.it.com";
             var checkoutRequest = new CheckoutSessionRequest(
                 UserId: userId.Value,
                 Email: user.Email,
