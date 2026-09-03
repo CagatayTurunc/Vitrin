@@ -387,6 +387,8 @@ services:
       Iyzico__SecretKey: ${IYZICO_SECRET_KEY:-}
       Iyzico__BaseUrl: ${IYZICO_BASE_URL:-https://sandbox-api.iyzipay.com}
       Iyzico__WebhookSecret: ${IYZICO_WEBHOOK_SECRET:-}
+      # Public base URL (iyzico callback için)
+      AppBaseUrl: ${APP_BASE_URL:-https://vitrin.it.com}
       # Observability
       OpenTelemetry__ServiceName: "Vitrin.Auth"
       OpenTelemetry__ServiceVersion: "1.0.0"

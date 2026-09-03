@@ -74,13 +74,16 @@ public static class SubscriptionEndpoints
             }
 
             // Create checkout session
+            // CallbackUrl: config'den al, yoksa request host'u kullan
+            var appBaseUrl = app.Configuration["AppBaseUrl"] 
+                ?? $"{context.Request.Scheme}://{context.Request.Host}";
             var checkoutRequest = new CheckoutSessionRequest(
                 UserId: userId.Value,
                 Email: user.Email,
                 FullName: user.FullName ?? user.Username,
                 PhoneNumber: "+905555555555", // Default for sandbox testing
                 Tier: request.Tier,
-                CallbackUrl: $"{context.Request.Scheme}://{context.Request.Host}/api/subscription/callback",
+                CallbackUrl: $"{appBaseUrl}/api/subscription/callback",
                 DiscountAmount: discountAmount,
                 CouponCode: request.CouponCode?.ToUpperInvariant().Trim());
 
@@ -125,7 +128,8 @@ public static class SubscriptionEndpoints
         {
             if (string.IsNullOrWhiteSpace(token))
             {
-                return Results.Redirect("/subscription/failed?error=missing_token");
+                var baseUrl = app.Configuration["AppBaseUrl"] ?? "https://vitrin.it.com";
+                return Results.Redirect($"{baseUrl}/subscription/failed?error=missing_token");
             }
 
             // Retrieve payment result from İyzico
@@ -138,13 +142,15 @@ public static class SubscriptionEndpoints
                         "Failed", context.TraceIdentifier, paymentResult.ErrorMessage),
                     context.RequestAborted);
 
-                return Results.Redirect($"/subscription/failed?error={paymentResult.ErrorMessage}");
+                var baseUrl2 = app.Configuration["AppBaseUrl"] ?? "https://vitrin.it.com";
+                return Results.Redirect($"{baseUrl2}/subscription/failed?error={Uri.EscapeDataString(paymentResult.ErrorMessage ?? "payment_failed")}");
             }
 
             // Parse conversation ID to get user ID (we set BasketId = UserId in CreateCheckoutSessionAsync)
             if (!Guid.TryParse(paymentResult.ConversationId, out var userId))
             {
-                return Results.Redirect("/subscription/failed?error=invalid_conversation_id");
+                var baseUrl3 = app.Configuration["AppBaseUrl"] ?? "https://vitrin.it.com";
+                return Results.Redirect($"{baseUrl3}/subscription/failed?error=invalid_conversation_id");
             }
 
             // Get or create subscription
@@ -230,7 +236,7 @@ public static class SubscriptionEndpoints
                     "Succeeded", context.TraceIdentifier, tier.ToString()),
                 context.RequestAborted);
 
-            return Results.Redirect($"/subscription/success?tier={tier}");
+            return Results.Redirect($"{app.Configuration["AppBaseUrl"] ?? "https://vitrin.it.com"}/subscription/success?tier={tier}");
         });
 
         // GET /api/subscription/me
