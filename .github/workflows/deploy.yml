@@ -368,6 +368,8 @@ jobs:
             update_env "IYZICO_WEBHOOK_SECRET" "${{ secrets.IYZICO_WEBHOOK_SECRET }}"
             echo "✅ .env iyzico key'leri güncellendi"
 
+            # ── Rollback için mevcut image tag'lerini kaydet ──────────────
+
             # Rollback için mevcut image tag'lerini kaydet
             echo "=== Mevcut image tag'leri kaydediliyor (rollback için) ==="
             docker inspect vitrin-auth    --format='{{index .Config.Image}}' 2>/dev/null > /tmp/prev_auth_image    || echo "unknown" > /tmp/prev_auth_image
@@ -404,7 +406,7 @@ jobs:
               local service=$1
               local container=$2
               echo "--- $service yeniden başlatılıyor ---"
-              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps "$service"
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --force-recreate "$service"
               sleep 3
               health_check_container "$container"
             }
@@ -420,7 +422,7 @@ jobs:
 
             # Web servisi Next.js, farklı port
             echo "--- vitrin-web yeniden başlatılıyor ---"
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps vitrin-web
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --force-recreate vitrin-web
             sleep 5
             WEB_HEALTHY=false
             for i in {1..24}; do
