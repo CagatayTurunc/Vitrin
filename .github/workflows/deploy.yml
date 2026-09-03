@@ -420,6 +420,7 @@ jobs:
             update_env "IYZICO_SECRET_KEY"    "${{ secrets.IYZICO_SECRET_KEY }}"
             update_env "IYZICO_BASE_URL"      "${{ secrets.IYZICO_BASE_URL }}"
             update_env "IYZICO_WEBHOOK_SECRET" "${{ secrets.IYZICO_WEBHOOK_SECRET }}"
+            update_env "APP_BASE_URL"          "https://vitrin.it.com"
             echo "✅ .env iyzico key'leri güncellendi"
 
             # ── Rollback için mevcut image tag'lerini kaydet ──────────────
