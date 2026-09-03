@@ -27,7 +27,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
+      changed_services: ${{ steps.changes.outputs.changed_services }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
       - name: Commit mesajını kontrol et
         id: check
         run: |
@@ -39,6 +44,44 @@ jobs:
             echo "should_deploy=false" >> $GITHUB_OUTPUT
             echo "⏭️ Sadece test çalışacak (commit'e [deploy] ekle)"
           fi
+
+      - name: Hangi servisler değişti?
+        id: changes
+        run: |
+          # [deploy:all] varsa hepsini build et
+          MSG="${{ github.event.head_commit.message }}"
+          if [[ "$MSG" == *"[deploy:all]"* ]]; then
+            echo "changed_services=auth,product,voting,comment,notification,analytics,ai,gateway,web" >> $GITHUB_OUTPUT
+            echo "🔄 Tüm servisler build edilecek"
+            exit 0
+          fi
+
+          # Değişen dosyalara göre servis tespiti
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+          SERVICES=""
+
+          has_change() { echo "$CHANGED" | grep -q "^$1" && return 0 || return 1; }
+          add_svc()    { SERVICES="${SERVICES:+$SERVICES,}$1"; }
+
+          has_change "src/Services/Auth/"        && add_svc "auth"
+          has_change "src/Services/Product/"     && add_svc "product"
+          has_change "src/Services/Voting/"      && add_svc "voting"
+          has_change "src/Services/Comment/"     && add_svc "comment"
+          has_change "src/Services/Notification/" && add_svc "notification"
+          has_change "src/Services/Analytics/"   && add_svc "analytics"
+          has_change "src/Services/Ai/"          && add_svc "ai"
+          has_change "src/Gateways/"             && add_svc "gateway"
+          has_change "src/Web/"                  && add_svc "web"
+          has_change "src/Shared/"               && SERVICES="auth,product,voting,comment,notification,analytics,ai,gateway"
+
+          # Hiç servis değişmemişse (sadece config/docs) → hepsini build et
+          if [ -z "$SERVICES" ]; then
+            SERVICES="auth,product,voting,comment,notification,analytics,ai,gateway,web"
+            echo "⚠️  Servis tespiti yapılamadı, tüm servisler build edilecek"
+          fi
+
+          echo "changed_services=$SERVICES" >> $GITHUB_OUTPUT
+          echo "✅ Build edilecek servisler: $SERVICES"
 
   # ============================================================
   # 1. TEST
@@ -143,7 +186,6 @@ jobs:
       contents: read
       packages: write
     outputs:
-      # Deploy job'unda hangi tag'i pull edeceğimizi bilmek için
       image_tag: ${{ steps.meta.outputs.short_sha }}
     strategy:
       matrix:
@@ -171,6 +213,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Bu servis değişti mi?
+        id: should_build
+        run: |
+          CHANGED="${{ needs.check-deploy.outputs.changed_services }}"
+          if echo "$CHANGED" | grep -q "\b${{ matrix.service.name }}\b"; then
+            echo "build=true" >> $GITHUB_OUTPUT
+            echo "✅ ${{ matrix.service.name }} build edilecek"
+          else
+            echo "build=false" >> $GITHUB_OUTPUT
+            echo "⏭️ ${{ matrix.service.name }} atlanıyor (değişiklik yok)"
+          fi
+
       - name: Image tag hesapla (commit SHA kısa)
         id: meta
         run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
@@ -180,6 +234,7 @@ jobs:
         run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: GHCR Login
+        if: steps.should_build.outputs.build == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -187,16 +242,15 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Buildx
+        if: steps.should_build.outputs.build == 'true'
         uses: docker/setup-buildx-action@v3
         with:
           driver-opts: |
             network=host
             image=moby/buildkit:latest
 
-      # Her image iki tag ile push edilir:
-      # 1. ghcr.io/.../vitrin-auth:a1b2c3d  → rollback/traceability için
-      # 2. ghcr.io/.../vitrin-auth:latest    → docker-compose.prod.yml uyumluluğu için
       - name: Build & Push ${{ matrix.service.name }}
+        if: steps.should_build.outputs.build == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.service.context || '.' }}
