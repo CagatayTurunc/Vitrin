@@ -351,6 +351,23 @@ jobs:
 
             cd ~/vitrin
 
+            # ── .env dosyasındaki eksik değerleri tamamla ──────────────────
+            # GitHub Secrets'tan kritik key'leri güncelle (sadece boşsa yaz)
+            update_env() {
+              local key=$1
+              local value=$2
+              if [ -z "$value" ]; then return; fi
+              # Mevcut değeri sil, yeni değeri yaz
+              sed -i "/^${key}=/d" .env
+              echo "${key}=${value}" >> .env
+            }
+
+            update_env "IYZICO_API_KEY"       "${{ secrets.IYZICO_API_KEY }}"
+            update_env "IYZICO_SECRET_KEY"    "${{ secrets.IYZICO_SECRET_KEY }}"
+            update_env "IYZICO_BASE_URL"      "${{ secrets.IYZICO_BASE_URL }}"
+            update_env "IYZICO_WEBHOOK_SECRET" "${{ secrets.IYZICO_WEBHOOK_SECRET }}"
+            echo "✅ .env iyzico key'leri güncellendi"
+
             # Rollback için mevcut image tag'lerini kaydet
             echo "=== Mevcut image tag'leri kaydediliyor (rollback için) ==="
             docker inspect vitrin-auth    --format='{{index .Config.Image}}' 2>/dev/null > /tmp/prev_auth_image    || echo "unknown" > /tmp/prev_auth_image
