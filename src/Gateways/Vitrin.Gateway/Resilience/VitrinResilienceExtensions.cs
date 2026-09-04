@@ -57,6 +57,19 @@ public static class VitrinResilienceExtensions
                 ConfigurePipeline(pipeline, opts, "tolerant");
             });
 
+        // ── Payment cluster (Subscription callback) ───────────────────────────
+        // Ödeme callback'leri Iyzico sandbox/prod API'sine dış çağrı yaptığı için
+        // uzun timeout gerektirir. Retry OLMAMALI — aynı token birden fazla işlenirse
+        // çift ödeme kaydı oluşur.
+        services
+            .AddHttpClient(ResilienceClientNames.Payment)
+            .AddResilienceHandler(ResilienceClientNames.Payment, pipeline =>
+            {
+                var opts = section.GetSection("Payment").Get<ResilienceOptions>()
+                           ?? ResilienceOptions.Payment;
+                ConfigurePipeline(pipeline, opts, "payment");
+            });
+
         return services;
     }
 
@@ -123,6 +136,7 @@ public static class ResilienceClientNames
     public const string Critical = "Vitrin.Critical";
     public const string Voting   = "Vitrin.Voting";
     public const string Tolerant = "Vitrin.Tolerant";
+    public const string Payment  = "Vitrin.Payment";
 }
 
 /// <summary>
@@ -178,6 +192,21 @@ public sealed class ResilienceOptions
         CbSamplingSeconds   = 60,
         CbMinimumThroughput = 3,
         CbFailureRatio      = 0.7,
+        CbBreakSeconds      = 60
+    };
+
+    /// <summary>
+    /// Payment callback — Iyzico dış API çağrısı içerir, uzun timeout gerekir.
+    /// Retry = 0: aynı token tekrar işlenirse çift ödeme kaydı oluşur.
+    /// </summary>
+    public static readonly ResilienceOptions Payment = new()
+    {
+        TimeoutSeconds      = 30,
+        RetryCount          = 0,
+        RetryBaseDelayMs    = 0,
+        CbSamplingSeconds   = 60,
+        CbMinimumThroughput = 3,
+        CbFailureRatio      = 0.8,
         CbBreakSeconds      = 60
     };
 }

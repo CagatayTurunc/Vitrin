@@ -21,6 +21,7 @@ public sealed class ResilienceForwarderHttpClientFactory : IForwarderHttpClientF
         new(StringComparer.OrdinalIgnoreCase)
         {
             ["auth-cluster"]         = ResilienceClientNames.Critical,
+            ["auth-payment-cluster"] = ResilienceClientNames.Payment,
             ["product-cluster"]      = ResilienceClientNames.Critical,
             ["comment-cluster"]      = ResilienceClientNames.Critical,
             ["vote-cluster"]         = ResilienceClientNames.Voting,
