@@ -119,15 +119,15 @@ public static class SubscriptionEndpoints
             });
         }).RequireAuthorization();
 
-        // POST /api/subscription/callback
+        // POST /api/subscription/callback  (+ /callbacksandbox alias for sandbox testing)
         // İyzico 3D Secure sonrası token'ı POST body'de form-urlencoded olarak gönderir
-        app.MapPost("/api/subscription/callback", async (
+        async Task<IResult> HandleCallbackAsync(
             HttpContext context,
             IPaymentService paymentService,
             AuthDbContext db,
             IAuditLogger auditLogger,
             IEventPublisher eventPublisher,
-            IAccountEmailService emailService) =>
+            IAccountEmailService emailService)
         {
             // iyzico token'ı hem query string hem de POST form body'de gönderebilir
             string? token = context.Request.Query["token"];
@@ -263,7 +263,11 @@ public static class SubscriptionEndpoints
                 context.RequestAborted);
 
             return Results.Redirect($"{app.Configuration["AppBaseUrl"] ?? "https://vitrin.it.com"}/subscription/success?tier={tier}");
-        });
+        }
+
+        app.MapPost("/api/subscription/callback", HandleCallbackAsync);
+        // Sandbox testleri için alias — Iyzico sandbox panelinde bu URL kullanılabilir
+        app.MapPost("/api/subscription/callbacksandbox", HandleCallbackAsync);
 
         // GET /api/subscription/me
         // Get current user's subscription
