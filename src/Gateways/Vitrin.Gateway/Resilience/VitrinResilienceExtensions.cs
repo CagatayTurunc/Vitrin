@@ -80,10 +80,12 @@ public static class VitrinResilienceExtensions
     {
         pipeline
             // 1. Timeout — bireysel istek timeout'u (retry başına uygulanır)
-            .AddTimeout(TimeSpan.FromSeconds(opts.TimeoutSeconds))
+            .AddTimeout(TimeSpan.FromSeconds(opts.TimeoutSeconds));
 
-            // 2. Retry — sadece geçici/ağ hatalarında; 4xx'e retry yok
-            .AddRetry(new HttpRetryStrategyOptions
+        // 2. Retry — Payment profili gibi RetryCount=0 olanlar için retry ekleme
+        if (opts.RetryCount > 0)
+        {
+            pipeline.AddRetry(new HttpRetryStrategyOptions
             {
                 MaxRetryAttempts = opts.RetryCount,
                 Delay            = TimeSpan.FromMilliseconds(opts.RetryBaseDelayMs),
@@ -92,8 +94,10 @@ public static class VitrinResilienceExtensions
                 ShouldHandle     = static args =>
                     ValueTask.FromResult(
                         HttpClientResiliencePredicates.IsTransient(args.Outcome))
-            })
+            });
+        }
 
+        pipeline
             // 3. Circuit Breaker — en dışta; eşik aşılınca tüm istekleri keser
             .AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
             {
