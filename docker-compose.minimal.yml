@@ -1,0 +1,192 @@
+# ==============================================================
+# Vitrin - Minimal Docker Compose (Geliştirme için)
+# Kullanım: docker compose -f docker-compose.minimal.yml up -d
+# ==============================================================
+# Bu dosya sadece gerekli servisleri çalıştırır:
+# - PostgreSQL (veritabanı)
+# - Redis (cache)
+# - Frontend (Next.js)
+# - Gateway (API Gateway)
+# - Auth (kimlik doğrulama)
+# ==============================================================
+
+services:
+
+  # ============================================================
+  # ALTYAPI SERVİSLERİ (Sadece Gerekli Olanlar)
+  # ============================================================
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: vitrin-postgres
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: vitrin_auth
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: vitrin-redis
+    restart: unless-stopped
+    command: >
+      sh -c "
+        if [ -n \"$$REDIS_PASSWORD\" ]; then
+          redis-server --requirepass $$REDIS_PASSWORD
+        else
+          redis-server
+        fi
+      "
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: >
+        sh -c "
+          if [ -n \"$$REDIS_PASSWORD\" ]; then
+            redis-cli -a $$REDIS_PASSWORD ping
+          else
+            redis-cli ping
+          fi
+        "
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ============================================================
+  # UYGULAMA SERVİSLERİ (Minimal)
+  # ============================================================
+
+  vitrin-auth:
+    build:
+      context: .
+      dockerfile: src/Services/Auth/Vitrin.Auth.Api/Dockerfile
+    container_name: vitrin-auth
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=vitrin_auth;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      ConnectionStrings__Redis: "${REDIS_PASSWORD:+redis:6379,password=${REDIS_PASSWORD}}${REDIS_PASSWORD:-redis:6379}"
+      Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
+      Jwt__Issuer: Vitrin
+      Jwt__Audience: Vitrin
+      OAuth__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
+      Email__AppBaseUrl: ${EMAIL_APP_BASE_URL:-http://localhost:3001}
+      Email__From: ${EMAIL_FROM:-Vitrin <onboarding@resend.dev>}
+      Email__TokenSecret: ${EMAIL_TOKEN_SECRET:-}
+      Email__Resend__ApiKey: ${RESEND_API_KEY:-}
+      Iyzico__ApiKey: ${IYZICO_API_KEY:-}
+      Iyzico__SecretKey: ${IYZICO_SECRET_KEY:-}
+      Iyzico__BaseUrl: ${IYZICO_BASE_URL:-https://sandbox-api.iyzipay.com}
+      Iyzico__WebhookSecret: ${IYZICO_WEBHOOK_SECRET:-}
+      # Observability kapalı
+      Serilog__MinimumLevel: ${LOG_LEVEL:-Warning}
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================================
+  # GATEWAY
+  # ============================================================
+
+  vitrin-gateway:
+    build:
+      context: .
+      dockerfile: src/Gateways/Vitrin.Gateway/Dockerfile
+    container_name: vitrin-gateway
+    restart: unless-stopped
+    ports:
+      - "5000:8080"
+    depends_on:
+      vitrin-auth:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      Jwt__Secret: ${JWT_SECRET:?JWT_SECRET is required}
+      Jwt__Issuer: Vitrin
+      Jwt__Audience: Vitrin
+      ConnectionStrings__Redis: "${REDIS_PASSWORD:+redis:6379,password=${REDIS_PASSWORD}}${REDIS_PASSWORD:-redis:6379}"
+    networks:
+      - vitrin-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================================
+  # FRONTEND
+  # ============================================================
+
+  vitrin-web:
+    build:
+      context: .
+      dockerfile: src/Web/Vitrin.Web.UI/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ""
+        NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:-}
+        NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET:-}
+    container_name: vitrin-web
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    depends_on:
+      vitrin-gateway:
+        condition: service_healthy
+    environment:
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3003}
+      INTERNAL_API_URL: http://vitrin-gateway:8080
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    networks:
+      - vitrin-network
+
+# ============================================================
+# AĞLAR
+# ============================================================
+
+networks:
+  vitrin-network:
+    driver: bridge
+
+# ============================================================
+# VOLUMELER
+# ============================================================
+
+volumes:
+  postgres_data:
+    name: vitrin_postgres_data
+  redis_data:
+    name: vitrin_redis_data

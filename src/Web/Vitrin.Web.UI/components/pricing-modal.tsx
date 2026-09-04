@@ -62,14 +62,25 @@ const PLANS = [
   },
 ]
 
+type SubscriptionTier = 'Free' | 'Pro' | 'Enterprise'
+
+// PLANS id → tier eşleşmesi
+const PLAN_ID_TO_TIER: Record<string, SubscriptionTier> = {
+  free: 'Free',
+  pro: 'Pro',
+  enterprise: 'Enterprise',
+}
+
 interface PricingModalProps {
   open: boolean
   onClose: () => void
   /** Modalı kim tetikledi: 'login' | 'register' | 'manual' */
   trigger?: 'login' | 'register' | 'manual'
+  /** Kullanıcının şu anki abonelik planı — bilinmiyorsa 'Free' varsayılır */
+  currentTier?: SubscriptionTier
 }
 
-export function PricingModal({ open, onClose, trigger = 'manual' }: PricingModalProps) {
+export function PricingModal({ open, onClose, trigger = 'manual', currentTier = 'Free' }: PricingModalProps) {
   const { data: session } = useSession()
   const router = useRouter()
   const [visible, setVisible] = useState(false)
@@ -112,6 +123,15 @@ export function PricingModal({ open, onClose, trigger = 'manual' }: PricingModal
   if (!open) return null
 
   const handlePlanSelect = async (planId: string) => {
+    const tier = PLAN_ID_TO_TIER[planId]
+
+    // Zaten bu plandaysa kapat
+    if (tier === currentTier) {
+      handleClose()
+      router.push('/')
+      return
+    }
+
     if (planId === 'free') {
       handleClose()
       router.push('/')
@@ -130,11 +150,23 @@ export function PricingModal({ open, onClose, trigger = 'manual' }: PricingModal
   }
 
   const headingMap = {
-    login: { title: 'Vitrina Hoş Geldin! 🎉', sub: 'Planını seç ve topluluğa katıl.' },
-    register: { title: 'Hesabın hazır!', sub: 'Bir plan seçerek başla. İstediğin zaman değiştirebilirsin.' },
-    manual: { title: 'Planını Seç', sub: 'Her seviyeye uygun bir planımız var.' },
+    login: {
+      Free: { title: 'Vitrina Hoş Geldin! 🎉', sub: 'Planını seç ve topluluğa katıl.' },
+      Pro: { title: 'Tekrar Hoş Geldin! 🏆', sub: 'Pro Maker planınla tüm özellikler aktif.' },
+      Enterprise: { title: 'Tekrar Hoş Geldin! 💎', sub: 'Enterprise planınla tam güçte çalışıyorsun.' },
+    },
+    register: {
+      Free: { title: 'Hesabın hazır!', sub: 'Bir plan seçerek başla. İstediğin zaman değiştirebilirsin.' },
+      Pro: { title: 'Hesabın hazır!', sub: 'Pro Maker planınla tüm özellikler senin için aktif.' },
+      Enterprise: { title: 'Hesabın hazır!', sub: 'Enterprise planınla tam gücünle başlıyorsun.' },
+    },
+    manual: {
+      Free: { title: 'Planını Seç', sub: 'Her seviyeye uygun bir planımız var.' },
+      Pro: { title: 'Planını Yönet', sub: 'Mevcut planın: Pro Maker. Dilersen yükseltebilirsin.' },
+      Enterprise: { title: 'Planını Yönet', sub: 'Mevcut planın: Enterprise. En yüksek plandaki avantajlar senin.' },
+    },
   }
-  const heading = headingMap[trigger]
+  const heading = headingMap[trigger][currentTier]
 
   return (
     <div
@@ -185,18 +217,39 @@ export function PricingModal({ open, onClose, trigger = 'manual' }: PricingModal
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {PLANS.map((plan) => {
               const Icon = plan.icon
+              const isCurrentPlan = PLAN_ID_TO_TIER[plan.id] === currentTier
+              const isDowngrade =
+                (currentTier === 'Enterprise' && plan.id !== 'enterprise') ||
+                (currentTier === 'Pro' && plan.id === 'free')
+
+              const ctaLabel = isCurrentPlan
+                ? 'Mevcut Planın ✓'
+                : isDowngrade
+                ? 'Düşür'
+                : plan.cta
 
               return (
                 <div
                   key={plan.id}
                   className={`relative flex flex-col rounded-2xl border-2 p-5 transition-all duration-200 hover:-translate-y-0.5 ${
-                    plan.popular
+                    isCurrentPlan
+                      ? `border-green-500/60 bg-gradient-to-b from-green-500/5 to-emerald-500/5 shadow-lg shadow-green-500/10`
+                      : plan.popular
                       ? `${plan.borderClass} bg-gradient-to-b from-blue-500/5 to-purple-500/5 shadow-lg shadow-blue-500/10`
                       : `${plan.borderClass} bg-card hover:shadow-md`
                   }`}
                 >
-                  {/* Popüler rozeti */}
-                  {plan.popular && (
+                  {/* Mevcut plan rozeti */}
+                  {isCurrentPlan && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 text-white text-[11px] font-bold">
+                        ✓ Mevcut Planın
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Popüler rozeti — mevcut plan değilse göster */}
+                  {plan.popular && !isCurrentPlan && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                       <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white text-[11px] font-bold">
                         <Star className="w-2.5 h-2.5 fill-current" />
@@ -233,18 +286,20 @@ export function PricingModal({ open, onClose, trigger = 'manual' }: PricingModal
                   {/* CTA */}
                   <button
                     onClick={() => void handlePlanSelect(plan.id)}
-                    disabled={false}
-                    className={`w-full py-2.5 px-4 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-60
-                      ${plan.popular
-                        ? `bg-gradient-to-r ${plan.gradient} text-white hover:opacity-90 shadow-md`
+                    disabled={isCurrentPlan}
+                    className={`w-full py-2.5 px-4 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200 disabled:cursor-default
+                      ${isCurrentPlan
+                        ? 'bg-green-500/10 text-green-600 border-2 border-green-500/40 dark:text-green-400'
+                        : plan.popular
+                        ? `bg-gradient-to-r ${plan.gradient} text-white hover:opacity-90 shadow-md disabled:opacity-60`
                         : plan.id === 'enterprise'
-                        ? `bg-gradient-to-r ${plan.gradient} text-white hover:opacity-90`
-                        : 'bg-muted text-foreground hover:bg-muted/80 border border-border'
+                        ? `bg-gradient-to-r ${plan.gradient} text-white hover:opacity-90 disabled:opacity-60`
+                        : 'bg-muted text-foreground hover:bg-muted/80 border border-border disabled:opacity-60'
                       }
                     `}
                   >
-                    {plan.cta}
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    {ctaLabel}
+                    {!isCurrentPlan && <ArrowRight className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               )

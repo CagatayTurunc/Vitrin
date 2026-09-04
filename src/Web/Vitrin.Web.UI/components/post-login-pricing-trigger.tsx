@@ -5,6 +5,13 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { PricingModal } from './pricing-modal'
 
+type SubscriptionTier = 'Free' | 'Pro' | 'Enterprise'
+
+interface SubscriptionInfo {
+  tier: SubscriptionTier
+  status: string
+}
+
 /**
  * Login sonrası ?showPricing=1 param'ı varsa pricing modal'ını açar.
  * Layout'a ya da herhangi bir istemci bileşenine mount edilir.
@@ -15,17 +22,37 @@ export function PostLoginPricingTrigger() {
   const pathname = usePathname()
   const { data: session, status } = useSession()
   const [open, setOpen] = useState(false)
+  const [currentTier, setCurrentTier] = useState<SubscriptionTier>('Free')
 
   useEffect(() => {
     // Oturum yüklendikten sonra kontrol et
     if (status !== 'authenticated') return
     if (searchParams.get('showPricing') !== '1') return
+    if (!session?.accessToken) return
 
-    // Free tier kullanıcılara göster (Pro/Enterprise zaten ödedi)
-    // Subscription bilgisi yoksa göster — fetch maliyetli, basit tut
-    const timer = setTimeout(() => setOpen(true), 600)
-    return () => clearTimeout(timer)
-  }, [status, searchParams])
+    // Kullanıcının mevcut planını çek — herkese modal göster ama aktif planı vurgula
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/subscription/me`, {
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: SubscriptionInfo | null) => {
+        if (data?.tier) setCurrentTier(data.tier)
+      })
+      .catch(() => {
+        // Hata durumunda Free varsay
+      })
+      .finally(() => {
+        const timer = setTimeout(() => setOpen(true), 600)
+        // cleanup için timer'ı kaydet — finally içinde doğrudan dönüş yok
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(window as any).__pricingTriggerTimer = timer
+      })
+
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      clearTimeout((window as any).__pricingTriggerTimer)
+    }
+  }, [status, searchParams, session?.accessToken])
 
   const handleClose = () => {
     setOpen(false)
@@ -43,6 +70,7 @@ export function PostLoginPricingTrigger() {
       open={open}
       onClose={handleClose}
       trigger="login"
+      currentTier={currentTier}
     />
   )
 }
