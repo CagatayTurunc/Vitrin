@@ -217,12 +217,23 @@ jobs:
         id: should_build
         run: |
           CHANGED="${{ needs.check-deploy.outputs.changed_services }}"
-          if echo "$CHANGED" | grep -q "\b${{ matrix.service.name }}\b"; then
+          SVC="${{ matrix.service.name }}"
+          # Virgülle ayrılmış listeyi split edip tam eşleşme kontrolü yap
+          # \b bash'te çalışmaz — IFS split ile güvenli kontrol
+          FOUND=false
+          IFS=',' read -ra LIST <<< "$CHANGED"
+          for item in "${LIST[@]}"; do
+            if [ "$item" = "$SVC" ]; then
+              FOUND=true
+              break
+            fi
+          done
+          if [ "$FOUND" = "true" ]; then
             echo "build=true" >> $GITHUB_OUTPUT
-            echo "✅ ${{ matrix.service.name }} build edilecek"
+            echo "✅ $SVC build edilecek"
           else
             echo "build=false" >> $GITHUB_OUTPUT
-            echo "⏭️ ${{ matrix.service.name }} atlanıyor (değişiklik yok)"
+            echo "⏭️ $SVC atlanıyor (değişiklik yok)"
           fi
 
       - name: Image tag hesapla (commit SHA kısa)
@@ -432,7 +443,13 @@ jobs:
             # ── Yardımcı fonksiyonlar ────────────────────────────────────
             # Bir servis changed_services listesinde var mı?
             should_deploy_service() {
-              echo "$CHANGED_SERVICES" | grep -qw "$1"
+              local svc=$1
+              local found=false
+              IFS=',' read -ra LIST <<< "$CHANGED_SERVICES"
+              for item in "${LIST[@]}"; do
+                [ "$item" = "$svc" ] && found=true && break
+              done
+              [ "$found" = "true" ]
             }
 
             # Image pull (sadece değişen servis)
