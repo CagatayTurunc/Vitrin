@@ -11,12 +11,18 @@ import { useSession } from "next-auth/react";
 import { FollowersModal } from "@/components/followers-modal";
 import { ReportDialog } from "@/components/report-dialog";
 import type { UserProfile } from "@/core/domain/user.types";
+import { useSubscription } from "@/hooks/use-subscription";
+import { SubscriptionBadge, getAvatarRingProps } from "@/components/subscription-badge";
 
 export default function ProfilePage() {
   const params = useParams();
   const username = params.username as string;
 
   const { data: session } = useSession();
+  // Sadece kendi profilini görüntülerken subscription bilgisi çek
+  const isOwnProfile = session?.user?.username === username;
+  const { tier } = useSubscription();
+  const { ringClass, ringStyle, glowClass } = getAvatarRingProps(isOwnProfile ? tier : 'Free');
   const [user, setUser] = useState<UserProfile | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -156,7 +162,10 @@ export default function ProfilePage() {
         {/* Dekoratif Arka Plan */}
         <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
         
-        <div className="relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/60 text-4xl font-bold text-white shadow-lg ring-4 ring-background overflow-hidden">
+        <div
+          className={`relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/60 text-4xl font-bold text-white shadow-lg ring-4 ring-background overflow-hidden ${ringClass} ${glowClass}`}
+          style={ringStyle}
+        >
           {user.avatarUrl ? (
             <Image src={user.avatarUrl} alt={user.username} width={112} height={112} className="object-cover w-full h-full" />
           ) : (
@@ -221,6 +230,7 @@ export default function ProfilePage() {
 
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 pt-2">
             {getRoleBadge(user.role)}
+            {isOwnProfile && <SubscriptionBadge tier={tier} size="md" />}
             
             <div className="flex items-center gap-3 text-sm font-medium">
               <button onClick={() => setIsFollowersModalOpen(true)} className="hover:underline focus:outline-none">

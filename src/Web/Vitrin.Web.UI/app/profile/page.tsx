@@ -12,6 +12,8 @@ import Link from 'next/link';
 import { FollowersModal } from '@/components/followers-modal';
 import Image from 'next/image';
 import type { UserProfile } from '@/core/domain/user.types';
+import { useSubscription } from '@/hooks/use-subscription';
+import { SubscriptionBadge, PlanBanner, getAvatarRingProps } from '@/components/subscription-badge';
 
 function getRoleString(role: unknown): string {
   if (role === 0) return 'Member';
@@ -24,6 +26,7 @@ export default function ProfilePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'my-products' | 'upvoted'>('my-products');
+  const { tier, isActive } = useSubscription();
   
   const { makerProducts, upvotedProducts, fetchMakerProducts, fetchUpvotedProducts, isLoading } = useProductStore();
   const [profileData, setProfileData] = useState<UserProfile | null>(null);
@@ -74,6 +77,9 @@ export default function ProfilePage() {
   // Avatar baş harfi
   const initials = user.name ? user.name.substring(0, 2).toUpperCase() : user.email?.substring(0, 2).toUpperCase();
 
+  // Subscription avatar ring
+  const { ringClass, ringStyle, glowClass } = getAvatarRingProps(tier);
+
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Profil Header Kutusu */}
@@ -82,7 +88,10 @@ export default function ProfilePage() {
           <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
             {/* Avatar */}
             <div className="shrink-0 relative">
-              <div className="h-32 w-32 rounded-full border-4 border-background bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-white text-4xl font-bold shadow-2xl overflow-hidden">
+              <div
+                className={`h-32 w-32 rounded-full border-4 border-background bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-white text-4xl font-bold shadow-2xl overflow-hidden ${ringClass} ${glowClass}`}
+                style={ringStyle}
+              >
                 {avatarUrl ? (
                   <Image src={avatarUrl} alt={user.name ?? user.username ?? 'Profil'} fill sizes="128px" className="object-cover" />
                 ) : (
@@ -102,10 +111,11 @@ export default function ProfilePage() {
                 <h1 className="text-3xl font-extrabold text-foreground">
                   {profileData?.fullName || profileData?.username || user.name || user.username || user.email || 'İsimsiz Kullanıcı'}
                 </h1>
-                <div className="flex gap-2 justify-center md:justify-start">
+                <div className="flex gap-2 justify-center md:justify-start flex-wrap">
                   <Badge variant={isMaker ? "default" : "secondary"} className={isMaker ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20" : ""}>
                     {currentRole}
                   </Badge>
+                  <SubscriptionBadge tier={tier} size="md" />
                 </div>
               </div>
               
@@ -178,6 +188,13 @@ export default function ProfilePage() {
               </Button>
             </div>
           </div>
+
+          {/* Plan Banner — sadece Pro/Enterprise üyelere */}
+          {tier !== 'Free' && isActive && (
+            <div className="mt-6">
+              <PlanBanner tier={tier} isActive={isActive} />
+            </div>
+          )}
         </div>
       </div>
 
