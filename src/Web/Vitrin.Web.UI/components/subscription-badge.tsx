@@ -57,9 +57,9 @@ export function SubscriptionBadge({
   size = 'md',
   className = '',
 }: SubscriptionBadgeProps) {
-  if (tier === 'Free') return null
+  if (!tier || tier === 'Free') return null
 
-  const config = TIER_CONFIG[tier]
+  const config = TIER_CONFIG[tier] ?? TIER_CONFIG['Free']
   const Icon = config.icon
 
   const sizeClasses = {
@@ -88,7 +88,7 @@ export function SubscriptionBadge({
 // Gerçek avatar wrapper'ına uygulanacak sınıf + inline style döner
 
 export function getAvatarRingProps(tier: SubscriptionTier) {
-  const config = TIER_CONFIG[tier]
+  const config = TIER_CONFIG[tier] ?? TIER_CONFIG['Free']
   return {
     ringClass: config.avatarRingClass,
     ringStyle: config.avatarRingInlineStyle,

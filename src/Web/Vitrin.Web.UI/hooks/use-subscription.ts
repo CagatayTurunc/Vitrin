@@ -77,7 +77,9 @@ export function useSubscription() {
       .finally(() => setLoading(false))
   }, [session?.accessToken, status])
 
-  const tier = subscription?.tier ?? 'Free'
+  const VALID_TIERS: SubscriptionTier[] = ['Free', 'Pro', 'Enterprise']
+  const rawTier = subscription?.tier ?? 'Free'
+  const tier: SubscriptionTier = VALID_TIERS.includes(rawTier) ? rawTier : 'Free'
   const isPro = tier === 'Pro'
   const isEnterprise = tier === 'Enterprise'
   const isPremium = isPro || isEnterprise

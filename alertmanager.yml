@@ -1,6 +1,7 @@
 global:
   smtp_smarthost: 'localhost:587'
   smtp_from: 'alerts@vitrin.com'
+  slack_api_url: 'YOUR_SLACK_WEBHOOK_URL_HERE'  # .env'deki SLACK_WEBHOOK_URL ile override edin
 
 # Routing rules
 route:

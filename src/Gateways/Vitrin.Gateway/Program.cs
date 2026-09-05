@@ -2,12 +2,21 @@ using StackExchange.Redis;
 using Vitrin.Gateway.Resilience;
 using Vitrin.Shared.Infrastructure.Auth;
 using Vitrin.Shared.Infrastructure.Api;
+using Vitrin.Shared.Infrastructure.Observability;
 using Yarp.ReverseProxy.Forwarder;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ── Observability: Serilog + OpenTelemetry + Prometheus ───────────────────
+// Gateway tüm gelen trafiğin ilk durağı — buradaki metrics ve traces kritik:
+//   - Rate limiting kararları (429 oranları)
+//   - Token blacklist kontrolleri
+//   - Circuit breaker durumları
+//   - Upstream servis yanıt süreleri
+builder.Services.AddVitrinObservability(builder.Configuration, builder.Environment, "Gateway");
+
 builder.Services.AddVitrinJwtAuthentication(builder.Configuration);
-builder.Services.AddHealthChecks();
+builder.Services.AddVitrinHealthChecks(builder.Configuration);
 builder.Services.AddVitrinApiErrors();
 builder.Services.AddVitrinRateLimiting();
 
@@ -121,6 +130,11 @@ app.UseAuthorization();
 // Dışarıya sadece {"status":"healthy"} döner — DB bağlantı string'i veya servis URL'si sızdırmaz.
 // /health/detail endpoint'i sadece iç ağdan erişilebilir (nginx 403 döndürür).
 app.UseVitrinHealthChecks();
+
+// Prometheus scrape endpoint — Prometheus bu adresten gateway metriklerini çeker.
+// Prometheus config'de vitrin-gateway:8080/metrics zaten tanımlı.
+app.UseOpenTelemetryPrometheusScrapingEndpoint();
+
 app.MapGet("/", () => "Vitrin API Gateway is running! (YARP)");
 
 // Gelen istekleri ilgili mikroservislere yönlendirecek olan YARP Middleware'i

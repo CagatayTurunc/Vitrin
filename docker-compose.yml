@@ -627,6 +627,10 @@ services:
       Jwt__Audience: Vitrin
       # REDIS_PASSWORD tanÄ±mlÄ±ysa ÅŸifreli baÄŸlantÄ± kullan
       ConnectionStrings__Redis: "${REDIS_PASSWORD:+redis:6379,password=${REDIS_PASSWORD}}${REDIS_PASSWORD:-redis:6379}"
+      # Observability
+      ConnectionStrings__Elasticsearch: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+      OpenTelemetry__OtlpEndpoint: http://jaeger:4317
+      Serilog__MinimumLevel: ${LOG_LEVEL:-Information}
     networks:
       - vitrin-network
     healthcheck:
