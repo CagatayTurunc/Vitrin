@@ -31,12 +31,14 @@ export function PostLoginPricingTrigger() {
     if (!session?.accessToken) return
 
     // Kullanıcının mevcut planını çek — herkese modal göster ama aktif planı vurgula
+    const VALID_TIERS: SubscriptionTier[] = ['Free', 'Pro', 'Enterprise']
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/subscription/me`, {
       headers: { Authorization: `Bearer ${session.accessToken}` },
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((data: SubscriptionInfo | null) => {
-        if (data?.tier) setCurrentTier(data.tier)
+        const tier = data?.tier
+        if (tier && VALID_TIERS.includes(tier)) setCurrentTier(tier)
       })
       .catch(() => {
         // Hata durumunda Free varsay

@@ -13,6 +13,7 @@ import { FollowersModal } from '@/components/followers-modal';
 import Image from 'next/image';
 import type { UserProfile } from '@/core/domain/user.types';
 import { useSubscription } from '@/hooks/use-subscription';
+import type { SubscriptionTier } from '@/hooks/use-subscription';
 import { SubscriptionBadge, PlanBanner, getAvatarRingProps } from '@/components/subscription-badge';
 
 function getRoleString(role: unknown): string {
@@ -77,8 +78,10 @@ export default function ProfilePage() {
   // Avatar baş harfi
   const initials = user.name ? user.name.substring(0, 2).toUpperCase() : user.email?.substring(0, 2).toUpperCase();
 
-  // Subscription avatar ring
-  const { ringClass, ringStyle, glowClass } = getAvatarRingProps(tier);
+  // Subscription avatar ring — Admin rolü Enterprise görünümü alır
+  const isAdmin = currentRole === 'Admin'
+  const effectiveTier: SubscriptionTier = isAdmin && tier === 'Free' ? 'Enterprise' : tier
+  const { ringClass, ringStyle, glowClass } = getAvatarRingProps(effectiveTier);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -115,7 +118,7 @@ export default function ProfilePage() {
                   <Badge variant={isMaker ? "default" : "secondary"} className={isMaker ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20" : ""}>
                     {currentRole}
                   </Badge>
-                  <SubscriptionBadge tier={tier} size="md" />
+                  <SubscriptionBadge tier={effectiveTier} size="md" />
                 </div>
               </div>
               
@@ -190,9 +193,9 @@ export default function ProfilePage() {
           </div>
 
           {/* Plan Banner — sadece Pro/Enterprise üyelere */}
-          {tier !== 'Free' && isActive && (
+          {effectiveTier !== 'Free' && (isActive || isAdmin) && (
             <div className="mt-6">
-              <PlanBanner tier={tier} isActive={isActive} />
+              <PlanBanner tier={effectiveTier} isActive={true} />
             </div>
           )}
         </div>

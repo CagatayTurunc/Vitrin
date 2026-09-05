@@ -166,7 +166,11 @@ export function PricingModal({ open, onClose, trigger = 'manual', currentTier = 
       Enterprise: { title: 'Planını Yönet', sub: 'Mevcut planın: Enterprise. En yüksek plandaki avantajlar senin.' },
     },
   }
-  const heading = headingMap[trigger][currentTier]
+  const VALID_HEADING_TIERS = ['Free', 'Pro', 'Enterprise'] as const
+  const safeTier = (VALID_HEADING_TIERS as readonly string[]).includes(currentTier)
+    ? (currentTier as typeof VALID_HEADING_TIERS[number])
+    : 'Free'
+  const heading = headingMap[trigger]?.[safeTier] ?? headingMap['manual']['Free']
 
   return (
     <div
