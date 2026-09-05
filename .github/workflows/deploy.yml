@@ -209,7 +209,11 @@ jobs:
           - name: web
             dockerfile: src/Web/Vitrin.Web.UI/Dockerfile
             context: src/Web/Vitrin.Web.UI
-            build_args: "NEXT_PUBLIC_API_URL=https://vitrin.it.com\nINTERNAL_API_URL=http://vitrin-gateway:8080\nNEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=oiyajlxf\nNEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=vitrin"
+            build_args: |
+              NEXT_PUBLIC_API_URL=https://vitrin.it.com
+              INTERNAL_API_URL=http://vitrin-gateway:8080
+              NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=oiyajlxf
+              NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=vitrin
     steps:
       - uses: actions/checkout@v4
 
