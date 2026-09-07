@@ -295,7 +295,7 @@ public static class SubscriptionEndpoints
 
             return Results.Ok(new
             {
-                Tier = (SubscriptionTier)(int)subscription.Tier,
+                Tier = MapTierToApiString((SubscriptionTier)(int)subscription.Tier),
                 Status = subscription.Status.ToString(), // Convert to string for API response
                 subscription.CurrentPeriodStart,
                 subscription.CurrentPeriodEnd,
@@ -685,6 +685,14 @@ public static class SubscriptionEndpoints
             });
         }).RequireAuthorization("Admin");
     }
+
+    private static string MapTierToApiString(SubscriptionTier tier) => tier switch
+    {
+        SubscriptionTier.Free => "Free",
+        SubscriptionTier.ProMaker => "Pro",   // Frontend 'Pro' bekliyor
+        SubscriptionTier.Enterprise => "Enterprise",
+        _ => "Free"
+    };
 
     private static object GetFeatures(SubscriptionTier tier)
     {

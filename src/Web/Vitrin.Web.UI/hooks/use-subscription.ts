@@ -79,7 +79,11 @@ export function useSubscription() {
 
   const VALID_TIERS: SubscriptionTier[] = ['Free', 'Pro', 'Enterprise']
   const rawTier = subscription?.tier ?? 'Free'
-  const tier: SubscriptionTier = VALID_TIERS.includes(rawTier) ? rawTier : 'Free'
+  // Backend 'ProMaker' gönderebilir — normalize et
+  const normalizedTier = (rawTier as string) === 'ProMaker' ? 'Pro' : rawTier
+  const tier: SubscriptionTier = VALID_TIERS.includes(normalizedTier as SubscriptionTier)
+    ? (normalizedTier as SubscriptionTier)
+    : 'Free'
   const isPro = tier === 'Pro'
   const isEnterprise = tier === 'Enterprise'
   const isPremium = isPro || isEnterprise
