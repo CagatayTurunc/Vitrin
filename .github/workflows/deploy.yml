@@ -436,6 +436,8 @@ jobs:
             update_env "IYZICO_BASE_URL"       "${{ secrets.IYZICO_BASE_URL }}"
             update_env "IYZICO_WEBHOOK_SECRET" "${{ secrets.IYZICO_WEBHOOK_SECRET }}"
             update_env "APP_BASE_URL"          "https://vitrin.it.com"
+            update_env "GOOGLE_CLIENT_ID"      "${{ secrets.GOOGLE_CLIENT_ID }}"
+            update_env "GOOGLE_CLIENT_SECRET"  "${{ secrets.GOOGLE_CLIENT_SECRET }}"
             echo "✅ .env iyzico key'leri güncellendi"
 
             # ── Rollback için mevcut image tag'lerini kaydet ──────────────
