@@ -118,15 +118,17 @@ export function ProfileSettingsForm({ initialData }: ProfileSettingsFormProps) {
           description: "Profiliniz başarıyla güncellendi.",
         });
         
-        if (formData.username !== initialData.username || formData.fullName !== initialData.fullName) {
+        if (formData.username !== initialData.username || formData.fullName !== initialData.fullName || formData.avatarUrl !== initialData.avatarUrl) {
           await update({
-            ...session,
             user: {
-              ...session?.user,
               name: formData.fullName,
-              username: formData.username
+              username: formData.username,
+              image: formData.avatarUrl || session?.user?.image,
             }
           });
+        } else {
+          // Diğer alanlar değişti — token reissue için yine update tetikle
+          await update({ user: { ...session?.user } });
         }
         
         router.refresh();

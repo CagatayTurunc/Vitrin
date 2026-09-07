@@ -128,6 +128,23 @@ app.MapPost("/api/auth/logout", async (HttpContext context, IJwtTokenBlacklist b
     return Results.Ok(new { Message = "Başarıyla çıkış yapıldı." });
 }).RequireAuthorization();
 
+// Profil güncellemesi sonrası taze JWT al (username/fullName değişince session'ı günceller)
+// Mevcut geçerli token ile çağrılır → DB'den güncel kullanıcıyı okur → yeni token döner
+app.MapPost("/api/auth/token/reissue", async (
+    HttpContext context,
+    Vitrin.Auth.Infrastructure.Data.AuthDbContext db,
+    Vitrin.Auth.Application.Interfaces.IJwtProvider jwtProvider) =>
+{
+    var userId = context.User.GetUserId();
+    if (userId is null) return Results.Unauthorized();
+
+    var user = await db.Users.FindAsync([userId.Value], context.RequestAborted);
+    if (user is null) return Results.Unauthorized();
+
+    var newToken = jwtProvider.Generate(user);
+    return Results.Ok(newToken);
+}).RequireAuthorization();
+
 app.MapPost("/api/account/confirm-email", async (
     [Microsoft.AspNetCore.Mvc.FromBody] EmailTokenRequest request,
     Vitrin.Auth.Application.Interfaces.IAccountActionTokenService tokenService,

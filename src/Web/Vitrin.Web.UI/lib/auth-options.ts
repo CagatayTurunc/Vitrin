@@ -108,6 +108,25 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user, account, trigger, session }) {
       if (trigger === "update" && session?.user) {
+        // Profil güncellemesi sonrası backend'den taze token al
+        // Bu sayede username/fullName değişikliği JWT'ye yansır
+        if (typeof token.accessToken === "string") {
+          try {
+            const response = await fetch(`${getApiUrl()}/api/auth/token/reissue`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token.accessToken}` },
+            });
+            if (response.ok) {
+              const freshToken: unknown = await response.json();
+              if (typeof freshToken === "string") {
+                token.accessToken = freshToken;
+              }
+            }
+          } catch {
+            // reissue başarısız olursa mevcut token ile devam et
+          }
+        }
+        // Optimistik güncelleme — reissue decode edilmeden önce UI'ı hemen günceller
         token.fullName = session.user.name ?? undefined;
         token.username = session.user.username;
         if (session.user.image !== undefined) token.image = session.user.image;
