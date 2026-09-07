@@ -438,7 +438,19 @@ jobs:
             update_env "APP_BASE_URL"          "https://vitrin.it.com"
             update_env "GOOGLE_CLIENT_ID"      "${{ secrets.GOOGLE_CLIENT_ID }}"
             update_env "GOOGLE_CLIENT_SECRET"  "${{ secrets.GOOGLE_CLIENT_SECRET }}"
-            echo "✅ .env iyzico key'leri güncellendi"
+            update_env "NEXTAUTH_URL"          "https://vitrin.it.com"
+            echo "✅ .env key'leri güncellendi"
+
+            # ── OAuth env kontrol ─────────────────────────────────────────
+            echo "=== OAuth env kontrol ==="
+            GOOGLE_ID_SET=$(grep "^GOOGLE_CLIENT_ID=" .env | cut -d= -f2)
+            if [ -z "$GOOGLE_ID_SET" ]; then
+              echo "⚠️  UYARI: GOOGLE_CLIENT_ID boş! GitHub Secrets'ta GOOGLE_CLIENT_ID tanımlı olmalı."
+            else
+              echo "✅ GOOGLE_CLIENT_ID set edilmiş (${#GOOGLE_ID_SET} karakter)"
+            fi
+            NEXTAUTH_URL_SET=$(grep "^NEXTAUTH_URL=" .env | cut -d= -f2)
+            echo "   NEXTAUTH_URL: $NEXTAUTH_URL_SET"
 
             # ── Rollback için mevcut image tag'lerini kaydet ──────────────
             echo "=== Mevcut image tag'leri kaydediliyor (rollback için) ==="
