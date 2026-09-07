@@ -66,3 +66,28 @@ export async function POST(
   if (!isNextAuthPath(nextauth)) return proxyToGateway(req);
   return handler(req, context as Parameters<typeof handler>[1]);
 }
+
+export async function PUT(
+  req: NextRequest,
+  context: { params: Promise<{ nextauth: string[] }> }
+) {
+  const { nextauth } = await context.params;
+  if (isNextAuthPath(nextauth)) {
+    // NextAuth PUT desteklemiyor — gateway'e proxy'le
+  }
+  return proxyToGateway(req);
+}
+
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ nextauth: string[] }> }
+) {
+  return proxyToGateway(req);
+}
+
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ nextauth: string[] }> }
+) {
+  return proxyToGateway(req);
+}
