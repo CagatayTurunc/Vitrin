@@ -730,6 +730,166 @@ Steps:
 
 ---
 
+---
+
+## 🗂️ IaaS / PaaS / SaaS Katman Haritası
+
+Bu bölüm Vitrin'in dış bağımlılıklarını servis modeline göre sınıflandırır.
+
+---
+
+### 🏗️ IaaS — Infrastructure as a Service
+
+> Sağlayıcı sanallaştırma ve donanımı yönetir; işletim sistemi, runtime ve uygulama konfigürasyonu **tamamen size aittir**.
+
+| Servis | Sağlayıcı | Ne Yönetilir | Aylık Maliyet |
+|---|---|---|---|
+| **AWS EC2** (t3.medium, 2 vCPU, 4 GB RAM) | Amazon Web Services | OS, Docker, Nginx, güvenlik yamaları | ~$30 |
+| **AWS EBS** (30 GB SSD) | Amazon Web Services | Disk bölümleme, I/O | ~$2.40 |
+
+Bu iki kaynağın üzerinde koşan her şey (PostgreSQL, Redis, Kafka, Nginx, uygulama servisleri) **self-managed**'dır; PaaS veya SaaS değildir.
+
+---
+
+### ☁️ PaaS — Platform as a Service
+
+> Altyapıyı siz yönetmezsiniz; konfigürasyon veya API anahtarı yeter.
+
+| Servis | Amaç | Neden PaaS | Maliyet |
+|---|---|---|---|
+| **GitHub Actions** | CI/CD pipeline | Runner pool, kuyruk, paralel build yönetimi sağlayıcıda | $0 |
+| **GitHub Container Registry (GHCR)** | Container image deposu | Registry altyapısı tamamen GitHub'da | $0 |
+| **Cloudflare Free** | CDN + DDoS + SSL + WAF | 200+ PoP, anycast routing, edge network şeffaf | $0 |
+| **Resend** | Transactional email | SMTP yönetimi, IP reputation, deliverability katmanı | $0 |
+| **Cloudinary** | Görsel CDN + dönüştürme | WebP/AVIF optimizasyonu, responsive srcset, CDN dağıtımı | $0 |
+| **Google Gemini API** | AI / LLM | GPU cluster, model sunumu ve ölçekleme sağlayıcıda | $0 |
+| **OAuth (Google, GitHub)** | Sosyal kimlik doğrulama | Token altyapısı, oturum yaşam döngüsü sağlayıcıda | $0 |
+
+**Strateji:** Vitrin bu modeli "**Selective PaaS (Level 2.5)**" olarak tanımlar.  
+Commodity servisler → PaaS al (email, CDN, AI).  
+Kritik ve pahalı servisler → self-host et (DB, Kafka, Redis).
+
+---
+
+### 💻 SaaS — Software as a Service
+
+> Yazılım tamamen hazır; altyapıya veya platforma hiç dokunulmaz.
+
+| Servis | Kullanım |
+|---|---|
+| **Vercel Analytics** | Frontend Web Vitals (SDK dahil etmek yeterli) |
+| **GitHub (platform)** | Repo, Issues, Security tab (SARIF), Packages |
+| **Google / GitHub Identity** | Kullanıcı Google/GitHub hesabıyla giriş yapar; token alınır |
+| **Namecheap / DNS kayıt** | Domain tescili |
+
+> SaaS ile PaaS arasındaki sınır bazı servislerde (OAuth) gri olabilir. OAuth kullanım biçimine göre her iki kategoride de değerlendirilebilir; burada son kullanıcıya sunulan hazır kimlik akışı nedeniyle SaaS olarak listelenmiştir.
+
+---
+
+### 💳 Ödeme ve Abonelik Altyapısı (SaaS / Hybrid PaaS)
+
+Vitrin, **freemium iş modeli** üzerine kurulu bir abonelik sistemi işletir. Ödeme akışı harici SaaS sağlayıcılar üzerinden yürür; abonelik durumu ve iş mantığı tamamen self-hosted backend'de tutulur.
+
+#### Plan Yapısı
+
+| Plan | Fiyat | Temel Fark |
+|---|---|---|
+| **Free** | ₺0/ay | 5 ürün, 5 AI analiz/gün, 7 gün analitik |
+| **Pro Maker** | ₺299/ay | Sınırsız ürün, 🏆 badge, 90 gün analitik, zamanlanmış launch |
+| **Enterprise** | ₺999/ay | 💎 badge, A/B test, webhook, API erişimi, anasayfa öne çıkarma |
+
+#### Ödeme Altyapısı
+
+| Servis | Rol | Model |
+|---|---|---|
+| **İyzico** | Türkiye ödeme gateway'i | SaaS — 3D Secure, kredi kartı, banka kartı, havale; kart verisi asla sunucuya gelmez |
+| **İyzico Hosted Checkout** | Ödeme sayfası | SaaS — PCI-DSS uyumlu, sunucu tarafında doğrulama ile |
+
+#### Abonelik Akışı
+
+```
+[Kullanıcı] → "Pro'ya Geç" →
+[Auth Service: POST /api/subscription/checkout] →
+[İyzico: Checkout Session oluştur] →
+[İyzico Hosted Page: 3D Secure] →
+[İyzico → POST /api/subscription/callback] →
+[Auth Service: Subscription.Upgrade()] →
+[Kafka: subscription.upgraded event] →
+[Product Service: maker tier güncelle]
+```
+
+#### Self-Hosted Abonelik Bileşenleri
+
+Ödeme gateway SaaS olsa da abonelik iş mantığı **tamamen self-hosted** EC2 üzerindedir:
+
+```
+vitrin_auth PostgreSQL
+  ├── Subscriptions       — Tier, Status, billing cycle, İyzico referansları
+  └── PaymentHistories    — Audit trail (KVKK: 7 yıl saklama)
+
+Auth Service Workers
+  └── RecurringPaymentWorker  — Aylık yenileme kontrolü, başarısız ödeme retry
+```
+
+#### HTTP 402 — Feature Gating
+
+Premium özellikler middleware katmanında denetlenir. Tier yetersizse:
+
+```json
+{
+  "status": 402,
+  "title": "Subscription upgrade required",
+  "detail": "This feature requires ProMaker plan or higher.",
+  "extensions": { "requiredTier": "ProMaker" }
+}
+```
+
+---
+
+### 🏠 Self-Hosted (IaaS üzerinde çalışan servisler)
+
+EC2 üzerinde kendi yönettiğiniz bileşenler — "kendinizin PaaS'ı":
+
+| Bileşen | Yönetilen Alternatif | Aylık Tasarruf |
+|---|---|---|
+| PostgreSQL (Docker) | AWS RDS | ~$40 |
+| Redis (Docker) | AWS ElastiCache | ~$20 |
+| Kafka + Zookeeper (Docker) | AWS MSK | ~$200 |
+| Prometheus + Grafana (Docker) | Datadog | ~$100 |
+| Elasticsearch + Kibana (Docker) | Elastic Cloud | ~$50 |
+| Nginx (reverse proxy) | AWS ALB | ~$16 |
+| Jaeger (distributed tracing) | Honeycomb / Tempo Cloud | ~$30 |
+| **Toplam tasarruf** | | **~$456/ay** |
+
+---
+
+### 📐 Katman Özet Diyagramı
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  SaaS                                                          │
+│  Vercel Analytics │ GitHub platform │ İyzico Hosted Checkout   │
+│  Google/GitHub Identity (son kullanıcı için) │ Namecheap DNS   │
+└────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│  PaaS                                                          │
+│  GitHub Actions │ GHCR │ Cloudflare │ Resend                   │
+│  Cloudinary │ Google Gemini API │ OAuth Providers              │
+└────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│  IaaS                                                          │
+│  AWS EC2 (t3.medium) │ AWS EBS (30 GB)                         │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Self-Hosted on IaaS                                     │  │
+│  │  PostgreSQL │ Redis │ Kafka │ Nginx │ YARP Gateway        │  │
+│  │  Prometheus │ Grafana │ Jaeger │ Elasticsearch │ Kibana   │  │
+│  │  Auth + Subscription + PaymentHistory (İyzico backend)   │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## 🎯 Conclusion
 
 Vitrin's cloud architecture demonstrates **strategic pragmatism**:

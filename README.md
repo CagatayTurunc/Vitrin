@@ -23,7 +23,7 @@ Bu repo yalnızca çalışan bir uygulama değil; servis sınırları, veri sahi
 
 | Bileşen | Sorumluluk | Teknoloji |
 |---|---|---|
-| Auth | Kimlik, profil, roller, takip, rozetler, KVKK | .NET 8, PostgreSQL, Redis, Kafka |
+| Auth | Kimlik, profil, roller, takip, rozetler, KVKK, **abonelik & ödeme (İyzico)** | .NET 8, PostgreSQL, Redis, Kafka |
 | Product | Ürün kataloğu, topic, launch akışı, koleksiyonlar | .NET 8, PostgreSQL, Kafka |
 | Voting | Oyların tek yazma otoritesi (authoritative write) | .NET 8, SQLite, Kafka |
 | Comment | Yorum, cevap, tepkiler, moderasyon | .NET 8, PostgreSQL, Kafka |
@@ -61,7 +61,9 @@ Vitrin, **selective PaaS** yaklaşımı ile maliyet-performans dengesini optimiz
 | **Image CDN** | Cloudinary Free Tier | PaaS (Free) | $0 |
 | **AI/LLM** | Google Gemini API | PaaS (Free) | $0 |
 | **OAuth** | Google/GitHub OAuth 2.0 | PaaS (Free) | $0 |
-| **Analytics** | Vercel Analytics | PaaS (Free) | $0 |
+| **Analytics** | Vercel Analytics | SaaS (Free) | $0 |
+| **Ödeme Gateway** | İyzico (Türkiye) | SaaS | Komisyon bazlı |
+| **Abonelik Yönetimi** | Auth Service (self-hosted) | Self-managed | $0 |
 | **Total** | | | **~$30/ay** |
 
 #### Multi-Layer Security Architecture
@@ -102,6 +104,9 @@ Vitrin, **selective PaaS** yaklaşımı ile maliyet-performans dengesini optimiz
 | **Cloudflare (CDN/DDoS)** | Global edge network, unmetered DDoS protection, free SSL, Web Application Firewall |
 | **GitHub Actions (CI/CD)** | Zero maintenance, built-in secrets management, matrix builds, extensive ecosystem |
 | **Gemini AI (LLM)** | No model training/hosting, auto-scaling, API simplicity, free tier sufficient |
+| **İyzico (Payment)** | PCI-DSS uyumlu hosted checkout — kart verisi sunucuya hiç gelmez, Türkiye 3D Secure desteği |
+
+> **IaaS / PaaS / SaaS tam katman haritası için:** [→ CLOUD-ARCHITECTURE.md — IaaS/PaaS/SaaS Katman Haritası](docs/CLOUD-ARCHITECTURE.md#-iaas--paas--saas-katman-haritası)
 
 #### CI/CD Pipeline Architecture
 
@@ -404,7 +409,9 @@ observability/           Prometheus, Grafana, Jaeger konfigürasyonları
 | Belge | İçerik |
 |---|---|
 | [SYSTEM-DESIGN.md](docs/SYSTEM-DESIGN.md) | Tüm sistem tasarım kararları, pattern'ler, mevcut/eksik özellikler |
-| **[CLOUD-ARCHITECTURE.md](docs/CLOUD-ARCHITECTURE.md)** | **Cloud & PaaS stratejisi, maliyet analizi, deployment mimarisi** |
+| **[CLOUD-ARCHITECTURE.md](docs/CLOUD-ARCHITECTURE.md)** | **Cloud & PaaS stratejisi, IaaS/PaaS/SaaS katman haritası, maliyet analizi** |
+| **[SUBSCRIPTION-SYSTEM-DESIGN.md](docs/SUBSCRIPTION-SYSTEM-DESIGN.md)** | **Freemium iş modeli, abonelik tier'ları, İyzico ödeme entegrasyonu** |
+| **[PAYMENT-INTEGRATION-COMPLETED.md](docs/PAYMENT-INTEGRATION-COMPLETED.md)** | **Ödeme sistemi uygulama detayları ve test kılavuzu** |
 | [event-catalog.md](docs/event-catalog.md) | Kafka topic, producer ve consumer matrisi |
 | [testing-strategy.md](docs/testing-strategy.md) | Test piramidi ve kalite kapıları |
 | [SECURITY-CHECKLIST.md](docs/SECURITY-CHECKLIST.md) | Güvenlik kontrol listesi ve uygulananlar |
@@ -427,6 +434,20 @@ observability/           Prometheus, Grafana, Jaeger konfigürasyonları
 | Batch Processing (analytics aggregation, outbox/inbox cleanup) | ✅ |
 | Container Image Scan (Trivy) + SBOM (Syft) | ✅ |
 | Swagger JWT auth + API info (tüm servisler) | ✅ |
+
+**Aşama 6 — Freemium & Ödeme Altyapısı (✅ Tamamlandı)**
+
+| Özellik | Durum |
+|---|---|
+| Subscription entity + PaymentHistory (Auth Service, PostgreSQL) | ✅ |
+| İyzico ödeme gateway entegrasyonu (3D Secure, sandbox hazır) | ✅ |
+| Subscription endpoints (`/checkout`, `/callback`, `/me`, `/cancel`) | ✅ |
+| Free / Pro Maker (₺299/ay) / Enterprise (₺999/ay) tier yapısı | ✅ |
+| Feature gating middleware (HTTP 402, `RequireSubscription` attribute) | ✅ |
+| `ISubscriptionQuotaService` (ürün limiti, AI kotası, koleksiyon) | ✅ |
+| Discount codes migration (PostgreSQL) | ✅ |
+| Subscription badge UI (`subscription-badge.tsx`) | ✅ |
+| Database migration (`AddDiscountCodes` + Subscription/PaymentHistory) | ✅ |
 
 Önceki aşamalarda tamamlananlar: Observability (Aşama 4), Test mimarisi (Aşama 3), Event-driven mimari (Aşama 2), Güvenlik/doğruluk (Aşama 1), Repo hijyeni (Aşama 0).
 
